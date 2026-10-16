@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android port skeleton under `android/` (SPEC, Gradle modules, project/reader/notes/annotations/pen/OCR/agent) with unit tests; desktop builds ignore `android/`. / 新增安卓移植骨架（SPEC、Gradle 模块、项目/阅读/笔记/标注/笔迹/OCR/Agent）并附单测；桌面构建忽略 `android/`。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。
