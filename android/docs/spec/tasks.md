@@ -1,0 +1,81 @@
+# pagenote Android 端任务拆解
+
+> 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
+> 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
+
+# Implementation Plan
+
+- [ ] 1. 跨端契约与测试夹具
+  - 在 `android/docs/spec/contracts/` 落 `project.schema.json`、`annotations.schema.json`、`ai-reviews.schema.json`、`prepared-manifest.schema.json`、分页与 revision 示例。
+  - 在 `android/shared-tests/` 放桌面语义回归夹具：分页、空页、assets、revision 冲突、标注、准备缓存。
+  - _Requirement: 项目与数据兼容，构建与测试_
+
+- [ ] 2. 安卓工程骨架与构建隔离
+  - 新建 Gradle 工程与 `app/core-project/core-reader/feature-notes/feature-annotations/feature-pen/feature-ocr/agent/shared-tests` 模块。
+  - 接本地 SDK 与 Gradle Wrapper，`assembleDebug` 可出可安装产物。
+  - 桌面构建忽略 `android/`，安卓构建只认 `android/`；验证互不干扰。
+  - _Requirement: 构建与测试，约束与非功能_
+
+- [ ] 3. 项目管理与分页笔记
+  - 实现项目新建、打开、保存、assets 导入导出、原子写。
+  - 实现 `splitPageNotes` 同语义分页与合并，空页占位。
+  - 实现整页 SHA-256 revision、`expectedRevision` 冲突拒绝、按页历史与恢复。
+  - _Requirement: 项目与数据兼容，阅读与笔记_
+
+- [ ] 4. 阅读器与双栏自适应
+  - PDF 按页渲染、原生文字与文字块抽取、整页 PNG。
+  - 手机竖屏上下页，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
+  - Markdown 源文档阅读。
+  - _Requirement: 阅读与笔记，布局与适配_
+
+- [ ] 5. 笔记渲染与轻量编辑
+  - GFM、公式、代码高亮、Mermaid 成功与失败态、表格、图片。
+  - 轻量开源 Markdown 编辑适配，不自研编辑器。
+  - 超长页截断与按需读取，不一次全量装入。
+  - _Requirement: 阅读与笔记_
+
+- [ ] 6. 标注与 AI 标注工作台
+  - 文字选区标注、区域框选标注、标注列表、删除。
+  - AI 标注创建、改写、状态流转，成功改写后才能 `applied`。
+  - 交接读写与 stale 判定。
+  - _Requirement: 标注_
+
+- [ ] 7. 手写笔迹
+  - 自绘笔迹层、压感、荧光笔、橡皮、撤销、按页清除。
+  - 笔迹按页存取，格式对齐桌面 `annotations.json`。
+  - 主动笔与被动笔、边缘、断触、误触抑制真机验证。
+  - _Requirement: 笔迹，布局与适配_
+
+- [ ] 8. 页面准备管线
+  - 原生文字、文字块、整页与区域 PNG、Markdown 表格抽取。
+  - 缓存键、manifest、坐标 1000x1000、区域保留整页图、原文变化失效、刷新重试。
+  - _Requirement: 页面准备与 OCR_
+
+- [ ] 9. 离线 OCR
+  - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
+  - 触发规则、超时处理、失败明确标记、飞行模式可用。
+  - _Requirement: 页面准备与 OCR_
+
+- [ ] 10. 端侧 Agent 与 OpenAI 兼容接入
+  - OpenAI 兼容客户端，支持 BaseURL/Key/模型名配置，默认可配本地中转与指定模型。
+  - 任务循环、本地工具收敛集、多步上限、revision 冲突处理、实际完成范围报告。
+  - 提示词索引与按 revision 分批读，逐页独立请求加相邻源页。
+  - 密钥不落项目目录，未配置明确提示。
+  - _Requirement: Agent 与模型_
+
+- [ ] 11. 设置、语言、主题
+  - 主题、语言、双栏比例、动画开关持久化。
+  - 语言键语义复用桌面 `locales/catalog.json`。
+  - _Requirement: 布局与适配_
+
+- [ ] 12. 自动化与真机验收
+  - 契约回归、单元、集成、模型真接口（本地中转）测试。
+  - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
+  - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
+  - _Requirement: 构建与测试，全部 EARS_
+
+- [ ] 13. 分支、变更日志、PR 准备
+  - `codex/android-port` 基于 `beta`，PR 目标 `beta`。
+  - 每次推送附 `CHANGELOG.md` 未发布区条目。
+  - 安卓产物独立，不混入桌面 `release/`。
+  - _Requirement: 构建与测试_
