@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -24,7 +25,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLayout({ expandEditor: false }));
   await w
     .locator('#fileInput')
@@ -35,8 +36,9 @@ try {
     await window.pageNotes.open(s.document.id, 1);
   });
   assert.equal(await w.locator('.document-sheet').count(), 3);
-  await w.locator('[data-mode="edit"]').click();
-  await w.locator('#editor').fill('第一页尚未保存的笔记');
+  await w.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
+  await w.locator('#noteScroll').click({ position: { x: 40, y: 40 } });
+  await w.locator('#preview').fill('第一页尚未保存的笔记');
   const boundary = await w.evaluate(() => {
     const el = document.querySelector('#documentScroll'),
       s = [...document.querySelectorAll('.document-sheet')];
@@ -72,7 +74,7 @@ try {
   await w.waitForFunction(
     () => document.querySelector('#pageNumber').value === '2',
   );
-  await w.locator('#editor').fill('第二页自己的笔记');
+  await w.locator('#preview').fill('第二页自己的笔记');
   await w.evaluate((top) => {
     const el = document.querySelector('#documentScroll');
     el.dispatchEvent(new WheelEvent('wheel'));
