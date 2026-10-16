@@ -3,6 +3,7 @@ package io.pagenote.agent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -30,14 +31,14 @@ class OkHttpChatClient(
       val url = endpoint.baseUrl.trimEnd('/') + "/chat/completions"
       val payload = buildString {
         append("{\"model\":")
-        append(Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), endpoint.model))
+        append(Json.encodeToString(JsonPrimitive.serializer(), JsonPrimitive(endpoint.model)))
         append(",\"messages\":[")
         messages.forEachIndexed { index, message ->
           if (index > 0) append(",")
           append("{\"role\":")
-          append(Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), message["role"].orEmpty()))
+          append(Json.encodeToString(JsonPrimitive.serializer(), JsonPrimitive(message["role"].orEmpty())))
           append(",\"content\":")
-          append(Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), message["content"].orEmpty()))
+          append(Json.encodeToString(JsonPrimitive.serializer(), JsonPrimitive(message["content"].orEmpty())))
           append("}")
         }
         append("],\"max_tokens\":2048}")
