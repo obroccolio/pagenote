@@ -2,6 +2,11 @@
 
 ## Unreleased / 尚未发布
 
+## 1.0.0 — 2026-10-16 (macOS)
+
+- First stable release for macOS (Apple Silicon and Intel): native Finder/Dock/menus, Word/PowerPoint integration with revision-checked edits, offline Chinese/English OCR, page-linked notes and MCP bridge. / macOS 首个正式版（Apple Silicon 与 Intel）：原生 Finder/Dock/菜单、Word/PPT 接入与版本校验编辑、离线中英文 OCR、逐页笔记与 MCP 接口。
+- Ships DMG and ZIP for arm64 and x64 with SHA256 checksums. / 提供 arm64 与 x64 的 DMG 和 ZIP，附 SHA256 校验值。
+
 - Adapt the beta.5 release tooling for macOS: route desktop packaging through a cache-aware wrapper, add version-consistency checks to both release jobs, and keep Mac menus/packaging coverage. / 适配 beta.5 发布流程：打包走缓存脚本、两条发布流水线接入版本检查，保留 Mac 菜单与打包覆盖。
 
 ## 2.0.0-beta.5 — 2026-10-16
