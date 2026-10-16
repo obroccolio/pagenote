@@ -50,6 +50,25 @@ class AnnotationStoreTest {
   }
 
   @Test
+  fun deletePageOnlyRemovesTargetSideAndPage() {
+    val dir = Files.createTempDirectory("pagenote-annotations").toFile()
+    AnnotationStore.writePage(dir, "document", 1, itemsPayload())
+    AnnotationStore.writePage(dir, "note", 1, itemsPayload())
+    assertTrue(AnnotationStore.deletePage(dir, "document", 1))
+    val file = java.io.File(dir, "annotations.json")
+    assertEquals(JsonArray(emptyList()), AnnotationStore.readPage(file, "document", 1))
+    assertEquals(itemsPayload(), AnnotationStore.readPage(file, "note", 1))
+    assertFalse(AnnotationStore.deletePage(dir, "document", 1))
+  }
+
+  @Test
+  fun deletePageOnMissingFileIsNoop() {
+    val dir = Files.createTempDirectory("pagenote-annotations").toFile()
+    assertFalse(AnnotationStore.deletePage(dir, "document", 1))
+    assertFalse(java.io.File(dir, "annotations.json").exists())
+  }
+
+  @Test
   fun invalidItemsRejected() {
     val dir = Files.createTempDirectory("pagenote-annotations").toFile()
     val bad = json.parseToJsonElement("""[{"type":"pen","color":"red","width":2.0,"points":[[1,1]]}]""").jsonArray

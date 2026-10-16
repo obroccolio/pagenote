@@ -124,6 +124,25 @@ object AnnotationStore {
     return true
   }
 
+  /**
+   * Delete only one side/page, mirroring "delete annotation removes the item, not note text".
+   * Returns true when the file changed; missing file or missing page is a no-op (false).
+   */
+  fun deletePage(srcDir: File, side: String, page: Int): Boolean {
+    AnnotationValidation.validateSide(side)
+    AnnotationValidation.validatePage(page)
+    val file = File(srcDir, "annotations.json")
+    if (!file.exists()) return false
+    val current = read(file).toMutableMap()
+    val sidePages = current.getOrDefault(side, emptyMap()).toMutableMap()
+    if (!sidePages.containsKey(page)) return false
+    backup(file)
+    sidePages.remove(page)
+    current[side] = sidePages
+    atomicWrite(file, serialize(current))
+    return true
+  }
+
   private fun readSide(element: JsonElement?): Map<Int, JsonArray> {
     val side = (element as? JsonObject) ?: return emptyMap()
     val pages = mutableMapOf<Int, JsonArray>()
