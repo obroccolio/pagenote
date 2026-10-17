@@ -36,9 +36,9 @@
   - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
-- [ ] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；Mermaid 已在 API 35 AVD 完成真实离线 SVG 绘制与源码/网络隔离测试；预览语法诊断和代码跨度已由 JVM/API 35 AVD 验证，SAF 授权失败集成仍待补，真机交互待 task 12）
+- [ ] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；Mermaid 已在 API 35 AVD 完成真实离线 SVG 绘制与源码/网络隔离测试；预览语法诊断和代码跨度已由 JVM 及 API 34/35 AVD 验证，SAF 授权失败集成仍待补，真机交互待 task 12）
   - [x] 富块透出与附件图已落地：Mermaid 源码单次出现并保留状态，附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`，未知语言与失败态不丢源码；契约见 `features/note-rich-render.md`。
-  - [ ] 5.1 AVD 已验证 LaTeX drawable span、Prism 高亮 span，以及页笔记/Markdown 源预览中的本地化围栏和公式诊断；JVM 覆盖多行/多反引号代码跨度和公式闭合符屏蔽。实际公式像素绘制与无效渲染回退仍待验证，且源码须保留。
+  - [ ] 5.1 API 34/35 AVD 已验证 LaTeX drawable span、Prism 高亮 span，以及页笔记/Markdown 源预览中的本地化围栏和公式诊断；JVM 覆盖多行/多反引号代码跨度和公式闭合符屏蔽。实际公式像素绘制与无效渲染回退仍待验证，且源码须保留。
   - [ ] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；AVD 已验证缺图、损坏内联图片警告、解码期抛 I/O 的流仍显示 warning，以及 HTTP/HTTPS 不连接。SAF `ContentResolver` 查询/授权失败集成仍待覆盖；所有外链阻断独立于 Agent 联网权限。
   - [x] 5.3 Mermaid 围栏由 APK 内固定 Mermaid/DOMPurify renderer 离线绘制；隐藏 WebView 仅加载白名单 APK 资源，SVG 转原生 Drawable；空/错误/超长源码、并发、JSON 安全传递与无网络由 Pixel Tablet API 35 AVD 验证。全量 JVM、56 项 AVD 仪器测试、四 ABI 构建和 16 KB ELF/ZIP 检查通过；真机交互待 task 12。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
@@ -91,7 +91,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 35 AVD 全部 42 项 Android 仪器测试通过；4 KB 真机冷启动 smoke 通过，API 34/16 KB 运行时及真实功能矩阵仍待完成）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查，以及 Pixel Tablet API 34、API 35 AVD 各 59 项 Android 仪器测试全部通过；4 KB 真机冷启动 smoke 通过，16 KB 页面运行时及真实功能矩阵仍待完成）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -99,7 +99,7 @@
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-  - [x] Pixel Tablet API 35 AVD 最新完整运行 46 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
+  - [x] Pixel Tablet API 34 与 API 35 AVD 各运行 59 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
