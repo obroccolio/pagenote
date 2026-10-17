@@ -45,14 +45,27 @@ object AnnotationValidation {
     require(COLOR.matches(color)) { "bad annotation color" }
     val width = item["width"]?.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation width")
     require(width.isFinite() && width >= 0.1 && width <= 100.0) { "bad annotation width" }
-    val points = item["points"] as? JsonArray ?: throw IllegalArgumentException("bad annotation points")
-    require(points.size in 1..30000) { "bad annotation points" }
-    points.forEach { point ->
-      val pair = (point as? JsonArray) ?: throw IllegalArgumentException("bad annotation point")
-      require(pair.size == 2) { "bad annotation point" }
-      pair.forEach { axis ->
-        val value = axis.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation point")
-        require(value.isFinite() && kotlin.math.abs(value) <= 1_000_000.0) { "bad annotation point" }
+    if (type == "pen" || type == "highlight") {
+      val points = item["points"] as? JsonArray
+      val rect = item["rect"] as? JsonArray
+      if (points != null) {
+        require(points.size in 1..30000) { "bad annotation points" }
+        points.forEach { point ->
+          val pair = (point as? JsonArray) ?: throw IllegalArgumentException("bad annotation point")
+          require(pair.size == 2) { "bad annotation point" }
+          pair.forEach { axis ->
+            val value = axis.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation point")
+            require(value.isFinite() && kotlin.math.abs(value) <= 1_000_000.0) { "bad annotation point" }
+          }
+        }
+      } else if (rect != null) {
+        require(rect.size == 4) { "bad annotation rect" }
+        rect.forEach { axis ->
+          val value = axis.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation rect")
+          require(value.isFinite() && kotlin.math.abs(value) <= 1_000_000.0) { "bad annotation rect" }
+        }
+      } else {
+        throw IllegalArgumentException("bad annotation points")
       }
     }
     if (type == "text") {
