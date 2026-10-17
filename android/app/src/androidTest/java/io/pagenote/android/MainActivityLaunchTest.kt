@@ -2,6 +2,8 @@ package io.pagenote.android
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,17 +23,39 @@ class MainActivityLaunchTest {
   @Test
   fun localizedReaderHome_remainsAvailableAfterSettingsLoad() {
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("open_project").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("open_project").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
+  }
+
+  @Test
+  fun readerCommandsAreVisibleUnderDesktopMenuGroups() {
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag("reader_menu_group_file").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("reader_menu_group_file").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsEnabled()
+    composeRule.onNodeWithTag("reader_menu_group_ai_annotations").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_group_reading").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_group_settings").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_command_page_tutor")
+      .performScrollTo()
+      .assertIsDisplayed()
+      .assertIsNotEnabled()
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_project_required))
+    composeRule.onNodeWithTag("reader_menu_command_office_edit")
+      .performScrollTo()
+      .assertIsNotEnabled()
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_unavailable_reason))
   }
 
   @Test
   fun readerSettingsCanOpenOpenAiModelSettings() {
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("settings_action").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("reader_menu_command_settings_action").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("settings_action").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_settings_action").performScrollTo().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag("configure_agent_model").fetchSemanticsNodes().isNotEmpty()
     }

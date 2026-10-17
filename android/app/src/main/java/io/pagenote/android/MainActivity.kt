@@ -250,6 +250,8 @@ private fun ReaderHome(
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var isOpening by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
+  var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
+  var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
   var pageTutorInstruction by remember {
@@ -1221,47 +1223,362 @@ private fun ReaderHome(
     }
   }
 
-  Column(modifier = Modifier.fillMaxSize()) {
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(
-        text = project?.name ?: "pagenote",
-        modifier = Modifier.weight(1f),
-        style = MaterialTheme.typography.titleMedium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Button(
-        modifier = Modifier.testTag("open_project"),
-        onClick = {
+  val activeRenderer = renderer
+  val activeProject = project
+  val activeMarkdown = markdownSource
+  val totalPages = when {
+    activeProject == null -> 0
+    activeRenderer != null -> activeRenderer.pageCount
+    activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
+    else -> 0
+  }
+  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || failedPenSave != null ||
+    isOcrRunning || readerOcrState.inputLocked || isAgentRunning || isPageTutorRunning
+  val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
+  val busyReason = context.getString(R.string.reader_menu_busy)
+
+  fun commandReason(
+    requireProject: Boolean = false,
+    requirePdf: Boolean = false,
+    requireWritable: Boolean = false,
+    busy: Boolean = menuBusy,
+  ): String? = when {
+    busy -> busyReason
+    requireProject && activeProject == null -> context.getString(R.string.reader_menu_project_required)
+    requirePdf && isMarkdownReading -> context.getString(R.string.reader_menu_pdf_required)
+    requireWritable && !noteWritable -> context.getString(R.string.reader_menu_read_only)
+    else -> null
+  }
+
+  fun actionCommand(
+    id: String,
+    labelRes: Int,
+    enabled: Boolean,
+    disabledReason: String? = null,
+    onSelect: () -> Unit,
+  ) = ReaderMenuCommand(
+    id = id,
+    label = context.getString(labelRes),
+    enabled = enabled,
+    disabledReason = if (enabled) null else disabledReason ?: unavailableReason,
+    onSelect = onSelect,
+  )
+
+  fun pendingCommand(id: String, labelRes: Int) = actionCommand(
+    id = id,
+    labelRes = labelRes,
+    enabled = false,
+    disabledReason = unavailableReason,
+    onSelect = {},
+  )
+
+  fun menuSection(group: ReaderMenuGroup, labelRes: Int, commands: List<ReaderMenuCommand>) =
+    ReaderMenuSection(group, context.getString(labelRes), commands)
+
+  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving &&
+    failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked
+  val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
+  val canUsePdf = canReadDocument && !isMarkdownReading
+  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving &&
+    failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked
+  val canUsePen = canUsePdf && penWritable && !readerOcrState.inputLocked
+  val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
+    NoteHistoryMirror.directory(context.filesDir, it) != null
+  } == true
+  val menuSections = listOf(
+    menuSection(
+      ReaderMenuGroup.FILE,
+      R.string.reader_menu_group_file,
+      listOf(
+        actionCommand(
+          "open_project", R.string.open_project, canOpenProject,
+          disabledReason = commandReason(busy = !canOpenProject),
+        ) {
           scope.launch {
             if (hasUnsavedChanges && !saveCurrentNote()) return@launch
             projectPicker.launch(null)
           }
         },
-        enabled = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && failedPenSave == null &&
-          !isOcrRunning && !readerOcrState.inputLocked,
-      ) {
-        Text(stringResource(if (isOpening) R.string.opening_project else R.string.open_project))
-      }
-      TextButton(
-        modifier = Modifier.testTag("new_project"),
-        onClick = { showNewProject = true },
-        enabled = !isOpening && !isCreatingProject && !isSaving && !isPenSaving &&
-          !isOcrRunning && !readerOcrState.inputLocked,
-      ) {
-        Text(stringResource(R.string.new_project))
-      }
-      TextButton(
-        modifier = Modifier.testTag("settings_action"),
-        onClick = { showSettings = true },
-      ) {
-        Text(stringResource(R.string.settings_action))
-      }
+        actionCommand(
+          "new_project", R.string.new_project, canOpenProject,
+          disabledReason = commandReason(busy = !canOpenProject),
+        ) { showNewProject = true },
+        pendingCommand("recent_documents", R.string.reader_menu_recent_documents),
+        pendingCommand("attachments", R.string.reader_menu_attachments),
+        pendingCommand("import_notes", R.string.reader_menu_import_notes),
+        pendingCommand("export_notes", R.string.reader_menu_export_notes),
+        actionCommand(
+          "note_history", R.string.note_history, hasNoteHistory,
+          disabledReason = commandReason(
+            requireProject = true,
+            requireWritable = true,
+            busy = isSaving || isOpening,
+          ) ?: context.getString(R.string.reader_menu_history_unavailable),
+        ) { showNoteHistory = true },
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.AI_ANNOTATIONS,
+      R.string.reader_menu_group_ai_annotations,
+      listOf(
+        actionCommand(
+          "page_tutor", R.string.page_tutor_action,
+          canReadDocument && !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning &&
+            !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          pageTutorResult = null
+          pageTutorResultInstruction = null
+          pageTutorError = null
+          showPageTutor = true
+        },
+        actionCommand(
+          "agent_task", R.string.agent_task_action,
+          canReadDocument && !isRendering && !isSaving && !isAgentRunning && !isOcrRunning &&
+            !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          agentEvent = null
+          agentError = null
+          showAgentTask = true
+        },
+        actionCommand(
+          "annotations", R.string.annotations, activeProject != null && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+        ) { showAnnotations = true },
+        actionCommand(
+          "reviews", R.string.review_action, activeProject != null && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+        ) { showReviews = true },
+        actionCommand(
+          "handoff", R.string.handoff_action, activeProject != null && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+        ) { showHandoff = true },
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.EDIT,
+      R.string.reader_menu_group_edit,
+      listOf(
+        pendingCommand("note_undo", R.string.reader_menu_edit_undo),
+        pendingCommand("note_redo", R.string.reader_menu_edit_redo),
+        pendingCommand("cut", R.string.reader_menu_cut),
+        pendingCommand("copy", R.string.reader_menu_copy),
+        pendingCommand("select_all", R.string.reader_menu_select_all),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.PARAGRAPH,
+      R.string.reader_menu_group_paragraph,
+      listOf(
+        pendingCommand("font_size", R.string.reader_menu_font_size),
+        pendingCommand("heading", R.string.reader_menu_heading),
+        pendingCommand("unordered_list", R.string.reader_menu_unordered_list),
+        pendingCommand("ordered_list", R.string.reader_menu_ordered_list),
+        pendingCommand("task_list", R.string.reader_menu_task_list),
+        pendingCommand("quote", R.string.reader_menu_quote),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.FORMAT,
+      R.string.reader_menu_group_format,
+      listOf(
+        pendingCommand("bold", R.string.reader_menu_bold),
+        pendingCommand("italic", R.string.reader_menu_italic),
+        pendingCommand("strikethrough", R.string.reader_menu_strikethrough),
+        pendingCommand("underline", R.string.reader_menu_underline),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.INSERT,
+      R.string.reader_menu_group_insert,
+      listOf(
+        pendingCommand("code", R.string.reader_menu_code),
+        pendingCommand("formula", R.string.reader_menu_formula),
+        pendingCommand("table", R.string.reader_menu_table),
+        pendingCommand("link", R.string.reader_menu_link),
+        pendingCommand("image", R.string.reader_menu_image),
+        pendingCommand("paste_markdown", R.string.reader_menu_paste_markdown),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.READING,
+      R.string.reader_menu_group_reading,
+      listOf(
+        actionCommand(
+          "previous_page", R.string.previous_page,
+          canChangePage && pageIndex > 0,
+          disabledReason = commandReason(requireProject = true) ?: context.getString(R.string.reader_menu_first_page),
+        ) { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
+        actionCommand(
+          "next_page", R.string.next_page,
+          canChangePage && pageIndex < totalPages - 1,
+          disabledReason = commandReason(requireProject = true) ?: context.getString(R.string.reader_menu_last_page),
+        ) { scope.launch { changePage((pageIndex + 1).coerceAtMost(totalPages - 1)) } },
+        actionCommand(
+          "ocr", R.string.ocr,
+          canUsePdf && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { recognizeCurrentPage() },
+        actionCommand(
+          "region_ocr", R.string.region_ocr_action,
+          canUsePdf && !isOcrRunning && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { readerOcrState = ReaderOcrState().enterSelection(pageIndex) },
+        actionCommand(
+          "zoom_out", R.string.zoom_out,
+          canUsePdf && !readerOcrState.inputLocked &&
+            viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
+          disabledReason = commandReason(requireProject = true, requirePdf = true) ?:
+            context.getString(R.string.reader_menu_min_zoom),
+        ) { applyViewportZoom(0.8f) },
+        actionCommand(
+          "zoom_in", R.string.zoom_in,
+          canUsePdf && !readerOcrState.inputLocked &&
+            viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
+          disabledReason = commandReason(requireProject = true, requirePdf = true) ?:
+            context.getString(R.string.reader_menu_max_zoom),
+        ) { applyViewportZoom(1.25f) },
+        actionCommand(
+          "fit_width", R.string.fit_width, canUsePdf && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { fitViewportWidth() },
+        actionCommand(
+          "fit_page", R.string.fit_page, canUsePdf && !readerOcrState.inputLocked,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { viewportTransform = PdfViewportTransform.DEFAULT },
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.HANDWRITING,
+      R.string.reader_menu_group_handwriting,
+      listOf(
+        pendingCommand("select_tool", R.string.reader_menu_select_tool),
+        actionCommand(
+          "pen", R.string.pen, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) { penTool = PenCanvasTool.PEN },
+        actionCommand(
+          "highlighter", R.string.highlighter, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) { penTool = PenCanvasTool.HIGHLIGHTER },
+        actionCommand(
+          "eraser", R.string.eraser, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) { penTool = PenCanvasTool.ERASER },
+        pendingCommand("line", R.string.reader_menu_line),
+        pendingCommand("arrow", R.string.reader_menu_arrow),
+        pendingCommand("shape", R.string.reader_menu_shape),
+        pendingCommand("ink_text", R.string.reader_menu_text),
+        pendingCommand("ink_color", R.string.reader_menu_color),
+        pendingCommand("ink_width", R.string.reader_menu_width),
+        actionCommand(
+          "annotate_mode", R.string.annotate, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) { annotateMode = !annotateMode },
+        actionCommand(
+          "pen_undo", R.string.undo,
+          canUsePen && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_nothing_to_undo),
+        ) { undoPenPage() },
+        actionCommand(
+          "pen_redo", R.string.redo,
+          canUsePen && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_nothing_to_redo),
+        ) { redoPenPage() },
+        pendingCommand("copy_ink", R.string.reader_menu_copy_ink),
+        pendingCommand("paste_ink", R.string.reader_menu_paste_ink),
+        pendingCommand("insert_ink_image", R.string.reader_menu_insert_image),
+        actionCommand(
+          "clear_page", R.string.clear_page,
+          canUsePen && penStrokes.isNotEmpty(),
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_no_ink),
+        ) { clearPenPage() },
+        pendingCommand("delete_ink", R.string.reader_menu_delete_ink),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.WORD_EDITING,
+      R.string.reader_menu_group_word_editing,
+      listOf(
+        pendingCommand("office_edit", R.string.reader_menu_office_edit),
+        pendingCommand("selection_to_annotation", R.string.reader_menu_selection_to_annotation),
+        pendingCommand("save_return", R.string.reader_menu_save_return),
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.SETTINGS,
+      R.string.reader_menu_group_settings,
+      listOf(
+        actionCommand("settings_action", R.string.settings_action, true) { showSettings = true },
+        actionCommand("model_settings", R.string.agent_model_settings_action, true) {
+          showAgentModelSettings = true
+        },
+      ),
+    ),
+    menuSection(
+      ReaderMenuGroup.HELP,
+      R.string.reader_menu_group_help,
+      listOf(
+        pendingCommand("about", R.string.reader_menu_about),
+        pendingCommand("shortcuts", R.string.reader_menu_shortcuts),
+        pendingCommand("privacy_license", R.string.reader_menu_privacy_license),
+        pendingCommand("diagnostics", R.string.reader_menu_diagnostics),
+      ),
+    ),
+  )
+
+  BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val menuLayout = ReaderMenuLayout.forWidth(maxWidth.value.toInt())
+    LaunchedEffect(menuLayout) {
+      if (menuLayout != ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = false
     }
+    ReaderAdaptiveMenu(
+      layout = menuLayout,
+      groups = menuSections,
+      expanded = menuSidebarExpanded,
+      onExpandedChange = { menuSidebarExpanded = it },
+      drawerOpen = menuDrawerOpen,
+      onDrawerOpenChange = { menuDrawerOpen = it },
+    ) {
+      Column(modifier = Modifier.fillMaxSize()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) {
+          ReaderMenuTrigger(onClick = { menuDrawerOpen = true })
+        }
+        Text(
+          text = activeProject?.name ?: "pagenote",
+          modifier = Modifier.weight(1f),
+          style = MaterialTheme.typography.titleMedium,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        if (canUsePdf) {
+          Text(
+            text = "${(viewportTransform.scale * 100f).roundToInt()}%",
+            modifier = Modifier.testTag("reader_zoom_status"),
+            style = MaterialTheme.typography.labelLarge,
+          )
+        }
+        if (activeProject != null) {
+          Text(
+            text = stringResource(R.string.page_count, pageIndex + 1, totalPages),
+            modifier = Modifier.testTag("reader_page_status"),
+            style = MaterialTheme.typography.labelLarge,
+          )
+        }
+      }
 
     errorMessage?.let { message ->
       Text(
@@ -1272,143 +1589,21 @@ private fun ReaderHome(
       )
     }
 
-    val activeRenderer = renderer
-    val activeProject = project
-    val activeMarkdown = markdownSource
-    val totalPages = when {
-      activeProject == null -> 0
-      activeRenderer != null -> activeRenderer.pageCount
-      activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
-      else -> 0
-    }
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
-      Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Button(
-          onClick = { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
-          enabled = pageIndex > 0 && !isRendering && !isSaving && !isPenSaving &&
-            failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked,
+      if (readerOcrState.mode != ReaderOcrMode.IDLE) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-          Text(stringResource(R.string.previous_page))
+          ReaderOcrActions(
+            state = readerOcrState,
+            currentPage = pageIndex,
+            enabled = !isMarkdownReading && !isOcrRunning && !isRendering,
+            onStateChange = { readerOcrState = it },
+            onRecognize = ::recognizeSelectedRegion,
+          )
         }
-        Text(stringResource(R.string.page_count, pageIndex + 1, totalPages))
-        Button(
-          onClick = ::recognizeCurrentPage,
-          enabled = !isMarkdownReading && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
-        ) {
-          Text(stringResource(if (isOcrRunning) R.string.recognizing else R.string.ocr))
-        }
-        Button(
-          onClick = {
-            scope.launch {
-              changePage((pageIndex + 1).coerceAtMost(totalPages - 1))
-            }
-          },
-          enabled = pageIndex < totalPages - 1 &&
-            !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning &&
-            !readerOcrState.inputLocked,
-        ) {
-          Text(stringResource(R.string.next_page))
-        }
-      }
-
-      Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-          .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        TextButton(
-          modifier = Modifier.testTag("page_tutor_action"),
-          onClick = {
-            pageTutorResult = null
-            pageTutorResultInstruction = null
-            pageTutorError = null
-            showPageTutor = true
-          },
-          enabled = !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning &&
-            !readerOcrState.inputLocked,
-        ) { Text(stringResource(R.string.page_tutor_action)) }
-      TextButton(
-        modifier = Modifier.testTag("agent_task_action"),
-        onClick = {
-          agentEvent = null
-          agentError = null
-          showAgentTask = true
-        },
-        enabled = !isRendering && !isSaving && !isAgentRunning && !isOcrRunning &&
-          !readerOcrState.inputLocked,
-      ) { Text(stringResource(R.string.agent_task_action)) }
-        ReaderOcrActions(
-          state = readerOcrState,
-          currentPage = pageIndex,
-          enabled = !isMarkdownReading && !isOcrRunning && !isRendering,
-          onStateChange = { readerOcrState = it },
-          onRecognize = ::recognizeSelectedRegion,
-        )
-        TextButton(
-          onClick = { applyViewportZoom(0.8f) },
-          enabled = !isMarkdownReading && !readerOcrState.inputLocked && viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
-        ) { Text(stringResource(R.string.zoom_out)) }
-        Text("${(viewportTransform.scale * 100f).roundToInt()}%")
-        TextButton(
-          onClick = { applyViewportZoom(1.25f) },
-          enabled = !isMarkdownReading && !readerOcrState.inputLocked && viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
-        ) { Text(stringResource(R.string.zoom_in)) }
-        TextButton(onClick = ::fitViewportWidth, enabled = !isMarkdownReading && !readerOcrState.inputLocked) { Text(stringResource(R.string.fit_width)) }
-        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }, enabled = !isMarkdownReading && !readerOcrState.inputLocked) {
-          Text(stringResource(R.string.fit_page))
-        }
-        listOf(
-          PenCanvasTool.PEN to R.string.pen,
-          PenCanvasTool.HIGHLIGHTER to R.string.highlighter,
-          PenCanvasTool.ERASER to R.string.eraser,
-        ).forEach { (tool, label) ->
-          if (penTool == tool) {
-            Button(onClick = { penTool = tool }, enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked) {
-              Text(stringResource(label))
-            }
-          } else {
-            TextButton(onClick = { penTool = tool }, enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked) {
-              Text(stringResource(label))
-            }
-          }
-        }
-        TextButton(
-          modifier = Modifier.testTag("annotate_mode"),
-          onClick = { annotateMode = !annotateMode },
-          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked,
-        ) { Text(stringResource(if (annotateMode) R.string.annotate_on else R.string.annotate)) }
-        TextButton(
-          modifier = Modifier.testTag("annotations_list"),
-          onClick = { showAnnotations = true },
-          enabled = !readerOcrState.inputLocked,
-        ) { Text(stringResource(R.string.annotations)) }
-        TextButton(
-          modifier = Modifier.testTag("reviews_list"),
-          onClick = { showReviews = true },
-          enabled = !readerOcrState.inputLocked,
-        ) { Text(stringResource(R.string.review_action)) }
-        TextButton(
-          modifier = Modifier.testTag("handoff_open"),
-          onClick = { showHandoff = true },
-          enabled = !readerOcrState.inputLocked,
-        ) { Text(stringResource(R.string.handoff_action)) }
-        TextButton(
-          onClick = ::undoPenPage,
-          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
-        ) { Text(stringResource(R.string.undo)) }
-        TextButton(
-          onClick = ::redoPenPage,
-          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
-        ) { Text(stringResource(R.string.redo)) }
-        TextButton(
-          onClick = ::clearPenPage,
-          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penStrokes.isNotEmpty(),
-        ) { Text(stringResource(R.string.clear_page)) }
       }
       penStatus?.let { status ->
         Row(
@@ -1575,6 +1770,8 @@ private fun ReaderHome(
           Text(stringResource(R.string.choose_project_message), style = MaterialTheme.typography.bodyLarge)
         }
       }
+    }
+  }
     }
   }
 

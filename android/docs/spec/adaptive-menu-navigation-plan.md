@@ -40,7 +40,7 @@
 - [x] 写断点测试并运行，确认 599dp 和 600dp 用例因接口缺失失败。
 - [x] 实现最小纯 Kotlin 策略与桌面分组 key/顺序。
 - [x] 运行 `./gradlew :app:testDebugUnitTest --tests io.pagenote.android.ReaderMenuModelTest`。
-- [ ] 提交 `feat(android): define adaptive menu policy`。
+- [x] 提交 `feat(android): define adaptive menu policy`。
 
 ### Task 2: Compose 抽屉和可收起侧栏
 
@@ -55,10 +55,10 @@
 - Consumes: `ReaderMenuLayout`, `ReaderMenuGroup`, and immutable `ReaderMenuCommand` values from Task 1.
 - Produces: `ReaderAdaptiveMenu(layout, groups, expanded, onExpandedChange, content)`; menu component does not own reader state.
 
-- [ ] 写 Compose 仪器测试，验证 compact 抽屉入口/关闭和 expanded 侧栏分组入口；先运行确认缺少组件而失败。
-- [ ] 构建菜单容器、无障碍标签、禁用原因及可折叠侧栏。
-- [ ] 运行 `./gradlew :app:connectedDebugAndroidTest` 并检查 phone/tablet 布局。
-- [ ] 提交 `feat(android): add adaptive menu navigation`。
+- [x] 写 Compose 仪器测试，验证 compact 抽屉入口/关闭和 expanded 侧栏分组入口；先运行确认缺少组件而失败。
+- [x] 构建菜单容器、无障碍标签、禁用原因及可折叠侧栏。
+- [x] Pixel Tablet API 35 AVD 检查 tablet 布局；完整仪器测试覆盖抽屉/侧栏交互，手机尺寸整机视觉检查留待后续。
+- [x] 与 Task 3 合并提交：UI 容器和 ReaderHome 命令映射共享同一宿主改动，合并后作为一个可验证功能切片提交。
 
 ### Task 3: 接线现有 ReaderHome 命令
 
@@ -68,8 +68,8 @@
 - Modify: `CHANGELOG.md`
 - Test: `android/app/src/androidTest/java/io/pagenote/android/MainActivityLaunchTest.kt`
 
-- [ ] 写阅读器测试，验证打开项目、设置、AI 讲解和翻页命令在分组内可访问。
-- [ ] 把现有顶部命令按 SPEC 迁入菜单，顶栏只保留文档身份、菜单按钮和当前页状态。
-- [ ] 接上窄屏抽屉与宽屏侧栏，命令调用现有 handler。
-- [ ] 运行 JVM、完整 Android 仪器、四 ABI 构建及 APK 16 KB 检查。
-- [ ] 更新任务勾选与 CHANGELOG，提交 `feat(android): move reader commands into menu groups`。
+- [x] 写阅读器测试，验证现有命令和禁用原因在桌面分组内可访问。
+- [x] 把现有顶部命令迁入菜单，顶栏保留文档身份、窄屏菜单按钮和当前页状态。
+- [x] 接上窄屏抽屉与宽屏侧栏，命令复用现有 handler；未移植命令显示禁用原因。
+- [x] 运行 JVM、完整 Android 仪器、四 ABI 构建及 APK 16 KB 检查。
+- [x] 更新任务勾选与 CHANGELOG，提交 `feat(android): move reader commands into menu groups`。

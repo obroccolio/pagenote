@@ -99,7 +99,7 @@
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-  - [x] Pixel Tablet API 35 AVD 执行完整 42 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
+  - [x] Pixel Tablet API 35 AVD 最新完整运行 46 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
@@ -111,8 +111,8 @@
   - 安卓产物独立，不混入桌面 `release/`。
   - _Requirement: 构建与测试_
 
-- [ ] 14. 桌面菜单分组与自适应导航（SPEC 已确认；组件和 ReaderHome 命令接线按 `adaptive-menu-navigation-plan.md` 分批实施）
+- [x] 14. 桌面菜单分组与自适应导航（平板常驻可折叠侧栏、手机模态抽屉、桌面分组与已有 handler 已接通；API 35 Pixel Tablet AVD 已做布局检查）
   - 窄窗口使用模态抽屉，宽窗口使用常驻可折叠侧栏，断点按窗口宽度而非设备型号判断。
   - 保留桌面菜单分组与顺序；已支持命令复用现有 handler，未接线功能明确显示禁用原因。
-  - 菜单开合、断点变化不重置页码、视口、笔迹和笔记草稿。
+  - Compose 回归测试确认菜单开合不重置工作区状态；实际项目内旋转/断点变化的整机验收仍需在 task 12 补做。
   - _Requirement: 布局与适配、桌面菜单语义一致_
