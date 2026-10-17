@@ -62,13 +62,19 @@ class ProjectReviewStore(
     } as? JsonObject
   }
 
-  fun transition(id: String, to: String, noteRewritten: Boolean = false): JsonObject {
-    if (to == "applied") require(noteRewritten) { "mark applied only after a successful rewrite" }
+  fun transition(
+    id: String,
+    to: String,
+    authorizeApplied: (JsonObject) -> Boolean = { false },
+  ): JsonObject {
     val uri = reviewsUri ?: throw NoSuchElementException("review not found")
     val records = readRecords(uri).toMutableList()
     val index = records.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id }
     if (index < 0) throw NoSuchElementException("review not found")
     val current = records[index] as? JsonObject ?: throw NoSuchElementException("review not found")
+    if (to == "applied") {
+      require(authorizeApplied(current)) { "applied requires a changed note write matching the review page and revision" }
+    }
     if (!ReviewSafBoundary.canTransition(current, to)) {
       throw IllegalStateException("review cannot transition from open")
     }

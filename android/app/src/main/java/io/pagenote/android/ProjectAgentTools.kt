@@ -7,7 +7,12 @@ import io.pagenote.core.project.PageNotes
 import io.pagenote.core.reader.PdfTextExtractionStatus
 import io.pagenote.feature.notes.NotePage
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 object ProjectAgentTools {
@@ -15,6 +20,7 @@ object ProjectAgentTools {
   val WRITE_TOOLS = listOf("write_note", "patch_note", "write_review_status", "write_handoff")
 
   data class ParsedPatch(val start: Int, val end: Int, val replacement: String)
+  internal data class RewriteEvidence(val page: Int, val expectedRevision: String)
 
   fun parsePatch(args: Map<String, String>, pageLength: Int): ParsedPatch {
     val replacement = args["replacement"] ?: throw IllegalArgumentException("missing replacement")
@@ -35,20 +41,74 @@ object ProjectAgentTools {
   fun validReviewStatus(status: String?): Boolean =
     status == null || status == "open" || status == "applied" || status == "dismissed"
 
+  internal fun formatReviewSummaries(records: List<JsonObject>): String {
+    val fields = listOf("id", "side", "kind", "page", "status", "revision")
+    return JsonArray(records.take(20).map { record ->
+      buildJsonObject {
+        fields.forEach { field -> put(field, record[field] ?: JsonNull) }
+        put("instruction", JsonPrimitive(reviewPreview(record, "instruction", 160)))
+        put("quote", JsonPrimitive(reviewPreview(record, "quote", 320)))
+      }
+    }).toString()
+  }
+
+  internal fun formatReviewDetail(record: JsonObject): String =
+    Json.encodeToString(JsonObject.serializer(), record)
+
+  internal fun rewriteEvidenceFrom(
+    args: Map<String, String>,
+    result: ToolResult,
+  ): RewriteEvidence? {
+    if (!result.ok) return null
+    val page = args["page"]?.toIntOrNull()?.takeIf { it >= 1 } ?: return null
+    if (result.updatedPage != page) return null
+    val expectedRevision = args["expectedRevision"]?.takeIf { it.isNotBlank() } ?: return null
+    return RewriteEvidence(page, expectedRevision)
+  }
+
+  internal fun authorizesApplied(record: JsonObject, evidence: Collection<RewriteEvidence>): Boolean {
+    val page = (record["page"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: return false
+    val revision = (record["revision"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+      ?: return false
+    return evidence.any { it.page == page && it.expectedRevision == revision }
+  }
+
+  private fun reviewPreview(record: JsonObject, field: String, maxLength: Int): String {
+    val value = (record[field] as? JsonPrimitive)?.contentOrNull.orEmpty()
+    if (value.length <= maxLength) return value
+    val marker = "...[truncated]"
+    var prefixLength = maxLength - marker.length
+    if (prefixLength > 0 && value[prefixLength - 1].isHighSurrogate()) prefixLength--
+    return value.take(prefixLength) + marker
+  }
+
   fun handlers(
     resolver: ContentResolver,
     project: OpenedProject,
     renderer: PdfDocumentSession?,
     currentPage: Int,
-  ): Map<String, suspend (ToolRequest) -> ToolResult> = mapOf(
-    "read_page" to { request -> readPage(resolver, project, renderer, currentPage, request) },
-    "read_review" to { request -> readReview(resolver, project, request) },
-    "read_handoff" to { request -> readHandoff(resolver, project, renderer, request) },
-    "write_note" to { request -> writeNote(resolver, project, request) },
-    "patch_note" to { request -> patchNote(resolver, project, request) },
-    "write_review_status" to { request -> writeReviewStatus(resolver, project, request) },
-    "write_handoff" to { request -> writeHandoff(resolver, project, renderer, request) },
-  )
+  ): Map<String, suspend (ToolRequest) -> ToolResult> {
+    val rewriteEvidence = mutableListOf<RewriteEvidence>()
+    return mapOf(
+      "read_page" to { request -> readPage(resolver, project, renderer, currentPage, request) },
+      "read_review" to { request -> readReview(resolver, project, request) },
+      "read_handoff" to { request -> readHandoff(resolver, project, renderer, request) },
+      "write_note" to { request ->
+        writeNote(resolver, project, request).also { result ->
+          rewriteEvidenceFrom(request.args, result)?.let(rewriteEvidence::add)
+        }
+      },
+      "patch_note" to { request ->
+        patchNote(resolver, project, request).also { result ->
+          rewriteEvidenceFrom(request.args, result)?.let(rewriteEvidence::add)
+        }
+      },
+      "write_review_status" to { request ->
+        writeReviewStatus(resolver, project, rewriteEvidence, request)
+      },
+      "write_handoff" to { request -> writeHandoff(resolver, project, renderer, request) },
+    )
+  }
 
   private suspend fun readPage(
     resolver: ContentResolver,
@@ -95,20 +155,19 @@ object ProjectAgentTools {
     }
     return try {
       val store = ProjectReviewStore(resolver, project.sourceDirectoryUri, project.reviewsUri)
+      val id = request.args["id"]
+      if (id != null) {
+        val record = store.find(id) ?: return ToolResult(ok = false, detail = "review not found")
+        return ToolResult(ok = true, detail = formatReviewDetail(record))
+      }
       val records = store.list(null)
       val filtered = records.filter { element ->
         val obj = element as? JsonObject ?: return@filter false
         if (status == null) return@filter true
         obj["status"]?.jsonPrimitive?.content == status
       }
-      val summary = filtered.take(20).mapNotNull { element ->
-        val obj = element as? JsonObject ?: return@mapNotNull null
-        val number = obj["number"]?.jsonPrimitive?.content ?: "?"
-        val itemStatus = obj["status"]?.jsonPrimitive?.content ?: "?"
-        val instruction = obj["instruction"]?.jsonPrimitive?.content.orEmpty().take(120)
-        "#$number[$itemStatus] $instruction"
-      }.joinToString("\n")
-      ToolResult(ok = true, detail = "reviews=${filtered.size}\n$summary")
+      val summaries = filtered.mapNotNull { it as? JsonObject }
+      ToolResult(ok = true, detail = "reviews=${filtered.size}\n${formatReviewSummaries(summaries)}")
     } catch (error: Exception) {
       ToolResult(ok = false, detail = error.message ?: "read_review failed")
     }
@@ -160,8 +219,14 @@ private suspend fun writeNote(
     val edited = io.pagenote.feature.notes.PageNoteEditor.replacePage(
       latestMarkdown = latest, page = page, replacement = markdown, expectedRevision = expectedRevision,
     )
-    store.write(edited.markdown, expectedOriginal = latest)
-    ToolResult(ok = true, detail = "page=$page revision=${edited.pageRevision}", touchedPage = page, updatedPage = page)
+    val changed = edited.pageRevision != expectedRevision
+    if (changed) store.write(edited.markdown, expectedOriginal = latest)
+    ToolResult(
+      ok = true,
+      detail = "page=$page revision=${edited.pageRevision}",
+      touchedPage = page,
+      updatedPage = page.takeIf { changed },
+    )
   } catch (error: Exception) {
     ToolResult(ok = false, detail = error.message ?: "write_note failed")
   }
@@ -192,8 +257,14 @@ private suspend fun patchNote(
     val edited = io.pagenote.feature.notes.PageNoteEditor.replacePage(
       latestMarkdown = latest, page = page, replacement = patched, expectedRevision = expectedRevision,
     )
-    store.write(edited.markdown, expectedOriginal = latest)
-    ToolResult(ok = true, detail = "page=$page revision=${edited.pageRevision}", touchedPage = page, updatedPage = page)
+    val changed = edited.pageRevision != expectedRevision
+    if (changed) store.write(edited.markdown, expectedOriginal = latest)
+    ToolResult(
+      ok = true,
+      detail = "page=$page revision=${edited.pageRevision}",
+      touchedPage = page,
+      updatedPage = page.takeIf { changed },
+    )
   } catch (error: Exception) {
     ToolResult(ok = false, detail = error.message ?: "patch_note failed")
   }
@@ -202,14 +273,16 @@ private suspend fun patchNote(
 private suspend fun writeReviewStatus(
   resolver: ContentResolver,
   project: OpenedProject,
+  rewriteEvidence: Collection<ProjectAgentTools.RewriteEvidence>,
   request: ToolRequest,
 ): ToolResult {
   val id = request.args["id"] ?: return ToolResult(ok = false, detail = "missing id")
   val status = request.args["status"] ?: return ToolResult(ok = false, detail = "missing status")
-  val noteRewritten = request.args["noteRewritten"]?.toBooleanStrictOrNull() ?: false
   return try {
     val store = ProjectReviewStore(resolver, project.sourceDirectoryUri, project.reviewsUri)
-    store.transition(id, status, noteRewritten = noteRewritten)
+    store.transition(id, status) { review ->
+      ProjectAgentTools.authorizesApplied(review, rewriteEvidence)
+    }
     ToolResult(ok = true, detail = "review=$id status=$status")
   } catch (error: Exception) {
     ToolResult(ok = false, detail = error.message ?: "write_review_status failed")

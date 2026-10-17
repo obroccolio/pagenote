@@ -1,5 +1,13 @@
 package io.pagenote.android
 
+import io.pagenote.agent.ToolResult
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -73,5 +81,149 @@ class ProjectAgentToolsTest {
       throw AssertionError("expected missing replacement")
     } catch (_: IllegalArgumentException) {
     }
+  }
+
+  @Test
+  fun reviewListFormattingBoundsPreviewsAndOmitsFullContext() {
+    val records = (1..23).map { index ->
+      reviewRecord(
+        id = "review-$index",
+        instruction = "i".repeat(180),
+        quote = "😀".repeat(200),
+      )
+    }
+
+    val summaries = Json.parseToJsonElement(
+      ProjectAgentTools.formatReviewSummaries(records),
+    ).jsonArray
+
+    assertEquals(20, summaries.size)
+    val first = summaries.first().jsonObject
+    assertEquals("review-1", first["id"]?.jsonPrimitive?.content)
+    assertEquals("note", first["side"]?.jsonPrimitive?.content)
+    assertEquals("selection", first["kind"]?.jsonPrimitive?.content)
+    assertEquals("3", first["page"]?.jsonPrimitive?.content)
+    assertEquals("open", first["status"]?.jsonPrimitive?.content)
+    assertEquals("captured-revision", first["revision"]?.jsonPrimitive?.content)
+    val instruction = first["instruction"]!!.jsonPrimitive.content
+    val quote = first["quote"]!!.jsonPrimitive.content
+    assertEquals(160, instruction.length)
+    assertTrue(instruction.endsWith("...[truncated]"))
+    assertEquals(320, quote.length)
+    assertTrue(quote.endsWith("...[truncated]"))
+    assertFalse("context" in first)
+    assertFalse("anchor" in first)
+  }
+
+  @Test
+  fun reviewDetailFormattingPreservesEveryStoredField() {
+    val record = reviewRecord(
+      id = "review-detail",
+      instruction = "Check this passage",
+      quote = "exact quote",
+    )
+
+    val detail = Json.parseToJsonElement(
+      ProjectAgentTools.formatReviewDetail(record),
+    )
+
+    assertEquals(record, detail)
+    assertEquals("full page context", (detail as JsonObject)["context"]?.jsonPrimitive?.content)
+    assertEquals("captured-revision", detail["revision"]?.jsonPrimitive?.content)
+    assertEquals(record["anchor"], detail["anchor"])
+  }
+
+  @Test
+  fun matchingChangedWriteAuthorizesItsReview() {
+    val evidence = requireNotNull(
+      ProjectAgentTools.rewriteEvidenceFrom(
+        mapOf("page" to "3", "expectedRevision" to "captured-revision"),
+        ToolResult(ok = true, touchedPage = 3, updatedPage = 3),
+      ),
+    )
+
+    assertTrue(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(evidence)))
+  }
+
+  @Test
+  fun appliedAuthorizationRejectsWrongPageStaleOrMissingRevision() {
+    val wrongPage = requireNotNull(
+      ProjectAgentTools.rewriteEvidenceFrom(
+        mapOf("page" to "4", "expectedRevision" to "captured-revision"),
+        ToolResult(ok = true, updatedPage = 4),
+      ),
+    )
+    val staleRevision = requireNotNull(
+      ProjectAgentTools.rewriteEvidenceFrom(
+        mapOf("page" to "3", "expectedRevision" to "stale-revision"),
+        ToolResult(ok = true, updatedPage = 3),
+      ),
+    )
+
+    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(wrongPage)))
+    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(staleRevision)))
+    assertFalse(
+      ProjectAgentTools.authorizesApplied(
+        reviewRecord(revision = null),
+        listOf(staleRevision),
+      ),
+    )
+    assertFalse(
+      ProjectAgentTools.authorizesApplied(
+        reviewRecord(),
+        listOfNotNull(
+          ProjectAgentTools.rewriteEvidenceFrom(
+            mapOf("page" to "3"),
+            ToolResult(ok = true, updatedPage = 3),
+          ),
+        ),
+      ),
+    )
+  }
+
+  @Test
+  fun noOpFailedAndUnrelatedWritesCannotAuthorizeApply() {
+    val noOp = ProjectAgentTools.rewriteEvidenceFrom(
+      mapOf("page" to "3", "expectedRevision" to "captured-revision"),
+      ToolResult(ok = true, touchedPage = 3),
+    )
+    val failed = ProjectAgentTools.rewriteEvidenceFrom(
+      mapOf("page" to "3", "expectedRevision" to "captured-revision"),
+      ToolResult(ok = false, touchedPage = 3, updatedPage = 3),
+    )
+    val unrelatedPageWrite = requireNotNull(
+      ProjectAgentTools.rewriteEvidenceFrom(
+        mapOf("page" to "2", "expectedRevision" to "other-revision"),
+        ToolResult(ok = true, updatedPage = 2),
+      ),
+    )
+
+    assertEquals(null, noOp)
+    assertEquals(null, failed)
+    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(unrelatedPageWrite)))
+  }
+
+  private fun reviewRecord(
+    id: String = "review-3",
+    instruction: String = "Review this passage",
+    quote: String = "selected passage",
+    page: Int = 3,
+    revision: String? = "captured-revision",
+  ) = buildJsonObject {
+    put("id", JsonPrimitive(id))
+    put("side", JsonPrimitive("note"))
+    put("kind", JsonPrimitive("selection"))
+    put("page", JsonPrimitive(page))
+    put("status", JsonPrimitive("open"))
+    put("revision", revision?.let(::JsonPrimitive) ?: kotlinx.serialization.json.JsonNull)
+    put("instruction", JsonPrimitive(instruction))
+    put("quote", JsonPrimitive(quote))
+    put("context", JsonPrimitive("full page context"))
+    put("anchor", buildJsonObject {
+      put("coordinateSystem", JsonPrimitive("markdown-source-utf16"))
+      put("start", JsonPrimitive(2))
+      put("end", JsonPrimitive(18))
+    })
+    put("desktopOnly", JsonPrimitive("preserved"))
   }
 }

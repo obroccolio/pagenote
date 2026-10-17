@@ -2449,7 +2449,6 @@ internal fun ReviewListDialog(
   var records by remember(project, page) { mutableStateOf<List<JsonObject>>(emptyList()) }
   var loadError by remember(project, page) { mutableStateOf<String?>(null) }
   var instruction by remember { mutableStateOf("") }
-  var pendingApply by remember { mutableStateOf<String?>(null) }
   var pendingDismiss by remember { mutableStateOf<String?>(null) }
   var pendingDelete by remember { mutableStateOf<String?>(null) }
 
@@ -2502,7 +2501,6 @@ internal fun ReviewListDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
               Text(status, style = MaterialTheme.typography.labelSmall)
               if (status == "open") {
-                TextButton(onClick = { pendingApply = id }) { Text(stringResource(R.string.review_applied)) }
                 TextButton(onClick = { pendingDismiss = id }) { Text(stringResource(R.string.review_dismissed)) }
               }
               TextButton(onClick = { pendingDelete = id }) { Text(stringResource(R.string.delete)) }
@@ -2583,31 +2581,6 @@ internal fun ReviewListDialog(
       }
     },
   )
-  pendingApply?.let { id ->
-    AlertDialog(
-      onDismissRequest = { pendingApply = null },
-      title = { Text(stringResource(R.string.review_applied)) },
-      text = { Text(stringResource(R.string.review_instruction_label)) },
-      confirmButton = {
-        TextButton(onClick = {
-          scope.launch {
-            try {
-              withContext(Dispatchers.IO) { store().transition(id, "applied", noteRewritten = true) }
-              refresh()
-              onChanged(context.getString(R.string.review_applied))
-            } catch (error: Exception) {
-              onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
-            } finally {
-              pendingApply = null
-            }
-          }
-        }) { Text(stringResource(R.string.review_applied)) }
-      },
-      dismissButton = {
-        TextButton(onClick = { pendingApply = null }) { Text(stringResource(R.string.cancel)) }
-      },
-    )
-  }
   pendingDismiss?.let { id ->
     scope.launch {
       try {
