@@ -37,9 +37,9 @@
 **Interfaces:**
 - Produces: `ReaderMenuLayout.forWidth(widthDp: Int): ReaderMenuLayout`，其中 `COMPACT_DRAWER` 对应 `< 600dp`，`PERMANENT_SIDEBAR` 对应 `>= 600dp`。
 
-- [ ] 写断点测试并运行，确认 599dp 和 600dp 用例因接口缺失失败。
-- [ ] 实现最小纯 Kotlin 策略与桌面分组 key/顺序。
-- [ ] 运行 `./gradlew testDebugUnitTest`。
+- [x] 写断点测试并运行，确认 599dp 和 600dp 用例因接口缺失失败。
+- [x] 实现最小纯 Kotlin 策略与桌面分组 key/顺序。
+- [x] 运行 `./gradlew :app:testDebugUnitTest --tests io.pagenote.android.ReaderMenuModelTest`。
 - [ ] 提交 `feat(android): define adaptive menu policy`。
 
 ### Task 2: Compose 抽屉和可收起侧栏
