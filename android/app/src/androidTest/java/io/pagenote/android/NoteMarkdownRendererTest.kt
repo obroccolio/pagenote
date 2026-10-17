@@ -15,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
+import java.io.InputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
@@ -112,6 +113,25 @@ class NoteMarkdownRendererTest {
     assertTrue("image decoding should complete", image.hasResult())
     assertVisiblePlaceholder(
       image.result,
+      context.getString(R.string.note_rich_image_decode_failed, "image/png"),
+    )
+  }
+
+  @Test
+  fun unreadableImageStreamUsesVisiblePlaceholder() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val decoder = NoteImageMediaDecoder(context, Color.BLACK)
+    val unreadable = object : InputStream() {
+      override fun read(): Int = throw IOException("private provider detail")
+
+      override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+        throw IOException("private provider detail")
+    }
+
+    val drawable = decoder.decode("image/png", unreadable)
+
+    assertVisiblePlaceholder(
+      drawable,
       context.getString(R.string.note_rich_image_decode_failed, "image/png"),
     )
   }
