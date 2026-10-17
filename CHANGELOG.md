@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android region annotations with normalized rect items, list, and delete. / 安卓新增区域批注：归一化 rect 落盘、列表与删除。
+
 - Truncate overlong Android note and source previews with explicit length hints while keeping full-text editing. / 安卓超长笔记与源文预览截断并提示字数，编辑仍为全文。
 
 - Mark Android project, reader, and page-preparation milestones complete with SAF entry, viewport, and cache coverage. / 安卓项目管理、阅读器与页面准备里程碑收尾：SAF 入口、视口与缓存覆盖已对齐。

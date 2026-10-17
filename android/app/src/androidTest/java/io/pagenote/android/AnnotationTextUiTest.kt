@@ -37,4 +37,26 @@ class AnnotationTextUiTest {
     composeRule.onNodeWithTag("annotation_cancel").assertIsDisplayed()
     composeRule.runOnIdle { assert(!confirmed) }
   }
+
+  @Test
+  fun regionKindIsSelectable() {
+    composeRule.setContent {
+      MaterialTheme {
+        var text by remember { mutableStateOf("") }
+        var isRegion by remember { mutableStateOf(false) }
+        AnnotationTextInputDialog(
+          text = text,
+          onTextChange = { text = it },
+          isRegion = isRegion,
+          onKindChange = { isRegion = it },
+          onConfirm = {},
+          onDismiss = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("annotation_kind_region").assertIsDisplayed()
+    composeRule.onNodeWithTag("annotation_kind_region").performClick()
+    composeRule.onNodeWithTag("annotation_kind_text").assertIsDisplayed()
+  }
 }

@@ -274,6 +274,7 @@ private fun ReaderHome(
   var annotateMode by remember { mutableStateOf(false) }
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
+  var annotateIsRegion by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
   var showReviews by remember { mutableStateOf(false) }
   var showHandoff by remember { mutableStateOf(false) }
@@ -1550,6 +1551,8 @@ private fun ReaderHome(
     AnnotationTextInputDialog(
       text = annotateText,
       onTextChange = { annotateText = it },
+      isRegion = annotateIsRegion,
+      onKindChange = { annotateIsRegion = it },
       onConfirm = {
         scope.launch {
           val point = annotateDraft ?: return@launch
@@ -1562,9 +1565,16 @@ private fun ReaderHome(
             val existing = withContext(Dispatchers.IO) {
               store.readPage("document", pageIndex + 1)
             }
-            val item = AnnotationTextDraft.toItem(
-              point.first, point.second, "#dc3545", 3.0, annotateText,
-            )
+            val useRegion = annotateIsRegion
+            val item = if (useRegion) {
+              AnnotationRegionDraft.defaultSize(
+                point.first, point.second, "#dc3545", 3.0, annotateText,
+              )
+            } else {
+              AnnotationTextDraft.toItem(
+                point.first, point.second, "#dc3545", 3.0, annotateText,
+              )
+            }
             val merged = existing.toMutableList()
             merged.add(item.toJsonElement())
             withContext(Dispatchers.IO) {
@@ -1576,6 +1586,7 @@ private fun ReaderHome(
           } finally {
             annotateDraft = null
             annotateText = ""
+            annotateIsRegion = false
             annotateMode = false
           }
         }
@@ -1583,6 +1594,7 @@ private fun ReaderHome(
       onDismiss = {
         annotateDraft = null
         annotateText = ""
+        annotateIsRegion = false
       },
     )
   }
@@ -1705,6 +1717,8 @@ internal fun NewProjectDialog(
 internal fun AnnotationTextInputDialog(
   text: String,
   onTextChange: (String) -> Unit,
+  isRegion: Boolean = false,
+  onKindChange: (Boolean) -> Unit = {},
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
 ) {
@@ -1714,6 +1728,30 @@ internal fun AnnotationTextInputDialog(
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.annotation_hint))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (isRegion) {
+            Button(
+              modifier = Modifier.testTag("annotation_kind_region"),
+              onClick = {},
+            ) { Text(stringResource(R.string.annotation_kind_region)) }
+          } else {
+            TextButton(
+              modifier = Modifier.testTag("annotation_kind_region"),
+              onClick = { onKindChange(true) },
+            ) { Text(stringResource(R.string.annotation_kind_region)) }
+          }
+          if (!isRegion) {
+            Button(
+              modifier = Modifier.testTag("annotation_kind_text"),
+              onClick = {},
+            ) { Text(stringResource(R.string.annotation_kind_text)) }
+          } else {
+            TextButton(
+              modifier = Modifier.testTag("annotation_kind_text"),
+              onClick = { onKindChange(false) },
+            ) { Text(stringResource(R.string.annotation_kind_text)) }
+          }
+        }
         AndroidView(
           factory = { viewContext ->
             EditText(viewContext).apply {
@@ -1742,7 +1780,7 @@ internal fun AnnotationTextInputDialog(
       Button(
         modifier = Modifier.testTag("annotation_confirm"),
         onClick = onConfirm,
-        enabled = text.isNotBlank(),
+        enabled = isRegion || text.isNotBlank(),
       ) { Text(stringResource(R.string.annotation_add)) }
     },
     dismissButton = {
@@ -1802,8 +1840,9 @@ internal fun AnnotationListDialog(
         }
         entries.forEach { (index, obj) ->
           val type = obj["type"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
-          val label = if (type == "text") {
-            obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          val label = if (type == "text" || type == "rect") {
+            val text = obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() }.orEmpty()
+            if (text.isBlank()) context.getString(R.string.annotation_other_type, type) else text
           } else {
             context.getString(R.string.annotation_other_type, type)
           }
@@ -1813,7 +1852,7 @@ internal fun AnnotationListDialog(
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Text(label, modifier = Modifier.weight(1f))
-            if (type == "text") {
+            if (type == "text" || type == "rect") {
               TextButton(
                 modifier = Modifier.testTag("annotation_delete_$index"),
                 onClick = { pendingDelete = index },
