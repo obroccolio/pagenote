@@ -21,10 +21,11 @@
 
 ## Task 3: Replace Misaligned OpenCV Binaries
 
+- Add `android/scripts/check_16kb_apks.py` to inspect every packaged 64-bit ELF `LOAD` segment and APK ZIP alignment with the Android SDK/NDK tools.
 - Replace `com.quickbirdstudios:opencv:4.5.3.0` with the API-compatible official OpenCV AAR selected by inspecting its actual 64-bit ELF segments; verify the packaged C++ runtime is aligned too.
 - Build all configured ABI APKs and run JVM tests.
 - Inspect every resulting `arm64-v8a` and `x86_64` library with NDK `llvm-objdump -p`; require `LOAD` alignment `>= 2**14`.
-- Run `zipalign -c -P 16 -v 4` on each APK. Fail the task if any packaged 64-bit dependency remains misaligned.
+- Run `python3 android/scripts/check_16kb_apks.py <apk>...` on each APK. The checker runs NDK `llvm-objdump -p` and SDK `zipalign -c -P 16`; fail if any packaged 64-bit dependency remains misaligned.
 - Commit the dependency and verified build change with its own Unreleased changelog entry.
 
 ## Task 4: Device Smoke Check and Sync

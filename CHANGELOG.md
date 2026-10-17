@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Specify a repeatable Android APK check for 16 KB ELF and ZIP alignment. / 规定安卓 APK 的 16 KB ELF 与 ZIP 对齐可重复检查流程。
+
 - Preserve the Android activity-result owner through localized reader contexts so the SAF launcher cannot crash startup. / 在安卓本地化阅读上下文中保留 Activity Result owner，避免 SAF 启动器导致应用闪退。
 
 - Add Android instrumentation coverage for launching the localized reader after settings load. / 增加安卓本地化阅读器在设置加载后的启动仪器测试。
