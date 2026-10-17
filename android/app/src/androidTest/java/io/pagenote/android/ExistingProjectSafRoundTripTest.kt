@@ -10,6 +10,15 @@ import android.provider.DocumentsContract
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.core.project.PageNotes
+import io.pagenote.feature.annotations.ReviewCreate
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -99,12 +108,63 @@ class ExistingProjectSafRoundTripTest {
     }
   }
 
+  @Test
+  fun selectionReviewPersistsAllFieldsAndFindsExactIdsWithoutDroppingUnknownFields() {
+    installFixture()
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val reviewsUri = requireNotNull(opened.reviewsUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, reviewsUri)
+    val input = selectionReviewInput()
+
+    val created = store.create(input)
+    val id = created["id"]!!.jsonPrimitive.content
+    val persistedRecords = Json.parseToJsonElement(readReviews(reviewsUri)).jsonArray
+    val persisted = persistedRecords.first { (it as JsonObject)["id"]?.jsonPrimitive?.content == id }
+
+    assertEquals("note", created["side"]?.jsonPrimitive?.content)
+    assertEquals("selection", created["kind"]?.jsonPrimitive?.content)
+    assertEquals("page", created["scope"]?.jsonPrimitive?.content)
+    assertEquals("selected", created["quote"]?.jsonPrimitive?.content)
+    assertEquals("# Page\nselected", created["context"]?.jsonPrimitive?.content)
+    assertEquals("revision-abc", created["revision"]?.jsonPrimitive?.content)
+    assertEquals(input.anchor, created["anchor"])
+    assertEquals(created, persisted)
+    assertEquals(created, store.find(id))
+
+    val existing = requireNotNull(store.find("review-1"))
+    assertEquals("preserved", existing["desktopOnly"]?.jsonObject?.get("nested")?.jsonPrimitive?.content)
+    assertEquals("review-10", store.find("review-10")?.get("id")?.jsonPrimitive?.content)
+    assertNull(store.find("review-1-missing"))
+  }
+
+  @Test
+  fun oversizedQuoteIsRejectedBeforeAnySafWrite() {
+    assertRejectedBeforeWrite(selectionReviewInput(quote = "q".repeat(100_001)))
+  }
+
+  @Test
+  fun oversizedContextIsRejectedBeforeAnySafWrite() {
+    assertRejectedBeforeWrite(selectionReviewInput(context = "c".repeat(1_000_001)))
+  }
+
+  @Test
+  fun oversizedAnchorIsRejectedBeforeAnySafWrite() {
+    val oversizedAnchor = JsonPrimitive("a".repeat(500_000))
+    assertRejectedBeforeWrite(selectionReviewInput(anchor = oversizedAnchor))
+  }
+
   private fun installFixture() {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"a".repeat(64)}","name":"Pattern recognition fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
     val pdf = createPdfFixture()
     val notes = fixtureNotes().toByteArray(Charsets.UTF_8)
+    val reviews = """
+      [
+        {"id":"review-1","number":1,"side":"note","kind":"overall","page":1,"scope":"page","instruction":"legacy one","quote":"","context":"","revision":null,"anchor":null,"status":"open","created":"2026-01-01T00:00:00Z","desktopOnly":{"nested":"preserved"}},
+        {"id":"review-10","number":10,"side":"note","kind":"overall","page":2,"scope":"page","instruction":"legacy ten","quote":"","context":"","revision":null,"anchor":null,"status":"open","created":"2026-01-01T00:00:00Z","desktopOnly":"also preserved"}
+      ]
+    """.trimIndent().toByteArray(Charsets.UTF_8)
     resolver.call(
       ExistingProjectSafTestProvider.AUTHORITY,
       ExistingProjectSafTestProvider.METHOD_INSTALL,
@@ -113,9 +173,60 @@ class ExistingProjectSafRoundTripTest {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
         putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, pdf)
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes)
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, reviews)
       },
     )
   }
+
+  private fun selectionReviewInput(
+    quote: String = "selected",
+    context: String = "# Page\nselected",
+    anchor: JsonElement = buildJsonObject {
+      put("coordinateSystem", JsonPrimitive("markdown-source-utf16"))
+      put("start", JsonPrimitive(7))
+      put("end", JsonPrimitive(15))
+    },
+  ) = ReviewCreate(
+    side = "note",
+    kind = "selection",
+    page = 3,
+    instruction = "  Review this selection  ",
+    scope = "page",
+    quote = quote,
+    context = context,
+    revision = "revision-abc",
+    anchor = anchor,
+  )
+
+  private fun assertRejectedBeforeWrite(input: ReviewCreate) {
+    installFixture()
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val reviewsUri = requireNotNull(opened.reviewsUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, reviewsUri)
+    val before = readReviews(reviewsUri)
+    val writesBefore = reviewWriteCount()
+
+    try {
+      store.create(input)
+      fail("oversized review data should be rejected")
+    } catch (_: IllegalArgumentException) {
+      // Expected: validation must run before opening the SAF output stream.
+    }
+
+    assertEquals(writesBefore, reviewWriteCount())
+    assertEquals(before, readReviews(reviewsUri))
+  }
+
+  private fun readReviews(uri: Uri): String =
+    resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+      ?: error("review JSON should be readable")
+
+  private fun reviewWriteCount(): Int = resolver.call(
+    ExistingProjectSafTestProvider.AUTHORITY,
+    ExistingProjectSafTestProvider.METHOD_GET_REVIEW_WRITE_COUNT,
+    null,
+    null,
+  )?.getInt(ExistingProjectSafTestProvider.EXTRA_COUNT) ?: -1
 
   private fun fixtureNotes(): String = PageNotes.join(fixtureNotesPages())
 

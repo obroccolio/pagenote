@@ -7,6 +7,8 @@ import io.pagenote.feature.annotations.ReviewCreate
 import java.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -31,15 +33,33 @@ class ProjectReviewStore(
   }
 
   fun create(side: String, kind: String, page: Int, instruction: String, revision: String?): JsonObject {
+    return create(ReviewCreate(
+      side = side,
+      kind = kind,
+      page = page,
+      instruction = instruction,
+      revision = revision,
+    ))
+  }
+
+  fun create(input: ReviewCreate): JsonObject {
+    validate(input)
     val uri = ensureFile()
     val records = readRecords(uri).toMutableList()
     val number = (records.mapNotNull {
       (it as? JsonObject)?.get("number")?.jsonPrimitive?.content?.toIntOrNull()
     }.maxOrNull() ?: 0) + 1
-    val record = buildRecord(side, kind, page, instruction, revision, number)
+    val record = buildRecord(input, number)
     records.add(record)
     writeRecords(uri, JsonArray(records))
     return record
+  }
+
+  fun find(id: String): JsonObject? {
+    val uri = reviewsUri ?: return null
+    return readRecords(uri).firstOrNull {
+      (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id
+    } as? JsonObject
   }
 
   fun transition(id: String, to: String, noteRewritten: Boolean = false): JsonObject {
@@ -70,26 +90,35 @@ class ProjectReviewStore(
     return true
   }
 
-  private fun buildRecord(side: String, kind: String, page: Int, instruction: String, revision: String?, number: Int): JsonObject {
-    require(side == "document" || side == "note") { "bad side" }
-    require(kind == "overall" || kind == "selection" || kind == "region") { "bad kind" }
-    require(page >= 1) { "bad page" }
-    val trimmed = instruction.trim()
+  private fun validate(input: ReviewCreate) {
+    require(input.side == "document" || input.side == "note") { "bad side" }
+    require(input.kind == "overall" || input.kind == "selection" || input.kind == "region") { "bad kind" }
+    require(input.page >= 1) { "bad page" }
+    val trimmed = input.instruction.trim()
     require(trimmed.isNotEmpty() && trimmed.length <= 20000) { "bad instruction" }
+    require((input.quote ?: "").length <= 100000) { "quote too large" }
+    require((input.context ?: "").length <= 1000000) { "context too large" }
+    input.anchor?.let {
+      require(Json.encodeToString(JsonElement.serializer(), it).length <= 500000) { "anchor too large" }
+    }
+  }
+
+  private fun buildRecord(input: ReviewCreate, number: Int): JsonObject {
+    val trimmed = input.instruction.trim()
     return buildJsonObjectHelper(mapOf(
       "id" to JsonPrimitive(java.util.UUID.randomUUID().toString()),
       "number" to JsonPrimitive(number),
-      "side" to JsonPrimitive(side),
-      "kind" to JsonPrimitive(kind),
-      "page" to JsonPrimitive(page),
-      "scope" to JsonPrimitive("page"),
+      "side" to JsonPrimitive(input.side),
+      "kind" to JsonPrimitive(input.kind),
+      "page" to JsonPrimitive(input.page),
+      "scope" to JsonPrimitive(if (input.scope == "document") "document" else "page"),
       "instruction" to JsonPrimitive(trimmed),
-      "quote" to JsonPrimitive(""),
-      "context" to JsonPrimitive(""),
-      "anchor" to kotlinx.serialization.json.JsonNull,
+      "quote" to JsonPrimitive(input.quote ?: ""),
+      "context" to JsonPrimitive(input.context ?: ""),
+      "anchor" to (input.anchor ?: JsonNull),
       "status" to JsonPrimitive("open"),
       "created" to JsonPrimitive(java.time.Instant.now().toString()),
-    ), revision)
+    ), input.revision)
   }
 
   private fun buildJsonObjectHelper(fields: Map<String, kotlinx.serialization.json.JsonElement>, revision: String?): JsonObject {

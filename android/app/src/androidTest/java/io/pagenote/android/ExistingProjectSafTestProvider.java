@@ -26,19 +26,25 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String MANIFEST_ID = ROOT_ID + "/project.pagenote";
   public static final String PDF_ID = SRC_ID + "/pattern-recognition.pdf";
   public static final String NOTES_ID = SRC_ID + "/notes.md";
+  public static final String REVIEWS_ID = SRC_ID + "/ai-reviews.json";
   public static final String METHOD_INSTALL = "installFixture";
   public static final String METHOD_REPLACE_NOTES = "replaceNotes";
+  public static final String METHOD_GET_REVIEW_WRITE_COUNT = "getReviewWriteCount";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String EXTRA_URI = "uri";
   private static final String EXTRA_RESULT = "result";
   public static final String EXTRA_MANIFEST = "manifest";
   public static final String EXTRA_PDF = "pdf";
   public static final String EXTRA_NOTES = "notes";
+  public static final String EXTRA_REVIEWS = "reviews";
+  public static final String EXTRA_COUNT = "count";
 
   private static final String FIXTURE_DIR = "pagenote-existing-project-fixture";
   private static final String MANIFEST_FILE = "project.pagenote";
   private static final String PDF_FILE = "pattern-recognition.pdf";
   private static final String NOTES_FILE = "notes.md";
+  private static final String REVIEWS_FILE = "ai-reviews.json";
+  private int reviewWriteCount;
 
   @Override
   public boolean onCreate() {
@@ -52,11 +58,18 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         writeFixtureFile(MANIFEST_FILE, requiredBytes(extras, EXTRA_MANIFEST));
         writeFixtureFile(PDF_FILE, requiredBytes(extras, EXTRA_PDF));
         writeFixtureFile(NOTES_FILE, requiredBytes(extras, EXTRA_NOTES));
+        writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
+        reviewWriteCount = 0;
         return Bundle.EMPTY;
       }
       if (METHOD_REPLACE_NOTES.equals(method)) {
         writeFixtureFile(NOTES_FILE, requiredBytes(extras, EXTRA_NOTES));
         return Bundle.EMPTY;
+      }
+      if (METHOD_GET_REVIEW_WRITE_COUNT.equals(method)) {
+        Bundle result = new Bundle();
+        result.putInt(EXTRA_COUNT, reviewWriteCount);
+        return result;
       }
       if (METHOD_FIND_DOCUMENT_PATH.equals(method)) {
         Uri uri = extras == null ? null : extras.getParcelable(EXTRA_URI);
@@ -97,7 +110,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (ROOT_ID.equals(parentDocumentId)) {
       children = Arrays.asList(MANIFEST_ID, SRC_ID);
     } else if (SRC_ID.equals(parentDocumentId)) {
-      children = Arrays.asList(PDF_ID, NOTES_ID);
+      children = Arrays.asList(PDF_ID, NOTES_ID, REVIEWS_ID);
     } else {
       throw new FileNotFoundException(parentDocumentId);
     }
@@ -117,6 +130,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     String documentId = DocumentsContract.getDocumentId(uri);
     File file = fileFor(documentId);
     if (file == null || !file.exists()) throw new FileNotFoundException(documentId);
+    if (REVIEWS_ID.equals(documentId) && mode.contains("w")) reviewWriteCount++;
     return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
   }
 
@@ -147,7 +161,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       path = Collections.singletonList(ROOT_ID);
     } else if (MANIFEST_ID.equals(documentId) || SRC_ID.equals(documentId)) {
       path = Arrays.asList(ROOT_ID, documentId);
-    } else if (PDF_ID.equals(documentId) || NOTES_ID.equals(documentId)) {
+    } else if (PDF_ID.equals(documentId) || NOTES_ID.equals(documentId) || REVIEWS_ID.equals(documentId)) {
       path = Arrays.asList(ROOT_ID, SRC_ID, documentId);
     } else {
       throw new FileNotFoundException(documentId);
@@ -172,6 +186,8 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         PDF_ID, "pattern-recognition.pdf", "application/pdf", 0, PDF_FILE);
     if (NOTES_ID.equals(documentId)) return fileValues(
         NOTES_ID, "notes.md", "text/markdown", DocumentsContract.Document.FLAG_SUPPORTS_WRITE, NOTES_FILE);
+    if (REVIEWS_ID.equals(documentId)) return fileValues(
+        REVIEWS_ID, "ai-reviews.json", "application/json", DocumentsContract.Document.FLAG_SUPPORTS_WRITE, REVIEWS_FILE);
     return null;
   }
 
@@ -222,6 +238,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (MANIFEST_ID.equals(documentId)) return new File(fixtureDir(), MANIFEST_FILE);
     if (PDF_ID.equals(documentId)) return new File(fixtureDir(), PDF_FILE);
     if (NOTES_ID.equals(documentId)) return new File(fixtureDir(), NOTES_FILE);
+    if (REVIEWS_ID.equals(documentId)) return new File(fixtureDir(), REVIEWS_FILE);
     return null;
   }
 }
