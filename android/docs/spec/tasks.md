@@ -117,3 +117,10 @@
   - 保留桌面菜单分组与顺序；已支持命令复用现有 handler，未接线功能明确显示禁用原因。
   - Compose 回归测试确认菜单开合不重置工作区状态；实际项目内旋转/断点变化的整机验收仍需在 task 12 补做。
   - _Requirement: 布局与适配、桌面菜单语义一致_
+
+- [ ] 15. 阅读器会话恢复（Activity 重建与 Android 系统回收进程后恢复项目、页码、归一化视口、笔工具和未保存笔记草稿；不更改项目文件格式）
+  - [x] Activity 级 `ReaderSessionViewModel`、紧凑 `SavedStateHandle` 检查点、归一化 PDF 视口书签和按 SAF 目标/项目/页隔离的 app-private `AtomicFile` 草稿日志已实现。
+  - [x] JVM 单测、AtomicFile 仪器测试、Activity 重建与 fresh-ViewModel 恢复/版本冲突测试已实现；Pixel Tablet API 34、API 35 各 69 项 app instrumentation tests 通过。
+  - [x] `:app:assembleDebug` 通过；四 ABI debug APK 均通过 16 KB 对齐检查。
+  - [ ] AVD 上实际系统回收进程后，经持久 SAF 授权重新打开项目并恢复草稿的烟测；DocumentsUI 未向 picker 展示本次测试夹具，fresh-ViewModel 自动化测试不等价于 OS 级杀进程。
+  - _Requirement: 阅读器状态恢复、草稿持久性与冲突保护_

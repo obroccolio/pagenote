@@ -13,6 +13,7 @@ import android.text.InputType
 import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -128,17 +129,30 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 class MainActivity : ComponentActivity() {
+  private lateinit var readerSession: ReaderSessionViewModel
+
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
+    readerSession = ViewModelProvider(this)[ReaderSessionViewModel::class.java]
+    readerSession.initializeRecovery(applicationContext)
     setContent {
-      ReaderSettingsHost()
+      ReaderSettingsHost(readerSession)
     }
   }
 
+  override fun onSaveInstanceState(outState: android.os.Bundle) {
+    readerSession.saveCheckpoint()
+    super.onSaveInstanceState(outState)
+  }
+
+  override fun onStop() {
+    readerSession.flushDraftRecovery()
+    super.onStop()
+  }
 }
 
 @Composable
-private fun ReaderSettingsHost() {
+private fun ReaderSettingsHost(readerSession: ReaderSessionViewModel) {
   val context = LocalContext.current
   val activityResultRegistryOwner = context as ActivityResultRegistryOwner
   val systemConfiguration = LocalConfiguration.current
@@ -191,7 +205,12 @@ private fun ReaderSettingsHost() {
   ) {
     MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
       Surface(modifier = Modifier.fillMaxSize()) {
-        ReaderHome(settings = settings, settingsStore = settingsStore, modelSettingsStore = modelSettingsStore)
+        ReaderHome(
+          settings = settings,
+          settingsStore = settingsStore,
+          modelSettingsStore = modelSettingsStore,
+          readerSession = readerSession,
+        )
       }
     }
   }
@@ -206,43 +225,48 @@ private data class ReaderProjectData(
   val penStore: ProjectPenStore,
   val penPageStore: PenPageStore,
   val penWritable: Boolean,
+  val restoredPageIndex: Int,
+  val checkpoint: ReaderSessionCheckpoint?,
+  val draftRecovery: NoteDraftRecoveryRecord?,
+  val missingAssets: List<String>,
 )
+
+private class PersistedProjectPermissionMissingException : SecurityException()
 
 @Composable
 private fun ReaderHome(
   settings: ReaderSettings,
   settingsStore: ReaderSettingsStore,
   modelSettingsStore: AgentModelSettingsStore,
+  readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
-  var project by remember { mutableStateOf<OpenedProject?>(null) }
-  var renderer by remember { mutableStateOf<PdfDocumentSession?>(null) }
-  var markdownSource by remember { mutableStateOf<String?>(null) }
+  var project by readerSession.project
+  var renderer by readerSession.renderer
+  var markdownSource by readerSession.markdownSource
   val isMarkdownReading = project != null && renderer == null && markdownSource != null
-  var pageIndex by remember { mutableIntStateOf(0) }
+  var pageIndex by readerSession.pageIndex
   var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-  var viewportTransform by remember(project?.sourceUri, pageIndex) {
-    mutableStateOf(PdfViewportTransform.DEFAULT)
-  }
   var viewportBounds by remember(project?.sourceUri, pageIndex) {
     mutableStateOf(PdfViewportBounds.ZERO)
   }
-  var notesMarkdown by remember { mutableStateOf("") }
-  var noteDraft by remember { mutableStateOf("") }
-  var noteBaseRevision by remember { mutableStateOf(PageNotes.revision("")) }
-  var noteWritable by remember { mutableStateOf(false) }
-  var noteStatus by remember { mutableStateOf<String?>(null) }
-  var penStore by remember { mutableStateOf<ProjectPenStore?>(null) }
-  var penPageStore by remember { mutableStateOf(PenPageStore()) }
-  var penStrokes by remember { mutableStateOf<List<PenStroke>>(emptyList()) }
-  var penWritable by remember { mutableStateOf(false) }
-  var penTool by remember { mutableStateOf(PenCanvasTool.PEN) }
-  var penStatus by remember { mutableStateOf<String?>(null) }
-  var failedPenSave by remember { mutableStateOf<Pair<Int, List<PenStroke>>?>(null) }
-  var pendingPenSaves by remember { mutableIntStateOf(0) }
-  val penSaveMutex = remember { Mutex() }
+  val viewportTransform = readerSession.viewportBookmark.value.toTransform(viewportBounds)
+  var notesMarkdown by readerSession.notesMarkdown
+  val noteDraft by readerSession.noteDraft
+  var noteBaseRevision by readerSession.noteBaseRevision
+  var noteWritable by readerSession.noteWritable
+  var noteStatus by readerSession.noteStatus
+  var penStore by readerSession.penStore
+  var penPageStore by readerSession.penPageStore
+  var penStrokes by readerSession.penStrokes
+  var penWritable by readerSession.penWritable
+  var penTool by readerSession.penTool
+  var penStatus by readerSession.penStatus
+  var failedPenSave by readerSession.failedPenSave
+  var pendingPenSaves by readerSession.pendingPenSaves
+  val penSaveMutex = readerSession.penSaveMutex
   var ocrEngine by remember { mutableStateOf<OfflineOcrEngine?>(null) }
   var ocrResult by remember { mutableStateOf<OcrResult?>(null) }
   var ocrResultPage by remember { mutableIntStateOf(0) }
@@ -250,7 +274,7 @@ private fun ReaderHome(
   var isOcrRunning by remember { mutableStateOf(false) }
   var readerOcrState by remember { mutableStateOf(ReaderOcrState()) }
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
-  var isOpening by remember { mutableStateOf(false) }
+  var isOpening by readerSession.isOpening
   var showSettings by remember { mutableStateOf(false) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
@@ -272,9 +296,9 @@ private fun ReaderHome(
   var agentError by remember { mutableStateOf<String?>(null) }
   var isAgentRunning by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
-  var isSaving by remember { mutableStateOf(false) }
+  var isSaving by readerSession.isSaving
   val isPenSaving = pendingPenSaves > 0
-  var errorMessage by remember { mutableStateOf<String?>(null) }
+  var errorMessage by readerSession.errorMessage
   var showNoteHistory by remember { mutableStateOf(false) }
   var annotateMode by remember { mutableStateOf(false) }
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
@@ -286,9 +310,19 @@ private fun ReaderHome(
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
 
+  fun updateViewportTransform(transform: PdfViewportTransform) {
+    val bounds = viewportBounds
+    if (bounds.viewportWidthPx <= 0f || bounds.viewportHeightPx <= 0f ||
+      bounds.pageWidthPx <= 0f || bounds.pageHeightPx <= 0f
+    ) {
+      return
+    }
+    readerSession.viewportBookmark.value = PdfViewportBookmark.fromTransform(transform, bounds)
+  }
+
   fun applyViewportZoom(zoomChange: Float) {
     val bounds = viewportBounds
-    viewportTransform = PdfViewportTransform.applyGesture(
+    updateViewportTransform(PdfViewportTransform.applyGesture(
       current = viewportTransform,
       viewportWidthPx = bounds.viewportWidthPx,
       viewportHeightPx = bounds.viewportHeightPx,
@@ -299,14 +333,14 @@ private fun ReaderHome(
       zoomChange = zoomChange,
       panX = 0f,
       panY = 0f,
-    )
+    ))
   }
 
   fun fitViewportWidth() {
-    viewportTransform = PdfViewportTransform.fitWidth(
+    updateViewportTransform(PdfViewportTransform.fitWidth(
       viewportWidthPx = viewportBounds.viewportWidthPx,
       pageWidthPx = viewportBounds.pageWidthPx,
-    )
+    ))
   }
 
   suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
@@ -339,7 +373,7 @@ private fun ReaderHome(
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
     penStrokes = updated
-    scope.launch { savePenPage(targetPage, updated) }
+    readerSession.launchSessionTask { savePenPage(targetPage, updated) }
   }
 
   fun erasePenStroke(index: Int) {
@@ -347,7 +381,7 @@ private fun ReaderHome(
     if (penPageStore.eraseAt(PenSide.DOCUMENT, targetPage, index)) {
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
-      scope.launch { savePenPage(targetPage, updated) }
+      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
     }
   }
 
@@ -355,7 +389,7 @@ private fun ReaderHome(
     val targetPage = pageIndex + 1
     if (penPageStore.clearPage(PenSide.DOCUMENT, targetPage)) {
       penStrokes = emptyList()
-      scope.launch { savePenPage(targetPage, emptyList()) }
+      readerSession.launchSessionTask { savePenPage(targetPage, emptyList()) }
     }
   }
 
@@ -364,7 +398,7 @@ private fun ReaderHome(
     if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
-      scope.launch { savePenPage(targetPage, updated) }
+      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
     }
   }
 
@@ -373,7 +407,7 @@ private fun ReaderHome(
     if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
-      scope.launch { savePenPage(targetPage, updated) }
+      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
     }
   }
 
@@ -383,79 +417,91 @@ private fun ReaderHome(
       noteStatus = context.getString(R.string.note_read_only)
       return false
     }
-    if (!hasUnsavedChanges) return true
+    if (!hasUnsavedChanges) {
+      readerSession.clearCurrentDraftRecovery()
+      return true
+    }
 
-    isSaving = true
-    noteStatus = null
     val targetPage = pageIndex + 1
     val draftToSave = noteDraft
     val expectedRevision = noteBaseRevision
-    return try {
-      val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
-        val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
-        val latest = store.read()
-        val edited = PageNoteEditor.replacePage(
-          latestMarkdown = latest,
-          page = targetPage,
-          replacement = draftToSave,
-          expectedRevision = expectedRevision,
-        )
-        val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
-        edited to retainedCopy
-      }
-      notesMarkdown = result.markdown
-      noteBaseRevision = result.pageRevision
-      noteStatus = recoveryCopyName?.let { name ->
-        context.getString(R.string.note_saved_recovery_copy, name)
-      } ?: context.getString(R.string.note_saved)
-      withContext(Dispatchers.IO) {
-        runCatching {
-          NoteHistoryMirror.snapshotPage(
-            context.filesDir, activeProject.manifest.id, targetPage,
-            NotePage.pageAt(result.markdown, targetPage),
+    return readerSession.asyncSessionTask {
+      isSaving = true
+      noteStatus = null
+      try {
+        val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
+          val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
+          val latest = store.read()
+          val edited = PageNoteEditor.replacePage(
+            latestMarkdown = latest,
+            page = targetPage,
+            replacement = draftToSave,
+            expectedRevision = expectedRevision,
           )
+          val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
+          edited to retainedCopy
         }
-      }
-      true
-    } catch (conflict: PageNoteConflictException) {
-      noteStatus = conflict.message
-      false
-    } catch (conflict: NoteDocumentConflictException) {
-      noteStatus = conflict.recoveryCopyName?.let { name ->
-        context.getString(R.string.note_conflict_recovery_copy, name)
-      } ?: context.getString(R.string.note_conflict)
-      false
-    } catch (recovery: NoteRecoveryCopyRetainedException) {
-      noteStatus = context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName)
-      false
-    } catch (recovery: NoteWriteRecoveryException) {
-      noteStatus = recovery.recoveryCopyName?.let { name ->
-        context.getString(
-          if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback
-          else R.string.note_write_recovery_failed,
-          name,
+        notesMarkdown = result.markdown
+        noteBaseRevision = result.pageRevision
+        readerSession.refreshDraftRecoveryAfterSave(
+          targetPage,
+          NotePage.pageAt(result.markdown, targetPage),
         )
-      } ?: context.getString(R.string.note_save_failed, recovery.message ?: "")
-      false
-    } catch (error: Exception) {
-      noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
-      false
-    } finally {
-      isSaving = false
-    }
+        noteStatus = recoveryCopyName?.let { name ->
+          context.getString(R.string.note_saved_recovery_copy, name)
+        } ?: context.getString(R.string.note_saved)
+        withContext(Dispatchers.IO) {
+          runCatching {
+            NoteHistoryMirror.snapshotPage(
+              context.filesDir, activeProject.manifest.id, targetPage,
+              NotePage.pageAt(result.markdown, targetPage),
+            )
+          }
+        }
+        true
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (conflict: PageNoteConflictException) {
+        noteStatus = conflict.message
+        false
+      } catch (conflict: NoteDocumentConflictException) {
+        noteStatus = conflict.recoveryCopyName?.let { name ->
+          context.getString(R.string.note_conflict_recovery_copy, name)
+        } ?: context.getString(R.string.note_conflict)
+        false
+      } catch (recovery: NoteRecoveryCopyRetainedException) {
+        noteStatus = context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName)
+        false
+      } catch (recovery: NoteWriteRecoveryException) {
+        noteStatus = recovery.recoveryCopyName?.let { name ->
+          context.getString(
+            if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback
+            else R.string.note_write_recovery_failed,
+            name,
+          )
+        } ?: context.getString(R.string.note_save_failed, recovery.message ?: "")
+        false
+      } catch (error: Exception) {
+        noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
+        false
+      } finally {
+        isSaving = false
+      }
+    }.await()
   }
 
   fun reloadCurrentNote() {
     val activeProject = project ?: return
-    scope.launch {
+    readerSession.launchSessionTask {
       try {
         val latest = withContext(Dispatchers.IO) {
           ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
         }
         notesMarkdown = latest
         val freshPage = NotePage.pageAt(latest, pageIndex + 1)
-        noteDraft = freshPage
+        readerSession.setNoteDraft(freshPage)
         noteBaseRevision = PageNotes.revision(freshPage)
+        readerSession.clearCurrentDraftRecovery()
         noteStatus = context.getString(R.string.note_reloaded)
       } catch (error: Exception) {
         noteStatus = context.getString(R.string.note_reload_failed, error.message ?: "")
@@ -466,8 +512,13 @@ private fun ReaderHome(
   suspend fun changePage(nextPage: Int) {
     if (readerOcrState.inputLocked) return
     if (hasUnsavedChanges && !saveCurrentNote()) return
+    readerSession.clearCurrentDraftRecovery()
     noteStatus = null
     showOcrResult = false
+    readerSession.setNoteDraft(NotePage.pageAt(notesMarkdown, nextPage + 1))
+    noteBaseRevision = PageNotes.revision(noteDraft)
+    penStrokes = penPageStore.getItems(PenSide.DOCUMENT, nextPage + 1)
+    readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT
     pageIndex = nextPage
   }
 
@@ -733,7 +784,7 @@ private fun ReaderHome(
           result to retainedCopy
         }
         notesMarkdown = edited.markdown
-        noteDraft = NotePage.pageAt(edited.markdown, preview.page)
+        readerSession.setNoteDraft(NotePage.pageAt(edited.markdown, preview.page))
         noteBaseRevision = edited.pageRevision
         noteStatus = recoveryCopyName?.let { name ->
           context.getString(R.string.page_tutor_saved_recovery_copy, name)
@@ -866,7 +917,7 @@ private fun ReaderHome(
             }
             notesMarkdown = latest
             val freshPage = NotePage.pageAt(latest, targetPageIndex + 1)
-            noteDraft = freshPage
+            readerSession.setNoteDraft(freshPage)
             noteBaseRevision = PageNotes.revision(freshPage)
             noteStatus = context.getString(R.string.note_reloaded)
           }
@@ -950,7 +1001,7 @@ private fun ReaderHome(
           }
           notesMarkdown = latest
           val freshPage = NotePage.pageAt(latest, pageIndex + 1)
-          noteDraft = freshPage
+          readerSession.setNoteDraft(freshPage)
           noteBaseRevision = PageNotes.revision(freshPage)
           noteStatus = context.getString(R.string.note_reloaded)
         }
@@ -1014,13 +1065,25 @@ private fun ReaderHome(
     return false
   }
 
-  suspend fun openProjectTree(target: ProjectOpenTarget, manageOpening: Boolean = true) {
+  suspend fun openProjectTree(
+    target: ProjectOpenTarget,
+    manageOpening: Boolean = true,
+    requestedCheckpoint: ReaderSessionCheckpoint? = null,
+  ) {
     if (manageOpening) {
       isOpening = true
       errorMessage = null
     }
     try {
+      if (project != null) readerSession.flushDraftRecovery()
+      val checkpoint = requestedCheckpoint ?: readerSession.checkpointFor(target)
       var writable = true
+      if (checkpoint != null && !target.needsPersistablePermission) {
+        val grants = context.contentResolver.persistedUriPermissions.filter { it.uri == target.accessTreeUri }
+        val hasReadGrant = grants.any { it.isReadPermission }
+        if (!hasReadGrant) throw PersistedProjectPermissionMissingException()
+        writable = grants.any { it.isWritePermission }
+      }
       if (target.needsPersistablePermission) {
         try {
           context.contentResolver.takePersistableUriPermission(
@@ -1068,10 +1131,47 @@ private fun ReaderHome(
         } else {
           null
         }
+        val recoveries = readerSession.findDraftRecoveries(target, opened.manifest.id)
         val pdf = if (isMarkdown) {
           null
         } else {
           PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
+        }
+        val savedCheckpoint = checkpoint?.takeIf { it.projectId == opened.manifest.id }
+        val pageCount = pdf?.pageCount ?: markdownText?.let {
+          MarkdownSourcePages.pageCount(it, noteText)
+        } ?: 1
+        val draftRecovery = if (savedCheckpoint != null) {
+          recoveries.firstOrNull { it.page == savedCheckpoint.pageIndex + 1 }
+        } else {
+          recoveries.firstOrNull()
+        }
+        val restoredPageIndex = (savedCheckpoint?.pageIndex ?: draftRecovery?.page?.minus(1) ?: 0)
+          .coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+        val restoredCheckpoint = savedCheckpoint ?: draftRecovery?.let {
+          ReaderSessionCheckpoint(
+            accessTreeUri = target.accessTreeUri.toString(),
+            rootDocumentId = target.rootDocumentId,
+            projectId = opened.manifest.id,
+            pageIndex = restoredPageIndex,
+            viewportBookmark = PdfViewportBookmark.DEFAULT,
+            penToolName = PenCanvasTool.PEN.name,
+          )
+        }
+        val missingAssets = try {
+          val refs = ProjectAssetRefs.scan(noteText)
+          if (refs.isEmpty()) emptyList() else {
+            val srcDir = opened.sourceDirectoryUri
+            val srcId = DocumentsContract.getDocumentId(srcDir)
+            val assetsUri = DocumentsContract.buildDocumentUriUsingTree(srcDir, srcId + "/assets")
+            ProjectAssetRefs.missing(refs) { name ->
+              runCatching { assetChildExists(assetsUri, srcDir, name) }.getOrDefault(false)
+            }
+          }
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          emptyList()
         }
         ReaderProjectData(
           project = opened,
@@ -1082,38 +1182,48 @@ private fun ReaderHome(
           penStore = projectPenStore,
           penPageStore = loadedPenPages,
           penWritable = writable && supportsPenWrite,
+          restoredPageIndex = restoredPageIndex,
+          checkpoint = restoredCheckpoint,
+          draftRecovery = draftRecovery,
+          missingAssets = missingAssets,
         )
       }
-      renderer = loaded.renderer
+      readerSession.replaceRenderer(loaded.renderer)
       markdownSource = loaded.markdownSource
       project = loaded.project
       notesMarkdown = loaded.noteText
       penStore = loaded.penStore
       penPageStore = loaded.penPageStore
-      penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, 1)
+      penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, loaded.restoredPageIndex + 1)
       penWritable = loaded.penWritable
       failedPenSave = null
       penStatus = if (loaded.penWritable) null else context.getString(R.string.pen_read_only)
-      val firstPage = NotePage.pageAt(loaded.noteText, 1)
-      noteDraft = firstPage
-      noteBaseRevision = PageNotes.revision(firstPage)
-      noteWritable = loaded.noteWritable
-      val missingAssets = withContext(Dispatchers.IO) {
-        runCatching {
-          val refs = ProjectAssetRefs.scan(loaded.noteText)
-          if (refs.isEmpty()) return@runCatching emptyList<String>()
-          val srcDir = loaded.project.sourceDirectoryUri
-          val srcId = DocumentsContract.getDocumentId(srcDir)
-          val assetsUri = DocumentsContract.buildDocumentUriUsingTree(srcDir, srcId + "/assets")
-          ProjectAssetRefs.missing(refs) { name ->
-            runCatching { assetChildExists(assetsUri, srcDir, name) }.getOrDefault(false)
-          }
-        }.getOrDefault(emptyList())
+      pageIndex = loaded.restoredPageIndex
+      val restoredPage = pageIndex + 1
+      val savedPage = NotePage.pageAt(loaded.noteText, restoredPage)
+      val recoveryDecision = loaded.draftRecovery?.assess(savedPage)
+      if (recoveryDecision == NoteDraftRecoveryDecision.ALREADY_SAVED) {
+        readerSession.clearDraftRecovery(target, loaded.project.manifest.id, restoredPage)
       }
+      val recoveredDraft = when (recoveryDecision) {
+        NoteDraftRecoveryDecision.RESTORE_DRAFT,
+        NoteDraftRecoveryDecision.RESTORE_CONFLICT -> loaded.draftRecovery?.draft
+        else -> null
+      }
+      readerSession.setNoteDraft(recoveredDraft ?: savedPage)
+      noteBaseRevision = loaded.draftRecovery
+        ?.takeIf { recoveryDecision == NoteDraftRecoveryDecision.RESTORE_DRAFT ||
+          recoveryDecision == NoteDraftRecoveryDecision.RESTORE_CONFLICT }
+        ?.baseRevision ?: PageNotes.revision(savedPage)
+      noteWritable = loaded.noteWritable
       noteStatus = when {
+        recoveryDecision == NoteDraftRecoveryDecision.RESTORE_CONFLICT ->
+          context.getString(R.string.note_recovery_conflict)
+        recoveryDecision == NoteDraftRecoveryDecision.RESTORE_DRAFT ->
+          context.getString(R.string.note_recovery_restored)
         !noteWritable -> context.getString(R.string.read_only_project)
-        missingAssets.isNotEmpty() -> context.getString(
-          R.string.note_missing_assets, missingAssets.take(3).joinToString(", "),
+        loaded.missingAssets.isNotEmpty() -> context.getString(
+          R.string.note_missing_assets, loaded.missingAssets.take(3).joinToString(", "),
         )
         else -> null
       }
@@ -1121,10 +1231,16 @@ private fun ReaderHome(
       showOcrResult = false
       regionOcrResult = null
       readerOcrState = ReaderOcrState()
-      pageIndex = 0
+      readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
+      penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
+      readerSession.rememberOpenedProject(target)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       val detail = error.message.orEmpty()
-      errorMessage = if (detail.startsWith("Unsupported source format:")) {
+      errorMessage = if (error is PersistedProjectPermissionMissingException) {
+        context.getString(R.string.note_recovery_permission_missing)
+      } else if (detail.startsWith("Unsupported source format:")) {
         val extension = detail.substringAfter("Unsupported source format:").trim().ifBlank { "" }
         context.getString(R.string.unsupported_format, extension.ifBlank { "" })
       } else {
@@ -1135,7 +1251,7 @@ private fun ReaderHome(
     }
   }
 
-  fun createNewProject(scope: CoroutineScope) {
+  fun createNewProject() {
     val name = newProjectName.trim()
     val dir = newProjectDir
     if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
@@ -1146,7 +1262,7 @@ private fun ReaderHome(
       chooseNewProjectDirectory()
       return
     }
-    scope.launch {
+    readerSession.launchSessionTask {
       isCreatingProject = true
       newProjectError = null
       try {
@@ -1156,7 +1272,7 @@ private fun ReaderHome(
         showNewProject = false
         newProjectName = ""
         newProjectDir = null
-        if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+        if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
         openProjectTree(projectTarget, manageOpening = true)
       } catch (error: Exception) {
         newProjectError = context.getString(R.string.new_project_failed, error.message ?: "")
@@ -1171,14 +1287,10 @@ private fun ReaderHome(
     contract = ActivityResultContracts.OpenDocumentTree(),
   ) { treeUri: Uri? ->
     if (treeUri != null) {
-      scope.launch { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
+      readerSession.launchSessionTask { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
     }
   }
 
-  val rendererToClose = renderer
-  DisposableEffect(rendererToClose) {
-    onDispose { rendererToClose?.close() }
-  }
   DisposableEffect(Unit) {
     onDispose { pageBitmap?.recycle() }
   }
@@ -1191,14 +1303,17 @@ private fun ReaderHome(
     }
   }
 
-  LaunchedEffect(notesMarkdown, pageIndex) {
-    val markdown = NotePage.pageAt(notesMarkdown, pageIndex + 1)
-    noteDraft = markdown
-    noteBaseRevision = PageNotes.revision(markdown)
+  LaunchedEffect(readerSession) {
+    val checkpoint = readerSession.claimRestorationCheckpoint() ?: return@LaunchedEffect
+    openProjectTree(
+      target = checkpoint.toProjectOpenTarget(),
+      requestedCheckpoint = checkpoint,
+    )
   }
 
-  LaunchedEffect(pageIndex) {
-    noteStatus = null
+  LaunchedEffect(project, pageIndex, readerSession.viewportBookmark.value, penTool) {
+    if (project == null) return@LaunchedEffect
+    readerSession.saveCheckpoint()
   }
 
   LaunchedEffect(pageIndex, penPageStore) {
@@ -1410,12 +1525,12 @@ private fun ReaderHome(
           "previous_page", R.string.previous_page,
           canChangePage && pageIndex > 0,
           disabledReason = commandReason(requireProject = true) ?: context.getString(R.string.reader_menu_first_page),
-        ) { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
+          ) { readerSession.launchSessionTask { changePage((pageIndex - 1).coerceAtLeast(0)) } },
         actionCommand(
           "next_page", R.string.next_page,
           canChangePage && pageIndex < totalPages - 1,
           disabledReason = commandReason(requireProject = true) ?: context.getString(R.string.reader_menu_last_page),
-        ) { scope.launch { changePage((pageIndex + 1).coerceAtMost(totalPages - 1)) } },
+          ) { readerSession.launchSessionTask { changePage((pageIndex + 1).coerceAtMost(totalPages - 1)) } },
         actionCommand(
           "ocr", R.string.ocr,
           canUsePdf && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
@@ -1447,7 +1562,7 @@ private fun ReaderHome(
         actionCommand(
           "fit_page", R.string.fit_page, canUsePdf && !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
-        ) { viewportTransform = PdfViewportTransform.DEFAULT },
+        ) { readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT },
       ),
     ),
     menuSection(
@@ -1623,7 +1738,7 @@ private fun ReaderHome(
           )
           failedPenSave?.let { (targetPage, strokes) ->
             TextButton(
-              onClick = { scope.launch { savePenPage(targetPage, strokes) } },
+              onClick = { readerSession.launchSessionTask { savePenPage(targetPage, strokes) } },
               enabled = !isPenSaving,
             ) { Text(stringResource(R.string.retry)) }
           }
@@ -1658,7 +1773,7 @@ private fun ReaderHome(
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
                 transform = viewportTransform,
-                onTransformChanged = { viewportTransform = it },
+                onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
                 gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
@@ -1686,8 +1801,8 @@ private fun ReaderHome(
               writable = noteWritable,
               saving = isSaving,
               status = noteStatus,
-              onMarkdownChange = { noteDraft = it },
-              onSave = { scope.launch { saveCurrentNote() } },
+              onMarkdownChange = readerSession::setNoteDraft,
+              onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
@@ -1719,7 +1834,7 @@ private fun ReaderHome(
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
                 transform = viewportTransform,
-                onTransformChanged = { viewportTransform = it },
+                onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
                 gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
@@ -1747,8 +1862,8 @@ private fun ReaderHome(
               writable = noteWritable,
               saving = isSaving,
               status = noteStatus,
-              onMarkdownChange = { noteDraft = it },
-              onSave = { scope.launch { saveCurrentNote() } },
+              onMarkdownChange = readerSession::setNoteDraft,
+              onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
@@ -1860,7 +1975,7 @@ private fun ReaderHome(
       error = newProjectError,
       creating = isCreatingProject,
       onChooseDir = { chooseNewProjectDirectory() },
-      onConfirm = { createNewProject(scope) },
+      onConfirm = { createNewProject() },
       onDismiss = {
         if (NewProjectDialogPolicy.canDismiss(isCreatingProject, isChoosingNewProjectDir)) {
           showNewProject = false
@@ -1971,7 +2086,7 @@ private fun ReaderHome(
       baseRevision = noteBaseRevision,
       onDismiss = { showNoteHistory = false },
       onRestore = { restored ->
-        noteDraft = restored
+        readerSession.setNoteDraft(restored)
         noteBaseRevision = PageNotes.revision(restored)
         noteStatus = context.getString(R.string.note_history_restored)
         showNoteHistory = false

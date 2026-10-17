@@ -9,5 +9,6 @@ specifications live under [`spec/`](spec/). Keep them out of the repository-leve
 - [Implementation tasks](spec/tasks.md)
 - [Renderer library evaluation](spec/renderer-library-evaluation.md)
 - [Mermaid layout regression plan](spec/mermaid-layout-regression-plan.md)
+- [Reader session restoration plan](spec/reader-session-restoration-plan.md)
 - [Feature specifications](spec/features/)
 - [Data contracts](spec/contracts/)

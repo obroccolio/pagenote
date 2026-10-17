@@ -240,6 +240,10 @@
   <string name="note_save_failed">笔记保存失败：%1$s</string>
   <string name="note_reload_failed">重新载入笔记失败：%1$s</string>
   <string name="note_reloaded">已重新载入</string>
+  <string name="note_recovery_restored">已从本机恢复此页未保存的草稿。</string>
+  <string name="note_recovery_conflict">已恢复草稿，但项目笔记后来发生了变化。草稿仍保存在本机；保存前请先重新载入。</string>
+  <string name="note_recovery_permission_missing">项目访问权限已失效。草稿仍保存在本机；重新打开项目文件夹后即可恢复。</string>
+  <string name="note_recovery_write_failed">无法在本机保留此草稿：%1$s</string>
   <string name="select_project_error">项目打开失败：%1$s</string>
   <string name="unsupported_format">当前版本暂不支持 %1$s 格式阅读</string>
   <string name="project_open_failed">项目打开失败</string>
