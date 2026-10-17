@@ -1674,9 +1674,6 @@ private fun ReaderHome(
             project!!.annotationsUri,
           )
           try {
-            val existing = withContext(Dispatchers.IO) {
-              store.readPage("document", pageIndex + 1)
-            }
             val useRegion = annotateIsRegion
             val item = if (useRegion) {
               AnnotationRegionDraft.defaultSize(
@@ -1687,10 +1684,15 @@ private fun ReaderHome(
                 point.first, point.second, "#dc3545", 3.0, annotateText,
               )
             }
-            val merged = existing.toMutableList()
-            merged.add(item.toJsonElement())
-            withContext(Dispatchers.IO) {
-              store.writePage("document", pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
+            penSaveMutex.withLock {
+              val existing = withContext(Dispatchers.IO) {
+                store.readPage("document", pageIndex + 1)
+              }
+              val merged = existing.toMutableList()
+              merged.add(item.toJsonElement())
+              withContext(Dispatchers.IO) {
+                store.writePage("document", pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
+              }
             }
             noteStatus = context.getString(R.string.annotation_saved)
           } catch (error: Exception) {
@@ -1716,6 +1718,20 @@ private fun ReaderHome(
       project = project!!,
       onDismiss = { showAnnotations = false },
       onChanged = { noteStatus = it },
+      onDelete = { targetPage, targetIndex ->
+        penSaveMutex.withLock {
+          withContext(Dispatchers.IO) {
+            val store = ProjectAnnotationStore(
+              context.contentResolver,
+              project!!.sourceDirectoryUri,
+              project!!.annotationsUri,
+            )
+            val current = store.readPage("document", targetPage).toMutableList()
+            current.removeAt(targetIndex)
+            store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(current))
+          }
+        }
+      },
     )
   }
   if (showReviews && project != null) {
@@ -1909,6 +1925,7 @@ internal fun AnnotationListDialog(
   project: OpenedProject,
   onDismiss: () -> Unit,
   onChanged: (String) -> Unit,
+  onDelete: (suspend (Int, Int) -> Unit)? = null,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -1992,13 +2009,17 @@ internal fun AnnotationListDialog(
             val target = pendingDelete ?: return@TextButton
             scope.launch {
               try {
-                withContext(Dispatchers.IO) {
-                  val store = ProjectAnnotationStore(
-                    context.contentResolver, project.sourceDirectoryUri, project.annotationsUri,
-                  )
-                  val current = store.readPage("document", page).toMutableList()
-                  current.removeAt(target)
-                  store.writePage("document", page, kotlinx.serialization.json.JsonArray(current))
+                if (onDelete != null) {
+                  onDelete(page, target)
+                } else {
+                  withContext(Dispatchers.IO) {
+                    val store = ProjectAnnotationStore(
+                      context.contentResolver, project.sourceDirectoryUri, project.annotationsUri,
+                    )
+                    val current = store.readPage("document", page).toMutableList()
+                    current.removeAt(target)
+                    store.writePage("document", page, kotlinx.serialization.json.JsonArray(current))
+                  }
                 }
                 items = items.toMutableList().also { it.removeAt(target) }
                 onChanged(context.getString(R.string.annotation_deleted))
