@@ -113,8 +113,15 @@
 - Build Android debug APKs per ABI so devices do not download native OCR libraries for unrelated architectures. / 安卓 debug APK 改为按 ABI 分包，避免设备下载其他架构的 OCR 原生库。
 
 - Add native Android pen/highlighter/eraser input with pressure-aware strokes, page-scoped undo/redo, SAF persistence, and preservation of unrelated annotation data. / 新增安卓原生手写笔、荧光笔与橡皮，支持压感、按页撤销/重做及 SAF 保存，并保留无关批注数据。
+- Look up draft releases through the authenticated release list: GitHub's tag endpoint can return 404 until publication. / 修正草稿发布查询：公开标签接口可能返回 404，改为在授权可见的发布列表中匹配。
+
+- Allow a versioned beta upload request on the beta branch, without depending on a workflow being present on main; the upload still requires an exact successful validation/tag match. / Beta 分支可通过记录构建编号和标签触发直传，无需把测试流程混入 main。
+
+- Add a manual cloud-to-draft Mac upload workflow that verifies the successful CI commit, exact beta tag, draft status and package checksums. It never publishes a release or replaces published files. / 增加云端直传草稿发布流程，核对 CI 提交、Beta 标签和校验值，不自动公开发布、不替换已发布文件。
 
 ## 1.1.0-beta.4 — 2026-10-17
+
+- Keep the Windows executable-name override off macOS: electron-builder uses it for the entire app bundle name. Mac beta now builds as pagenote Beta.app with a matching binary path, alongside stable pagenote.app. / Windows 的可执行文件名覆盖不再影响 Mac；Mac 测试版正确生成独立的 pagenote Beta.app，避免与正式应用重名。
 
 - Dismiss the pen popover before test pan/ink drag actions: on compact displays it can cover the source pane and legitimately receive those events. Preserve the actual native-pan and ink-position assertions. / 小屏幕交互测试先收起覆盖文档的画笔面板，再验证平移和手写拖动；保留实际效果断言。
 
