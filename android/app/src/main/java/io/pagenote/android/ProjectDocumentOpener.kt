@@ -12,6 +12,8 @@ data class OpenedProject(
   val manifest: ProjectManifest,
   val sourceUri: Uri,
   val notesUri: Uri,
+  val sourceDirectoryUri: Uri,
+  val annotationsUri: Uri?,
   val sourceName: String,
   val sourceExtension: String,
 ) {
@@ -35,12 +37,23 @@ class ProjectDocumentOpener(private val resolver: ContentResolver) {
     val notesSegments = ProjectValidation.resolveLinkSegments(manifest.right)
     val sourceUri = findDocument(treeUri, rootDocumentId, sourceSegments)
       ?: throw IllegalArgumentException("找不到原文：${manifest.left}")
+    val sourceDirectoryUri = findDocument(treeUri, rootDocumentId, listOf("src"))
+      ?: throw IllegalArgumentException("项目文件夹中没有 src 目录")
+    val annotationsUri = findDocument(treeUri, rootDocumentId, listOf("src", "annotations.json"))
     val notesUri = findDocument(treeUri, rootDocumentId, notesSegments)
       ?: throw IllegalArgumentException("找不到笔记：${manifest.right}")
     val sourceName = manifest.leftName ?: sourceSegments.last()
     val extension = sourceSegments.last().substringAfterLast('.', "").lowercase()
     require(extension in setOf("pdf", "md", "markdown")) { "安卓端不支持此原文格式：$extension" }
-    return OpenedProject(manifest, sourceUri, notesUri, sourceName, extension)
+    return OpenedProject(
+      manifest = manifest,
+      sourceUri = sourceUri,
+      notesUri = notesUri,
+      sourceDirectoryUri = sourceDirectoryUri,
+      annotationsUri = annotationsUri,
+      sourceName = sourceName,
+      sourceExtension = extension,
+    )
   }
 
   private fun findDocument(treeUri: Uri, rootId: String, path: List<String>): Uri? {

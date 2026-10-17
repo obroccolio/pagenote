@@ -18,6 +18,8 @@
 
 - Build Android debug APKs per ABI so devices do not download native OCR libraries for unrelated architectures. / 安卓 debug APK 改为按 ABI 分包，避免设备下载其他架构的 OCR 原生库。
 
+- Add native Android pen/highlighter/eraser input with pressure-aware strokes, page-scoped undo/redo, SAF persistence, and preservation of unrelated annotation data. / 新增安卓原生手写笔、荧光笔与橡皮，支持压感、按页撤销/重做及 SAF 保存，并保留无关批注数据。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。

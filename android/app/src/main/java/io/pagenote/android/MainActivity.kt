@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,8 +69,15 @@ import io.pagenote.feature.ocr.OcrPolicy
 import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultMapper
 import io.pagenote.feature.ocr.OcrResultPolicy
+import io.pagenote.feature.pen.PenCanvasTool
+import io.pagenote.feature.pen.PenCanvasView
+import io.pagenote.feature.pen.PenPageStore
+import io.pagenote.feature.pen.PenSide
+import io.pagenote.feature.pen.PenStroke
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,6 +100,16 @@ class MainActivity : ComponentActivity() {
 
 }
 
+private data class ReaderProjectData(
+  val project: OpenedProject,
+  val noteText: String,
+  val renderer: PdfDocumentSession,
+  val noteWritable: Boolean,
+  val penStore: ProjectPenStore,
+  val penPageStore: PenPageStore,
+  val penWritable: Boolean,
+)
+
 @Composable
 private fun ReaderHome() {
   val context = LocalContext.current
@@ -105,6 +123,15 @@ private fun ReaderHome() {
   var noteBaseRevision by remember { mutableStateOf(PageNotes.revision("")) }
   var noteWritable by remember { mutableStateOf(false) }
   var noteStatus by remember { mutableStateOf<String?>(null) }
+  var penStore by remember { mutableStateOf<ProjectPenStore?>(null) }
+  var penPageStore by remember { mutableStateOf(PenPageStore()) }
+  var penStrokes by remember { mutableStateOf<List<PenStroke>>(emptyList()) }
+  var penWritable by remember { mutableStateOf(false) }
+  var penTool by remember { mutableStateOf(PenCanvasTool.PEN) }
+  var penStatus by remember { mutableStateOf<String?>(null) }
+  var failedPenSave by remember { mutableStateOf<Pair<Int, List<PenStroke>>?>(null) }
+  var pendingPenSaves by remember { mutableIntStateOf(0) }
+  val penSaveMutex = remember { Mutex() }
   var ocrEngine by remember { mutableStateOf<OfflineOcrEngine?>(null) }
   var ocrResult by remember { mutableStateOf<OcrResult?>(null) }
   var ocrResultPage by remember { mutableIntStateOf(0) }
@@ -113,9 +140,78 @@ private fun ReaderHome() {
   var isOpening by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
+  val isPenSaving = pendingPenSaves > 0
   var errorMessage by remember { mutableStateOf<String?>(null) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
+
+  suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
+    val store = penStore ?: return
+    if (!penWritable) {
+      penStatus = "只读项目：无法保存笔迹"
+      return
+    }
+    val snapshot = strokes.toList()
+    pendingPenSaves += 1
+    try {
+      penSaveMutex.withLock {
+        withContext(Dispatchers.IO) {
+          store.writePage(PenSide.DOCUMENT, targetPage, snapshot)
+        }
+      }
+      if (failedPenSave?.first == targetPage) failedPenSave = null
+      penStatus = "笔迹已保存"
+    } catch (error: Exception) {
+      if (error is CancellationException) throw error
+      failedPenSave = targetPage to snapshot
+      penStatus = "笔迹未保存：${error.message ?: "写入失败"}"
+    } finally {
+      pendingPenSaves -= 1
+    }
+  }
+
+  fun applyPenStroke(stroke: PenStroke) {
+    val targetPage = pageIndex + 1
+    penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
+    val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    penStrokes = updated
+    scope.launch { savePenPage(targetPage, updated) }
+  }
+
+  fun erasePenStroke(index: Int) {
+    val targetPage = pageIndex + 1
+    if (penPageStore.eraseAt(PenSide.DOCUMENT, targetPage, index)) {
+      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+      penStrokes = updated
+      scope.launch { savePenPage(targetPage, updated) }
+    }
+  }
+
+  fun clearPenPage() {
+    val targetPage = pageIndex + 1
+    if (penPageStore.clearPage(PenSide.DOCUMENT, targetPage)) {
+      penStrokes = emptyList()
+      scope.launch { savePenPage(targetPage, emptyList()) }
+    }
+  }
+
+  fun undoPenPage() {
+    val targetPage = pageIndex + 1
+    if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
+      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+      penStrokes = updated
+      scope.launch { savePenPage(targetPage, updated) }
+    }
+  }
+
+  fun redoPenPage() {
+    val targetPage = pageIndex + 1
+    if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
+      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+      penStrokes = updated
+      scope.launch { savePenPage(targetPage, updated) }
+    }
+  }
 
   suspend fun saveCurrentNote(): Boolean {
     val activeProject = project ?: return false
@@ -255,16 +351,41 @@ private fun ReaderHome() {
             val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
             val noteText = noteStore.read()
             val supportsNoteWrite = noteStore.supportsWrite()
+            val projectPenStore = ProjectPenStore(
+              context.contentResolver,
+              opened.sourceDirectoryUri,
+              opened.annotationsUri,
+            )
+            val loadedPenPages = PenPageStore().apply {
+              loadAnnotationsMap(
+                mapOf(PenSide.DOCUMENT.key to projectPenStore.readPages(PenSide.DOCUMENT)),
+              )
+            }
+            val supportsPenWrite = projectPenStore.supportsWrite()
             val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri)
-            Pair(Triple(opened, noteText, pdf), supportsNoteWrite)
+            ReaderProjectData(
+              project = opened,
+              noteText = noteText,
+              renderer = pdf,
+              noteWritable = writable && supportsNoteWrite,
+              penStore = projectPenStore,
+              penPageStore = loadedPenPages,
+              penWritable = writable && supportsPenWrite,
+            )
           }
-          renderer = loaded.first.third
-          project = loaded.first.first
-          notesMarkdown = loaded.first.second
-          val firstPage = NotePage.pageAt(loaded.first.second, 1)
+          renderer = loaded.renderer
+          project = loaded.project
+          notesMarkdown = loaded.noteText
+          penStore = loaded.penStore
+          penPageStore = loaded.penPageStore
+          penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, 1)
+          penWritable = loaded.penWritable
+          failedPenSave = null
+          penStatus = if (loaded.penWritable) null else "只读项目：笔迹不可编辑"
+          val firstPage = NotePage.pageAt(loaded.noteText, 1)
           noteDraft = firstPage
           noteBaseRevision = PageNotes.revision(firstPage)
-          noteWritable = writable && loaded.second
+          noteWritable = loaded.noteWritable
           noteStatus = if (noteWritable) null else "只读项目：存储位置未授予笔记写入权限"
           ocrResult = null
           showOcrResult = false
@@ -302,6 +423,10 @@ private fun ReaderHome() {
 
   LaunchedEffect(pageIndex) {
     noteStatus = null
+  }
+
+  LaunchedEffect(pageIndex, penPageStore) {
+    penStrokes = penPageStore.getItems(PenSide.DOCUMENT, pageIndex + 1)
   }
 
   LaunchedEffect(renderer, pageIndex) {
@@ -343,7 +468,7 @@ private fun ReaderHome() {
             projectPicker.launch(null)
           }
         },
-        enabled = !isOpening && !isSaving && !isOcrRunning,
+        enabled = !isOpening && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
       ) {
         Text(if (isOpening) "正在打开" else "打开项目")
       }
@@ -368,7 +493,8 @@ private fun ReaderHome() {
       ) {
         Button(
           onClick = { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
-          enabled = pageIndex > 0 && !isRendering && !isSaving && !isOcrRunning,
+          enabled = pageIndex > 0 && !isRendering && !isSaving && !isPenSaving &&
+            failedPenSave == null && !isOcrRunning,
         ) {
           Text("上一页")
         }
@@ -386,9 +512,63 @@ private fun ReaderHome() {
             }
           },
           enabled = pageIndex < activeRenderer.pageCount - 1 &&
-            !isRendering && !isSaving && !isOcrRunning,
+            !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
         ) {
           Text("下一页")
+        }
+      }
+
+      Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+          .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        listOf(
+          PenCanvasTool.PEN to "笔",
+          PenCanvasTool.HIGHLIGHTER to "荧光笔",
+          PenCanvasTool.ERASER to "橡皮",
+        ).forEach { (tool, label) ->
+          if (penTool == tool) {
+            Button(onClick = { penTool = tool }, enabled = penWritable) { Text(label) }
+          } else {
+            TextButton(onClick = { penTool = tool }, enabled = penWritable) { Text(label) }
+          }
+        }
+        TextButton(
+          onClick = ::undoPenPage,
+          enabled = penWritable && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
+        ) { Text("撤销") }
+        TextButton(
+          onClick = ::redoPenPage,
+          enabled = penWritable && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
+        ) { Text("重做") }
+        TextButton(
+          onClick = ::clearPenPage,
+          enabled = penWritable && penStrokes.isNotEmpty(),
+        ) { Text("清空本页") }
+      }
+      penStatus?.let { status ->
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = status,
+            modifier = Modifier.weight(1f),
+            color = if (status.contains("未保存") || status.contains("只读")) {
+              MaterialTheme.colorScheme.error
+            } else {
+              MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            style = MaterialTheme.typography.labelMedium,
+          )
+          failedPenSave?.let { (targetPage, strokes) ->
+            TextButton(
+              onClick = { scope.launch { savePenPage(targetPage, strokes) } },
+              enabled = !isPenSaving,
+            ) { Text("重试") }
+          }
         }
       }
     }
@@ -404,6 +584,11 @@ private fun ReaderHome() {
               sourceName = activeProject.sourceName,
               page = pageIndex,
               loading = isRendering,
+              strokes = penStrokes,
+              tool = penTool,
+              inputEnabled = penWritable,
+              onStrokeAdded = ::applyPenStroke,
+              onStrokeErased = ::erasePenStroke,
               modifier = Modifier.weight(0.56f).fillMaxHeight(),
             )
             Box(
@@ -430,6 +615,11 @@ private fun ReaderHome() {
               sourceName = activeProject.sourceName,
               page = pageIndex,
               loading = isRendering,
+              strokes = penStrokes,
+              tool = penTool,
+              inputEnabled = penWritable,
+              onStrokeAdded = ::applyPenStroke,
+              onStrokeErased = ::erasePenStroke,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             Box(
@@ -482,16 +672,45 @@ private fun PdfPageViewport(
   sourceName: String,
   page: Int,
   loading: Boolean,
+  strokes: List<PenStroke>,
+  tool: PenCanvasTool,
+  inputEnabled: Boolean,
+  onStrokeAdded: (PenStroke) -> Unit,
+  onStrokeErased: (Int) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Box(modifier = modifier, contentAlignment = Alignment.Center) {
+  BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
     if (bitmap != null) {
-      Image(
-        bitmap = bitmap.asImageBitmap(),
-        contentDescription = "$sourceName 第 ${page + 1} 页",
-        modifier = Modifier.fillMaxSize(),
-        contentScale = ContentScale.Fit,
-      )
+      val pageAspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+      val viewportAspectRatio = maxWidth.value / maxHeight.value.coerceAtLeast(1f)
+      val contentWidth = if (viewportAspectRatio > pageAspectRatio) {
+        maxHeight * pageAspectRatio
+      } else {
+        maxWidth
+      }
+      val contentHeight = contentWidth / pageAspectRatio
+      Box(
+        modifier = Modifier.width(contentWidth).height(contentHeight),
+        contentAlignment = Alignment.Center,
+      ) {
+        Image(
+          bitmap = bitmap.asImageBitmap(),
+          contentDescription = "$sourceName 第 ${page + 1} 页",
+          modifier = Modifier.fillMaxSize(),
+          contentScale = ContentScale.FillBounds,
+        )
+        AndroidView(
+          modifier = Modifier.fillMaxSize(),
+          factory = { viewContext -> PenCanvasView(viewContext) },
+          update = { view ->
+            view.strokes = strokes
+            view.selectedTool = tool
+            view.inputEnabled = inputEnabled
+            view.onStrokeAdded = onStrokeAdded
+            view.onStrokeErased = onStrokeErased
+          },
+        )
+      }
     } else if (loading) {
       Text("正在读取页面…", style = MaterialTheme.typography.bodyLarge)
     }
