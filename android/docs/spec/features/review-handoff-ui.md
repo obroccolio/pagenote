@@ -2,13 +2,13 @@
 
 ## Scope
 
-Task 6 最后两片：AI review 创建/列表/状态流转 UI + handoff 交接读写 UI（含 stale 处理）。数据层 File 语义已有（`ReviewStore`/`HandoffStore`），本片补 SAF 薄适配 + UI。
+Task 6 最后两片：整体 AI review 创建/列表、handoff 交接读写 UI（含 stale 处理）。笔记选区 review 的独立契约见 `note-selection-ai-review.md`。数据层 File 语义已有（`ReviewStore`/`HandoffStore`），本片补 SAF 薄适配 + UI。
 
 ## Review Interaction
 
-- 工具栏 `Review` 按钮打开本页 review 列表弹窗：列出 document/note 两侧本页 open 记录（instruction + 状态），可新建（instruction 输入 + side 选择，kind=overall）。
-- 每条可标 applied/dismissed（二次确认），可删除；状态流转经 `ReviewStore.transition` 语义（open→applied/dismissed，不可逆转由 store 拒绝）。
-- 新建时 quote/context 置空（移动端无框选），revision 带当前页 note revision，便于 Agent 侧 `expectedRevision` 校验。
+- 工具栏 `Review` 按钮打开本页 review 列表弹窗：列出 document/note 两侧本页记录的 quote、instruction 与状态，可新建整体要求（instruction 输入 + side 选择，kind=overall）。
+- 用户可 dismiss 或删除 review。`applied` 只能由 Agent 在目标页笔记成功发生实际修改后流转，不能由 UI 手动确认；同轮修改/校验详见 `note-selection-ai-review.md`。
+- 整体 review 的 quote/context 为空；selection review 必须保留选中文字、上下文、revision 和 anchor，详见 `note-selection-ai-review.md`。
 
 ## Review Data Contract
 
@@ -28,11 +28,12 @@ Task 6 最后两片：AI review 创建/列表/状态流转 UI + handoff 交接�
 ## Acceptance (EARS)
 
 - When 新建 review 时，shall 落盘 open 记录并列出。
-- When 流转 review 状态时，非法流转 shall 拒绝。
+- When 用户 dismiss 或删除 review 时，shall 不修改笔记正文。
+- When Agent 将 review 流转为 applied 时，shall 要求同轮 Agent 已成功修改该 review 页的笔记。
 - When 读 handoff 且 revision 漂移时，shall 标 stale 并要求 reload 后再写。
 - When 写 handoff 用过期 revision 时，shall 拒绝覆盖。
 
 ## Verification
 
-- JVM：SAF store 的 File 等价路径测试 + 仪器编译。
+- JVM：SAF store 的 File 等价路径测试 + 仪器测试覆盖 review 详情写入/读取与状态授权。
 - `cd android && ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin --offline` 通过；真机待 task 12。
