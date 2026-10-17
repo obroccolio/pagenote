@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Recognize selected page regions with the bundled offline OCR engine and map detections back to full-page coordinates while preserving caller-owned images. / 新增端侧离线 OCR 选区识别，将检测框映射回整页坐标并保留调用方原图所有权。
+
 - Define Android-only SPECs for reader settings and OCR region recognition under `android/docs/spec/`. / 在 `android/docs/spec/` 中定义安卓阅读器设置与选区 OCR 的独立 SPEC。
 
 - Add API 35 native PDF text extraction with an explicit OCR fallback on Android 29–34, plus two-finger zoom/pan, fit-width, and reset controls in the Android reader. / 安卓阅读器新增 API 35 原生 PDF 文本抽取（Android 29–34 明确回退离线 OCR），并支持双指缩放/平移、适宽和重置视图。

@@ -57,7 +57,7 @@
 - [ ] 9. 离线 OCR（部分：已打包 PP-OCRv6 tiny 中英文模型、端侧 ONNX 引擎和当前页手动识别入口；自动触发、页面准备缓存、区域重识别与真机验收待续）
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
   - 触发规则、超时处理、失败明确标记、飞行模式可用。
-  - [ ] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
+  - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
   - [ ] 阅读器区域选择、按页缓存和触发策略。
   - _Requirement: 页面准备与 OCR_
 

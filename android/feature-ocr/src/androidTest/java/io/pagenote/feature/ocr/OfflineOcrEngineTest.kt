@@ -65,4 +65,57 @@ class OfflineOcrEngineTest {
       engine.close()
     }
   }
+
+  @Test
+  fun regionRecognitionKeepsCallerBitmapAndReturnsPageRelativeBounds() = runBlocking {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val bitmap = Bitmap.createBitmap(1200, 180, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(Color.WHITE)
+    canvas.drawText(
+      "离线 OCR Test 123",
+      24f,
+      125f,
+      Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = 76f
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+      },
+    )
+    val originalPixels = IntArray(bitmap.width * bitmap.height)
+    bitmap.getPixels(originalPixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    val engine = OfflineOcrEngine.create(context)
+    try {
+      val result = engine.recognize(bitmap, NormalizedOcrRegion(0, 0, 600, 1000))
+
+      assertFalse(result.warnings.joinToString(" "), result.status == "failed")
+      assertTrue(OcrResultPolicy.textOf(result).contains("离线"))
+      assertTrue(result.blocks.isNotEmpty())
+      assertTrue(result.blocks.all { it.x + it.width <= 600.0 })
+      assertFalse(bitmap.isRecycled)
+      val afterPixels = IntArray(bitmap.width * bitmap.height)
+      bitmap.getPixels(afterPixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+      assertTrue(originalPixels.contentEquals(afterPixels))
+    } finally {
+      engine.close()
+      bitmap.recycle()
+    }
+  }
+
+  @Test
+  fun outsideRegionReturnsAnExplicitFailureWithoutRecyclingInput() = runBlocking {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val engine = OfflineOcrEngine.create(context)
+    val bitmap = Bitmap.createBitmap(20, 10, Bitmap.Config.ARGB_8888)
+    try {
+      val result = engine.recognize(bitmap, NormalizedOcrRegion(0, 0, 1001, 1000))
+
+      assertTrue(result.status == "failed")
+      assertTrue(result.warnings.single().contains("region"))
+      assertFalse(bitmap.isRecycled)
+    } finally {
+      engine.close()
+      bitmap.recycle()
+    }
+  }
 }

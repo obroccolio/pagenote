@@ -11,6 +11,31 @@ data class RecognizedTextBlock(
 object OcrResultMapper {
   const val ENGINE = "pp-ocrv6-tiny-onnx"
 
+  fun mapRegion(
+    cropResult: OcrResult,
+    crop: OcrPixelRect,
+    pageWidth: Int,
+    pageHeight: Int,
+  ): OcrResult {
+    require(pageWidth > 0 && pageHeight > 0) { "OCR image dimensions must be positive" }
+    require(crop.right <= pageWidth && crop.bottom <= pageHeight) { "OCR crop is outside the image" }
+    OcrResultPolicy.validate(cropResult)
+
+    val blocks = cropResult.blocks.map { block ->
+      val left = ((crop.left + block.x * crop.width / 1000.0) * 1000.0 / pageWidth)
+        .coerceIn(0.0, 1000.0)
+      val top = ((crop.top + block.y * crop.height / 1000.0) * 1000.0 / pageHeight)
+        .coerceIn(0.0, 1000.0)
+      val right = ((crop.left + (block.x + block.width) * crop.width / 1000.0) * 1000.0 / pageWidth)
+        .coerceIn(left, 1000.0)
+      val bottom = ((crop.top + (block.y + block.height) * crop.height / 1000.0) * 1000.0 / pageHeight)
+        .coerceIn(top, 1000.0)
+      block.copy(x = left, y = top, width = right - left, height = bottom - top)
+    }
+
+    return cropResult.copy(blocks = blocks).also(OcrResultPolicy::validate)
+  }
+
   fun map(
     imageWidth: Int,
     imageHeight: Int,

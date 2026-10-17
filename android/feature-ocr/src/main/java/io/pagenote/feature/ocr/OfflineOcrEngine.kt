@@ -28,22 +28,50 @@ class OfflineOcrEngine private constructor(
     }
 
     try {
-      val output = pipeline.recognize(bitmap)
-      OcrResultMapper.map(
-        imageWidth = bitmap.width,
-        imageHeight = bitmap.height,
-        recognized = output.results.map { result ->
-          RecognizedTextBlock(
-            text = result.text,
-            confidence = result.confidence.toDouble(),
-            points = result.box.points.map { OcrPoint(it.x, it.y) },
-          )
-        },
+      recognizeBitmap(bitmap)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Throwable) {
+      failure("Offline OCR inference failed: ${error.message ?: error.javaClass.simpleName}")
+    }
+  }
+
+  suspend fun recognize(bitmap: Bitmap, region: NormalizedOcrRegion): OcrResult = mutex.withLock {
+    if (released) return@withLock failure("OCR engine has been closed.")
+    if (bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0) {
+      return@withLock failure("OCR input image is empty or has been recycled.")
+    }
+
+    val crop = try {
+      region.toPixelRect(bitmap.width, bitmap.height)
+    } catch (error: IllegalArgumentException) {
+      return@withLock failure("Invalid OCR region: ${error.message ?: "region is outside the image"}")
+    }
+
+    var temporaryCrop: Bitmap? = null
+    try {
+      val recognitionBitmap = if (crop.left == 0 && crop.top == 0 &&
+        crop.right == bitmap.width && crop.bottom == bitmap.height
+      ) {
+        bitmap
+      } else {
+        Bitmap.createBitmap(bitmap, crop.left, crop.top, crop.width, crop.height).also { created ->
+          if (created !== bitmap) temporaryCrop = created
+        }
+      }
+      val cropResult = recognizeBitmap(recognitionBitmap)
+      if (recognitionBitmap === bitmap) cropResult else OcrResultMapper.mapRegion(
+        cropResult = cropResult,
+        crop = crop,
+        pageWidth = bitmap.width,
+        pageHeight = bitmap.height,
       )
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (error: Throwable) {
       failure("Offline OCR inference failed: ${error.message ?: error.javaClass.simpleName}")
+    } finally {
+      temporaryCrop?.let { if (!it.isRecycled) it.recycle() }
     }
   }
 
@@ -59,6 +87,21 @@ class OfflineOcrEngine private constructor(
     status = "failed",
     warnings = listOf(message),
   )
+
+  private suspend fun recognizeBitmap(bitmap: Bitmap): OcrResult {
+    val output = pipeline.recognize(bitmap)
+    return OcrResultMapper.map(
+      imageWidth = bitmap.width,
+      imageHeight = bitmap.height,
+      recognized = output.results.map { result ->
+        RecognizedTextBlock(
+          text = result.text,
+          confidence = result.confidence.toDouble(),
+          points = result.box.points.map { OcrPoint(it.x, it.y) },
+        )
+      },
+    )
+  }
 
   companion object {
     private const val DETECTION_MODEL = "models/det/inference.onnx"
