@@ -58,7 +58,7 @@
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
   - 触发规则、超时处理、失败明确标记、飞行模式可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
-  - [ ] 阅读器区域选择、按页缓存和触发策略。
+  - [ ] 阅读器区域选择和 SAF 项目缓存，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
 
 - [ ] 10. 端侧 Agent 与 OpenAI 兼容接入（部分：客户端、任务循环与数据契约已实现；项目工具接入及端到端闭环待续）
