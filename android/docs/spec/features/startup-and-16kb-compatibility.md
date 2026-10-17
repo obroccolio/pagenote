@@ -34,3 +34,11 @@ Keep the Android reader launchable when it applies a user-selected locale throug
 - Each 64-bit APK is extracted and checked with NDK `llvm-objdump -p`; no `LOAD` line may report an alignment below `2**14`.
 - Each APK passes SDK Build Tools `zipalign -c -P 16 -v 4`.
 - Device smoke testing confirms launch and SAF project-picker interaction on the connected device. A 4 KB device does not substitute for a 16 KB runtime emulator/device when one is available.
+- Runtime acceptance on Android 15+ uses an official 16 KB system image and verifies `getconf PAGESIZE == 16384`, debug APK launch, native-library loading, SAF picker, and a representative reader page; artifact alignment checks alone are insufficient evidence of runtime compatibility.
+- The 16 KB runtime suite includes app instrumentation and the feature OCR instrumentation that loads the bundled ONNX/OpenCV models and recognizes its Chinese/English fixture; the executed test count must be nonzero.
+
+## Runtime Evidence (2026-10-18)
+
+- An official Android 15 Google Play ARM64 16 KB tablet AVD reports a 16,384-byte page size. The debug app launches and all 69 app instrumentation tests pass on it.
+- OCR instrumentation now discovers seven tests instead of silently starting zero. Its process currently terminates with `SIGILL` in `libopencv_java4.so` during `OpenCVUtils.init`, at an SVE `RDVL` instruction. The same library build ID and failure reproduce on an Android 15 4 KB ARM64 AVD, so the failure is not isolated to 16 KB page sizing.
+- A simulator CPU-feature mismatch is one hypothesis, not a confirmed root cause. APK ELF/ZIP alignment is verified independently; OCR native execution, SAF picker interaction, and representative project rendering remain open runtime checks.

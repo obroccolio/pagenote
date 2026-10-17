@@ -35,7 +35,7 @@ Add a real, on-device Chinese/English OCR engine to `feature-ocr`. OCR must be a
 - Engine creation and recognition are suspendable/blocking-work-safe APIs so callers can keep inference off the UI thread. The caller owns the `Bitmap` and retains its original page image independently.
 - Pipeline implementation follows the official `deploy/ppocr-android/ppocr-sdk` stages: model asset validation/copy to app-private files if required by ONNX Runtime, bitmap normalization, text detection, quadrilateral crop, recognition, and conversion to `OcrBlock`.
 - Asset names and the engine identifier are versioned constants. The result keeps the existing status vocabulary (`ok`, `partial`, `failed`); low confidence and runtime warnings remain visible through `OcrResultPolicy`.
-- Dependencies are pinned to versions validated by the upstream Android demo. QuickBird's Android OpenCV wrapper documents `4.5.3.0` as a runtime-safe replacement for `4.5.3`; any version changes require a separate compatibility check.
+- Dependencies are pinned and recorded in the Android module. The current implementation uses official OpenCV `4.14.0` and ONNX Runtime Android `1.21.1`; ELF/ZIP page-size alignment does not by itself prove that the native library executes correctly on every ARM64 runtime.
 
 ## Provenance
 
@@ -47,11 +47,18 @@ Add a real, on-device Chinese/English OCR engine to `feature-ocr`. OCR must be a
 - Recognition model revision: `2612ab37152ae0a677521bae4e1e3d4fb4cf7c30`; SHA-256 `9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6`.
 - Recognition config at the same revision; SHA-256 `66170210bad538e83fff3c4a3867e547d6bf20b50d64b20347c4b913f3034ea1`.
 - Both model cards declare Apache-2.0. The PaddleOCR repository is Apache-2.0; its license text is retained with the feature module.
-- ONNX Runtime Android `1.21.1` is MIT; its release license and third-party notices are retained in the module. QuickBird OpenCV Android wrapper `4.5.3.0` is BSD-3-Clause and OpenCV `4.5.3` is Apache-2.0; both license texts are retained.
+- ONNX Runtime Android `1.21.1` is MIT and official OpenCV Android `4.14.0` is Apache-2.0; license texts and third-party notices are retained in the module.
 
 ## Verification
 
 - JVM tests cover bitmap preconditions, geometry normalization, Paddle result mapping, confidence preservation, and explicit failure mapping.
 - Module build verifies Android/ONNX integration compiles and packages model assets.
-- Android instrumentation/device validation must initialize both models and recognize a fixed Chinese/English fixture with network disabled. Until that is run, report offline device recognition as implemented but not device-verified.
+- Android instrumentation must execute a nonzero test count, initialize both models, and recognize a fixed Chinese/English fixture with network disabled. A successful Gradle task that discovers zero tests is not evidence.
 - Inspect the built APK to confirm both model assets are present and that no lazy model-download path exists.
+
+## Runtime Validation Status
+
+- On 2026-10-18, the official Android 15 Google Play ARM64 16 KB AVD reported `getconf PAGESIZE = 16384`; the app launched and all 69 app instrumentation tests passed.
+- The OCR library instrumentation runner was then configured explicitly after the task had previously reported success while starting zero tests. The corrected task discovers seven tests, but the instrumentation process terminates with `SIGILL` while initializing `org.opencv:opencv:4.14.0`, in `OpenCVUtils.init` inside `libopencv_java4.so`. The faulting instruction was decoded as SVE `RDVL`.
+- The same crash and library build ID reproduce on the Android 15 4 KB ARM64 AVD. This does not yet establish whether the cause is an emulator CPU-feature mismatch or an OpenCV runtime defect; no physical ARM64 confirmation is available.
+- OpenCV's packaged 64-bit ELF `LOAD` segments and APK ZIP entries pass the 16 KB alignment checks, but this is separate from the unresolved execution failure. Offline OCR is not currently runtime-verified and must not be marked complete.

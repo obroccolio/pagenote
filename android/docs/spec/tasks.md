@@ -65,7 +65,7 @@
   - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。准备缓存不另存 Mermaid PNG；阅读预览绘图仍按 task 5 验收。
   - _Requirement: 页面准备与 OCR_
 
-- [x] 9. 离线 OCR（中英文整页/区域识别、自动触发规则、超时与失败标记、页面准备缓存、区域重识别均已落地，真机待 task 12）
+- [ ] 9. 离线 OCR（代码与模型已接入，但端上推理验收未通过：补齐 instrumentation runner 后，Android 15 API 35 ARM64 4 KB/16 KB AVD 均在 OpenCV `RDVL` 指令触发 SIGILL；根因待确认，不能标记完成）
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
   - 触发规则（`OcrTrigger`：不可用/空/图多字少自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、飞行模式可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
@@ -92,7 +92,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；4 KB 真机冷启动 smoke 通过，16 KB 页面运行时及真实功能矩阵仍待完成；PDF session 重复关闭回归由 API 35 AVD 验证）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；官方 16 KB API 35 AVD 启动且 69 项 app 仪器测试通过，但 OCR 原生运行时 SIGILL、SAF 既有项目打开和完整功能矩阵仍未完成；PDF session 重复关闭回归由 API 35 AVD 验证）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -100,6 +100,8 @@
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
+  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，69 项 app 仪器测试全部通过。
+  - [ ] OCR 模块此前缺少 `testInstrumentationRunner`，Gradle 曾报告 0 tests；现补齐配置后实际发现 7 tests，但首个 OCR 初始化在 `libopencv_java4.so` 的 SVE `RDVL` 指令 SIGILL，Android 15 4 KB 与 16 KB AVD 均可复现。AVD CPU 特征不匹配仅为假设，待验证；详情见 `features/offline-ocr.md` 与 `startup-and-16kb-compatibility-plan.md`。
   - [x] Pixel Tablet API 34 与 API 35 AVD 各运行 59 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
