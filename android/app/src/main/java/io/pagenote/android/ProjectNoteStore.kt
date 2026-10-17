@@ -30,8 +30,8 @@ class ProjectNoteStore(
     }
   }
 
-  fun write(markdown: String, expectedOriginal: String) {
-    RecoverableDocumentWrite(
+  fun write(markdown: String, expectedOriginal: String): String? {
+    return RecoverableDocumentWrite(
       readTarget = ::read,
       overwriteTarget = { content -> overwrite(uri, content) },
       createBackup = ::createRecoveryCopy,
@@ -50,45 +50,48 @@ class ProjectNoteStore(
     output.use { it.write(markdown.toByteArray(Charsets.UTF_8)) }
   }
 
-  private fun createRecoveryCopy(markdown: String): RecoveryCopy? {
-    val parent = findParentDocument() ?: return null
-    if (!runCatching {
+  private fun createRecoveryCopy(markdown: String): RecoveryCopyPreparation<RecoveryCopy> {
+    val displayName = "pagenote-recovery-${UUID.randomUUID()}.md"
+    val preparation = RecoveryCopyPreparation.fromProvider(
+      findParent = ::findParentDocument,
+      supportsCreate = { parent ->
         supportsFlag(parent, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE)
-      }.getOrDefault(false)
-    ) {
-      return null
+      },
+      create = { parent ->
+        DocumentsContract.createDocument(resolver, parent, "text/markdown", displayName)
+          ?.let { copyUri -> RecoveryCopy(copyUri, displayName) }
+      },
+    )
+    val copy = when (preparation) {
+      RecoveryCopyPreparation.Unsupported -> return preparation
+      is RecoveryCopyPreparation.Available -> preparation.copy
     }
 
-    val displayName = "pagenote-recovery-${UUID.randomUUID()}.md"
-    val copyUri = runCatching {
-      DocumentsContract.createDocument(resolver, parent, "text/markdown", displayName)
-    }.getOrNull() ?: return null
-
-    if (!runCatching {
-        supportsFlag(copyUri, DocumentsContract.Document.FLAG_SUPPORTS_DELETE)
-      }.getOrDefault(false)
-    ) {
-      removeRecoveryCopyOrThrow(copyUri, displayName)
-      return null
+    val supportsDelete = runCatching {
+      supportsFlag(copy.uri, DocumentsContract.Document.FLAG_SUPPORTS_DELETE)
+    }.getOrElse { error ->
+      removeRecoveryCopyOrThrow(copy.uri, displayName, error)
+      throw IOException("Unable to verify recovery-copy cleanup: $displayName", error)
+    }
+    if (!supportsDelete) {
+      removeRecoveryCopyOrThrow(copy.uri, displayName)
+      throw IOException("SAF provider cannot clean up a recovery copy: $displayName")
     }
 
     return try {
-      overwrite(copyUri, markdown)
-      RecoveryCopy(copyUri, displayName)
+      overwrite(copy.uri, markdown)
+      RecoveryCopyPreparation.Available(copy)
     } catch (error: Exception) {
-      removeRecoveryCopyOrThrow(copyUri, displayName, error)
-      null
+      removeRecoveryCopyOrThrow(copy.uri, displayName, error)
+      throw IOException("Unable to write recovery copy: $displayName", error)
     }
   }
 
   private fun findParentDocument(): Uri? {
-    return try {
-      val path = DocumentsContract.findDocumentPath(resolver, uri)?.path ?: return null
-      if (path.size < 2) return null
-      DocumentsContract.buildDocumentUriUsingTree(uri, path[path.lastIndex - 1])
-    } catch (_: Exception) {
-      null
-    }
+    val path = DocumentsContract.findDocumentPath(resolver, uri)?.path
+      ?: throw IOException("Unable to determine project note parent")
+    if (path.size < 2) return null
+    return DocumentsContract.buildDocumentUriUsingTree(uri, path[path.lastIndex - 1])
   }
 
   private fun supportsFlag(document: Uri, flag: Int): Boolean {
@@ -98,18 +101,19 @@ class ProjectNoteStore(
       null,
       null,
       null,
-    ) ?: return false
+    ) ?: throw IOException("Unable to read SAF document capabilities")
     return cursor.use {
-      if (!it.moveToFirst()) return@use false
+      if (!it.moveToFirst()) throw IOException("SAF document capability query returned no row")
       val index = it.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
-      index >= 0 && (it.getInt(index) and flag) != 0
+      if (index < 0) throw IOException("SAF document capability flags are unavailable")
+      (it.getInt(index) and flag) != 0
     }
   }
 
   private fun removeRecoveryCopyOrThrow(
     copyUri: Uri,
     displayName: String,
-    cause: Exception? = null,
+    cause: Throwable? = null,
   ) {
     val removed = runCatching { DocumentsContract.deleteDocument(resolver, copyUri) }
       .getOrDefault(false)

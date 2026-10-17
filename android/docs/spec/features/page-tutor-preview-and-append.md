@@ -23,6 +23,9 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 - If the user edits the explanation instruction after a response arrives, the old preview remains readable but cannot be appended until a new response is generated.
 - Apply is disabled for read-only notes. The append operation checks `expectedRevision` against the target page immediately before writing.
 - Before overwriting the project note, the Android app rechecks the full note snapshot used to prepare the edit. It creates a same-folder recovery copy when the SAF provider supports creating and deleting documents, restores the original content after a failed write when possible, and retains/reports the recovery copy if rollback also fails.
+- If the SAF provider advertises document creation but creating or writing the recovery copy fails, the app shall abort before modifying the target note. Providers that do not support recovery-copy creation may use best-effort target rollback.
+- If the app cannot resolve the note's parent or query SAF capability flags, it shall abort before modifying the target note rather than treating the unknown capability as unsupported.
+- If deleting a recovery copy fails after a successful update, conflict, or successful rollback, the app shall surface the retained filename so the user can find it.
 - Repeated explanations append as separate localized `AI explanation` sections; they never replace existing page content.
 
 ## Acceptance (EARS)
@@ -36,7 +39,10 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 - When the page revision changed after the request began, the Android app shall reject the append and preserve the latest note contents.
 - When the instruction changes after a preview was generated, the Android app shall disable append until the user generates a matching preview.
 - When the project note changes while a recovery copy is prepared, the Android app shall abort the write without replacing the newer contents.
+- When the SAF provider advertises recovery-copy creation but cannot create or write the copy, the Android app shall abort without modifying the target note.
+- When SAF parent or capability discovery fails, the Android app shall abort without modifying the target note; only a confirmed unsupported capability may use best-effort target rollback.
 - When a note write fails after truncating the target, the Android app shall restore the original note or retain a recovery copy and report its filename if restoration fails.
+- When cleanup of a recovery copy fails, the Android app shall report its filename and whether the note update or rollback succeeded.
 - When input text exceeds 20,000 characters for a page, the Android app shall mark that page material as truncated and display the warning before apply.
 - When whole-document protection removes a neighbor page from the request, the Android app shall not report truncation warnings for that excluded page.
 - When the model call, OCR, source extraction, or write fails, the Android app shall show a clear error and shall not claim that the note was updated.
@@ -53,6 +59,6 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 - Agent unit tests prove request scope, page/revision material, raw Markdown response handling, explicit text truncation, and failure behavior with a fake `ChatClient`.
 - Android JVM tests prove native-text preference, OCR fallback only when native text is unavailable/empty, OCR failure stopping before the model call, and low-confidence warning retention.
 - Note editor unit tests prove append semantics, preservation of other pages, empty-page behavior, and stale-revision rejection.
-- Recoverable-write unit tests prove rollback after partial writes, recovery-copy retention if rollback fails, cleanup after success, and conflict rejection if the source changes during backup preparation.
+- Recoverable-write unit tests prove rollback after partial writes, recovery-copy retention if rollback fails, cleanup after success, fail-closed behavior when parent/capability discovery or an advertised recovery-copy create operation fails, best-effort writes when recovery copies are explicitly unsupported, residual filename reporting when cleanup fails, and conflict rejection if the source changes during backup preparation.
 - Compose instrumentation tests prove the preview, retry/error state, OCR warnings, stale-instruction gating, and explicit append action are reachable and correctly gated.
 - Run Android unit tests, compile Android instrumentation tests, and build debug APKs. A live model endpoint and a device/emulator are additional acceptance checks, not substitutes for the deterministic tests.

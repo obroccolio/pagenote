@@ -359,7 +359,7 @@ private fun ReaderHome(
     val draftToSave = noteDraft
     val expectedRevision = noteBaseRevision
     return try {
-      val result = withContext(Dispatchers.IO) {
+      val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
         val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
         val latest = store.read()
         val edited = PageNoteEditor.replacePage(
@@ -368,18 +368,34 @@ private fun ReaderHome(
           replacement = draftToSave,
           expectedRevision = expectedRevision,
         )
-        store.write(edited.markdown, expectedOriginal = latest)
-        edited
+        val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
+        edited to retainedCopy
       }
       notesMarkdown = result.markdown
       noteBaseRevision = result.pageRevision
-      noteStatus = context.getString(R.string.note_saved)
+      noteStatus = recoveryCopyName?.let { name ->
+        context.getString(R.string.note_saved_recovery_copy, name)
+      } ?: context.getString(R.string.note_saved)
       true
     } catch (conflict: PageNoteConflictException) {
       noteStatus = conflict.message
       false
     } catch (conflict: NoteDocumentConflictException) {
-      noteStatus = context.getString(R.string.note_conflict)
+      noteStatus = conflict.recoveryCopyName?.let { name ->
+        context.getString(R.string.note_conflict_recovery_copy, name)
+      } ?: context.getString(R.string.note_conflict)
+      false
+    } catch (recovery: NoteRecoveryCopyRetainedException) {
+      noteStatus = context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName)
+      false
+    } catch (recovery: NoteWriteRecoveryException) {
+      noteStatus = recovery.recoveryCopyName?.let { name ->
+        context.getString(
+          if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback
+          else R.string.note_write_recovery_failed,
+          name,
+        )
+      } ?: context.getString(R.string.note_save_failed, recovery.message ?: "")
       false
     } catch (error: Exception) {
       noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
@@ -555,7 +571,7 @@ private fun ReaderHome(
       isSaving = true
       pageTutorError = null
       try {
-        val edited = withContext(Dispatchers.IO) {
+        val (edited, recoveryCopyName) = withContext(Dispatchers.IO) {
           val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
           val latest = store.read()
           val heading = context.getString(R.string.page_tutor_note_heading)
@@ -565,24 +581,36 @@ private fun ReaderHome(
             addition = "$heading\n\n${preview.markdown}",
             expectedRevision = preview.noteRevision,
           )
-          store.write(result.markdown, expectedOriginal = latest)
-          result
+          val retainedCopy = store.write(result.markdown, expectedOriginal = latest)
+          result to retainedCopy
         }
         notesMarkdown = edited.markdown
         noteDraft = NotePage.pageAt(edited.markdown, preview.page)
         noteBaseRevision = edited.pageRevision
-        noteStatus = context.getString(R.string.page_tutor_saved)
+        noteStatus = recoveryCopyName?.let { name ->
+          context.getString(R.string.page_tutor_saved_recovery_copy, name)
+        } ?: context.getString(R.string.page_tutor_saved)
         pageTutorResult = null
         pageTutorResultInstruction = null
         showPageTutor = false
       } catch (conflict: PageNoteConflictException) {
         pageTutorError = context.getString(R.string.page_tutor_conflict)
       } catch (conflict: NoteDocumentConflictException) {
-        pageTutorError = context.getString(R.string.page_tutor_conflict)
+        pageTutorError = conflict.recoveryCopyName?.let { name ->
+          context.getString(R.string.page_tutor_conflict_recovery_copy, name)
+        } ?: context.getString(R.string.page_tutor_conflict)
+      } catch (recovery: NoteRecoveryCopyRetainedException) {
+        pageTutorError = context.getString(R.string.page_tutor_recovery_copy_retained, recovery.recoveryCopyName)
       } catch (recovery: NoteWriteRecoveryException) {
-        pageTutorError = recovery.recoveryCopyName?.let { name ->
-          context.getString(R.string.page_tutor_recovery_copy_saved, name)
-        } ?: context.getString(R.string.page_tutor_recovery_copy_unavailable)
+        pageTutorError = if (recovery.rollbackSucceeded) {
+          recovery.recoveryCopyName?.let { name ->
+            context.getString(R.string.page_tutor_recovery_copy_rollback, name)
+          } ?: context.getString(R.string.page_tutor_append_failed)
+        } else {
+          recovery.recoveryCopyName?.let { name ->
+            context.getString(R.string.page_tutor_recovery_copy_saved, name)
+          } ?: context.getString(R.string.page_tutor_recovery_copy_unavailable)
+        }
       } catch (error: Exception) {
         pageTutorError = "${context.getString(R.string.page_tutor_append_failed)} ${error.message.orEmpty()}"
       } finally {

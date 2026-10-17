@@ -26,7 +26,7 @@
 - A delayed response must not overwrite a later edit; test stale `expectedRevision` rejection at append time.
 - Long pages must be visibly marked as truncated; test the exact 20,000-character boundary and warning.
 - A read-only project may preview but must not expose an enabled append action; cover the disabled state in Compose instrumentation.
-- A changed instruction must invalidate append eligibility for the old preview; a failed SAF write must restore the original or leave a named recovery copy when supported.
+- A changed instruction must invalidate append eligibility for the old preview; a failed SAF write must restore the original or leave a named recovery copy when supported. If parent/capability discovery fails, or a provider advertises recovery-copy creation but cannot create/write the copy, abort before touching the target. Only confirmed unsupported recovery-copy capability may use best-effort rollback. Surface filenames whenever cleanup leaves a recovery copy behind.
 - Truncation warnings must describe only page text that is actually sent to the model.
 
 ---
@@ -108,6 +108,7 @@
 - [x] Add tests first and confirm the missing recovery and snapshot-check behavior fails before implementation.
 - [x] Snapshot-check the current note before and after recovery-copy preparation; abort if it changed.
 - [x] Create and clean up a same-folder recovery copy when the SAF provider permits it.
+- [x] Abort before modifying the target if recovery-copy capability discovery fails or a provider advertises recovery-copy creation but cannot create/write the copy; retain best-effort rollback only for confirmed unsupported providers, and report copies left behind by cleanup failure.
 - [x] Restore the original note after a partial write; retain and report the backup if rollback fails.
 - [x] Test rollback, backup retention, successful cleanup, and conflict behavior with deterministic write failures.
 
