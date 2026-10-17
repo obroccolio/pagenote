@@ -130,6 +130,9 @@ private fun ReaderSettingsHost() {
   val settingsStore = remember(context.applicationContext) {
     readerSettingsStore(context.applicationContext)
   }
+  val modelSettingsStore = remember(context.applicationContext) {
+    agentModelSettingsStore(context.applicationContext)
+  }
   var retryAttempt by remember { mutableIntStateOf(0) }
   val loadState by produceState<ReaderSettingsLoadState>(
     initialValue = ReaderSettingsLoadState.Loading,
@@ -173,7 +176,7 @@ private fun ReaderSettingsHost() {
   ) {
     MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
       Surface(modifier = Modifier.fillMaxSize()) {
-        ReaderHome(settings = settings, settingsStore = settingsStore)
+        ReaderHome(settings = settings, settingsStore = settingsStore, modelSettingsStore = modelSettingsStore)
       }
     }
   }
@@ -190,7 +193,11 @@ private data class ReaderProjectData(
 )
 
 @Composable
-private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsStore) {
+private fun ReaderHome(
+  settings: ReaderSettings,
+  settingsStore: ReaderSettingsStore,
+  modelSettingsStore: AgentModelSettingsStore,
+) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   var project by remember { mutableStateOf<OpenedProject?>(null) }
@@ -224,6 +231,7 @@ private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsSt
   var isOcrRunning by remember { mutableStateOf(false) }
   var isOpening by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
+  var showAgentModelSettings by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
   val isPenSaving = pendingPenSaves > 0
@@ -585,7 +593,10 @@ private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsSt
       ) {
         Text(stringResource(if (isOpening) R.string.opening_project else R.string.open_project))
       }
-      TextButton(onClick = { showSettings = true }) {
+      TextButton(
+        modifier = Modifier.testTag("settings_action"),
+        onClick = { showSettings = true },
+      ) {
         Text(stringResource(R.string.settings_action))
       }
     }
@@ -810,7 +821,17 @@ private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsSt
     ReaderSettingsDialog(
       settings = settings,
       onDismiss = { showSettings = false },
+      onConfigureAgent = {
+        showSettings = false
+        showAgentModelSettings = true
+      },
       onSave = settingsStore::save,
+    )
+  }
+  if (showAgentModelSettings) {
+    AgentModelSettingsDialog(
+      store = modelSettingsStore,
+      onDismiss = { showAgentModelSettings = false },
     )
   }
 }

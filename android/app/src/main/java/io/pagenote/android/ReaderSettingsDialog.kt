@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.darkColorScheme
@@ -153,6 +154,7 @@ internal fun ReaderSettingsLoadScreen(
 internal fun ReaderSettingsDialog(
   settings: ReaderSettings,
   onDismiss: () -> Unit,
+  onConfigureAgent: () -> Unit,
   onSave: suspend (ReaderSettings) -> Unit,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
@@ -239,6 +241,33 @@ internal fun ReaderSettingsDialog(
             enabled = !isSaving,
           )
         }
+
+        TextButton(
+          modifier = Modifier.fillMaxWidth().testTag("configure_agent_model"),
+          enabled = !isSaving,
+          onClick = {
+            scope.launch {
+              isSaving = true
+              saveError = null
+              try {
+                ReaderSettingsPolicy.validate(draft)
+                onSave(draft)
+                onDismiss()
+                onConfigureAgent()
+              } catch (cancelled: CancellationException) {
+                throw cancelled
+              } catch (error: Exception) {
+                saveError = if (error is IllegalArgumentException) {
+                  genericSaveError
+                } else {
+                  error.message?.takeIf(String::isNotBlank) ?: genericSaveError
+                }
+              } finally {
+                isSaving = false
+              }
+            }
+          },
+        ) { Text(stringResource(R.string.agent_model_settings_action)) }
 
         saveError?.let {
           Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)

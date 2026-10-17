@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android OpenAI-compatible model settings with Android Keystore AES-GCM key storage, localized controls, and debug-only HTTP for local relay development. / 安卓新增 OpenAI 兼容模型设置，使用 Android Keystore AES-GCM 保存 Key，提供本地化控件，并仅在调试版开放本地中转所需 HTTP。
+
+- Specify Android OpenAI-compatible model settings, Android Keystore-backed key storage, and acceptance tests under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓 OpenAI 兼容模型设置、Android Keystore Key 存储与验收测试。
+
 - Make Android reader startup instrumentation locale-independent with a stable project-picker test tag. / 为安卓阅读器启动仪器测试增加稳定的项目选择器标签，避免受界面语言影响。
 
 - Correct the Android manifest API implementation commit reference in the review ledger. / 修正安卓 manifest API 审查记录中的实现提交引用。
