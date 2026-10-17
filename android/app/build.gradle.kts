@@ -11,6 +11,7 @@ android {
     applicationId = "io.pagenote.android"
     minSdk = 29
     targetSdk = 35
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     versionCode = 1
     versionName = "1.0.0"
   }
@@ -60,4 +61,7 @@ dependencies {
   implementation("io.noties.markwon:editor:4.6.2")
   implementation("io.noties.markwon:ext-tables:4.6.2")
   testImplementation("junit:junit:4.13.2")
+  androidTestImplementation("androidx.test:runner:1.6.2")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
+  androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.6")
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android instrumentation coverage for launching the localized reader after settings load. / 增加安卓本地化阅读器在设置加载后的启动仪器测试。
+
 - Specify Android startup-owner and 16 KB native-library compatibility acceptance under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓启动 owner 与 16 KB 原生库兼容性验收。
 
 - Expose the prepared manifest JSON types transitively to Android app consumers. / 通过 Android `core-reader` 向应用消费者传递公开的预处理清单 JSON 类型。
