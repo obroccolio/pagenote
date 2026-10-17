@@ -184,17 +184,6 @@ private data class ReaderProjectData(
   val penWritable: Boolean,
 )
 
-private data class PdfViewportBounds(
-  val viewportWidthPx: Float,
-  val viewportHeightPx: Float,
-  val pageWidthPx: Float,
-  val pageHeightPx: Float,
-) {
-  companion object {
-    val ZERO = PdfViewportBounds(0f, 0f, 0f, 0f)
-  }
-}
-
 @Composable
 private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsStore) {
   val context = LocalContext.current

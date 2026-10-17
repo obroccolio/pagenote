@@ -2,9 +2,82 @@ package io.pagenote.android
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PdfViewportTransformTest {
+  @Test
+  fun fitWidthLetterbox_mapsToFullPageCoordinates() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(300f, 200f),
+      end = PdfSelectionPoint(700f, 600f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertEquals(NormalizedOcrRegion(166, 250, 834, 750), region)
+  }
+
+  @Test
+  fun zoomPan_mapsSelectionThroughInverseTransform() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(350f, 200f),
+      end = PdfSelectionPoint(750f, 600f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform(2f, 50f, -100f),
+    )
+
+    assertEquals(NormalizedOcrRegion(333, 437, 667, 688), region)
+  }
+
+  @Test
+  fun startInLetterbox_isRejected() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(100f, 200f),
+      end = PdfSelectionPoint(700f, 600f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(region)
+  }
+
+  @Test
+  fun dragEndOutsidePage_isClipped() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(300f, 200f),
+      end = PdfSelectionPoint(900f, 700f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertEquals(NormalizedOcrRegion(166, 250, 1000, 875), region)
+  }
+
+  @Test
+  fun reverseDrag_isNormalized() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(700f, 600f),
+      end = PdfSelectionPoint(300f, 200f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertEquals(NormalizedOcrRegion(166, 250, 834, 750), region)
+  }
+
+  @Test
+  fun invalidBounds_areRejected() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(300f, 200f),
+      end = PdfSelectionPoint(700f, 600f),
+      bounds = PdfViewportBounds(1000f, 800f, 0f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(region)
+  }
+
   @Test
   fun zoomKeepsGestureCentroidAnchoredAndClampsToMaximumScale() {
     val zoomed = PdfViewportTransform.applyGesture(

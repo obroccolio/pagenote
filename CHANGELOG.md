@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Map Android reader selections through the centered page transform into clipped, normalized OCR coordinates. / 将安卓阅读器选区按页面居中变换映射为裁剪后的归一化 OCR 坐标。
+
 - Specify the Android reader region-OCR selection flow, transformed-page coordinate contract, and project-backed cache under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓阅读器区域 OCR 选区、变换坐标契约及项目内缓存流程。
 
 - Harden Android region OCR bitmap cleanup on inference failure and cancellation, while preserving caller-owned page images. / 加固安卓选区 OCR 在推理失败或取消时的位图清理，并保留调用方所有的页面原图。

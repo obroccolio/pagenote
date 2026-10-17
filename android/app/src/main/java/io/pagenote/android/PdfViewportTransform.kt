@@ -1,5 +1,82 @@
 package io.pagenote.android
 
+data class PdfViewportBounds(
+  val viewportWidthPx: Float,
+  val viewportHeightPx: Float,
+  val pageWidthPx: Float,
+  val pageHeightPx: Float,
+) {
+  companion object {
+    val ZERO = PdfViewportBounds(0f, 0f, 0f, 0f)
+  }
+}
+
+data class PdfSelectionPoint(val x: Float, val y: Float)
+
+data class NormalizedOcrRegion(
+  val left: Int,
+  val top: Int,
+  val right: Int,
+  val bottom: Int,
+)
+
+fun mapPdfSelectionToOcrRegion(
+  start: PdfSelectionPoint,
+  end: PdfSelectionPoint,
+  bounds: PdfViewportBounds,
+  transform: PdfViewportTransform,
+): NormalizedOcrRegion? {
+  val measurements = listOf(
+    start.x,
+    start.y,
+    end.x,
+    end.y,
+    bounds.viewportWidthPx,
+    bounds.viewportHeightPx,
+    bounds.pageWidthPx,
+    bounds.pageHeightPx,
+    transform.scale,
+    transform.translationX,
+    transform.translationY,
+  )
+  if (measurements.any { !it.isFinite() } ||
+    bounds.viewportWidthPx <= 0f || bounds.viewportHeightPx <= 0f ||
+    bounds.pageWidthPx <= 0f || bounds.pageHeightPx <= 0f || transform.scale <= 0f
+  ) {
+    return null
+  }
+
+  fun toPage(point: PdfSelectionPoint): PdfSelectionPoint = PdfSelectionPoint(
+    x = (point.x - bounds.viewportWidthPx / 2f - transform.translationX) /
+      transform.scale + bounds.pageWidthPx / 2f,
+    y = (point.y - bounds.viewportHeightPx / 2f - transform.translationY) /
+      transform.scale + bounds.pageHeightPx / 2f,
+  )
+
+  val pageStart = toPage(start)
+  val pageEnd = toPage(end)
+  if (!pageStart.x.isFinite() || !pageStart.y.isFinite() ||
+    pageStart.x < 0f || pageStart.x > bounds.pageWidthPx ||
+    pageStart.y < 0f || pageStart.y > bounds.pageHeightPx
+  ) {
+    return null
+  }
+
+  val endX = pageEnd.x.coerceIn(0f, bounds.pageWidthPx)
+  val endY = pageEnd.y.coerceIn(0f, bounds.pageHeightPx)
+  val left = minOf(pageStart.x, endX) / bounds.pageWidthPx * 1000f
+  val top = minOf(pageStart.y, endY) / bounds.pageHeightPx * 1000f
+  val right = maxOf(pageStart.x, endX) / bounds.pageWidthPx * 1000f
+  val bottom = maxOf(pageStart.y, endY) / bounds.pageHeightPx * 1000f
+
+  return NormalizedOcrRegion(
+    left = kotlin.math.floor(left).toInt().coerceIn(0, 1000),
+    top = kotlin.math.floor(top).toInt().coerceIn(0, 1000),
+    right = kotlin.math.ceil(right).toInt().coerceIn(0, 1000),
+    bottom = kotlin.math.ceil(bottom).toInt().coerceIn(0, 1000),
+  )
+}
+
 data class PdfViewportPointer(val id: Long, val x: Float, val y: Float)
 
 data class PdfViewportGesture(
