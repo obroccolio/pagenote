@@ -84,6 +84,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.image.ImagesPlugin
 import io.pagenote.agent.MissingModelConfigException
 import io.pagenote.agent.OkHttpChatClient
 import io.pagenote.agent.PageRequest
@@ -1050,6 +1051,7 @@ private fun ReaderHome(
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
+              sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
               modifier = Modifier.weight(notePaneWeight).fillMaxHeight(),
             )
@@ -1092,6 +1094,7 @@ private fun ReaderHome(
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
+              sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
@@ -1372,12 +1375,20 @@ private fun NotePanel(
   onReload: () -> Unit,
   historyEnabled: Boolean = false,
   onHistory: () -> Unit = {},
+  sourceDirectoryUri: Uri? = null,
   animationEnabled: Boolean,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val markwon = remember(context) {
-    Markwon.builder(context).usePlugin(TablePlugin.create(context)).build()
+  val markwon = remember(context, sourceDirectoryUri) {
+    Markwon.builder(context)
+      .usePlugin(TablePlugin.create(context))
+      .usePlugin(
+        ImagesPlugin.create().addSchemeHandler(
+          NoteAssetSchemeHandler(context.contentResolver, sourceDirectoryUri),
+        ),
+      )
+      .build()
   }
   val markwonEditor = remember(markwon) { MarkwonEditor.create(markwon) }
   val executor = remember { Executors.newSingleThreadExecutor() }
@@ -1452,7 +1463,7 @@ private fun NotePanel(
             },
             update = { view ->
               view.setTextColor(contentColorInt)
-              markwon.setMarkdown(view, content.markdown)
+              markwon.setMarkdown(view, NotePreviewRewrite.forPreview(content.markdown))
             },
           )
         } else {

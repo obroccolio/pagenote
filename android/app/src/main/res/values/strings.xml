@@ -81,6 +81,13 @@
   <string name="note_history_restored">History version restored.</string>
   <string name="note_history_conflict">The note changed while restoring. Reload before trying again.</string>
   <string name="note_history_failed">Unable to load history: %1$s</string>
+  <string name="note_rich_formula">Formula</string>
+  <string name="note_rich_code">Code (%1$s)</string>
+  <string name="note_rich_code_plain">Code</string>
+  <string name="note_rich_mermaid">Diagram source (%1$s)</string>
+  <string name="note_rich_image_missing">Image unavailable: %1$s</string>
+  <string name="note_rich_image_remote">Remote image (not fetched offline): %1$s</string>
+  <string name="note_rich_unclosed">Unclosed code fence; showing as plain text.</string>
   <string name="zoom_out">Zoom out</string>
   <string name="zoom_in">Zoom in</string>
   <string name="fit_width">Fit width</string>

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Preview Android rich note blocks with single-source mermaid/math quotes and local SAF asset images. / 安卓笔记预览新增富块透出：mermaid/math 源码单次引用展示，附件图加载本地 SAF 资源。
+
 - Add a generic Android SAF annotation store covering all item types with page delete and pen-write coexistence. / 安卓新增通用 SAF 标注存储，覆盖全部批注类型与按页删除，并与手写笔迹写入共存。
 
 - Add GFM table extraction for Android page preparation and refresh-forced region OCR cache rewrite. / 安卓页面准备新增 GFM 表格抽取与区域 OCR 缓存 refresh 强制重做。

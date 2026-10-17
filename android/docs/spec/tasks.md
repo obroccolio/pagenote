@@ -34,7 +34,7 @@
   - _Requirement: 阅读与笔记，布局与适配_
 
 - [ ] 5. 笔记渲染与轻量编辑（部分：Markwon 基础编辑/预览、GFM 表格、分页读写与 revision 冲突校验已落地；公式、代码高亮、Mermaid、图片和历史界面待续）
-  - GFM、公式、代码高亮、Mermaid 成功与失败态、表格、图片。
+  - [x] 富渲染透出已落地：mermaid/math 围栏预处理转引用块（源码单次出现）、附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`、代码语言别名归一、未闭合围栏与外链图失败态明确；契约见 `features/note-rich-render.md`。
   - 轻量开源 Markdown 编辑适配，不自研编辑器。
   - 超长页截断与按需读取，不一次全量装入。
   - _Requirement: 阅读与笔记_
