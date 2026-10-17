@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Specify an Android app-module consumer test for the prepared manifest JSON API boundary. / 补充安卓 app 模块对预处理清单 JSON 公开 API 边界的消费测试要求。
+
 - Reject Windows drive-qualified paths in Android prepared-manifest file entries. / 拒绝安卓预处理清单文件项中的 Windows 驱动器限定路径。
 
 - Reject Android OCR selections whose normalized integer bounds have zero width or height. / 拒绝归一化整数边界中宽度或高度为零的安卓 OCR 选区。

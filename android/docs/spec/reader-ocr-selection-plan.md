@@ -69,16 +69,17 @@
 - Create: `android/feature-ocr/src/main/java/io/pagenote/feature/ocr/OcrResultJsonCodec.kt`
 - Test: `android/core-reader/src/test/java/io/pagenote/core/reader/PreparedManifestCodecTest.kt`
 - Test: `android/feature-ocr/src/test/java/io/pagenote/feature/ocr/OcrResultJsonCodecTest.kt`
+- Test: `android/app/src/test/java/io/pagenote/android/PreparedManifestApiVisibilityTest.kt` (verify the app can consume the manifest's public JSON model through the core-reader module boundary)
 
 **Interfaces:**
 - Consumes: `PageRegion`, `PreparedCache.VERSION`, and the existing `OcrResult`/`OcrBlock` models.
 - Produces: `PreparedManifestCodec.encode(manifest): String`, `PreparedManifestCodec.decode(json): PreparedManifest`, and `OcrResultJsonCodec.encode(result): String` / `decode(json): OcrResult`.
 - `PreparedManifest` carries `originalPreserved: Boolean`, the five non-negative character/block/table counts from the schema, `ocr: JsonObject`, `files: List<String>`, and `visuals: JsonArray`, in addition to its existing identity, region, dimensions, scale, warnings, and visual-review fields.
 
-- [ ] **Step 1: Add failing tests** named `versionTwoManifest_roundTripsEveryContractField`, `manifestRejectsInvalidIdentityRegionAndCounts`, `ocrResultRoundTripsCoordinatesWarningsAndOwnership`, and `unknownManifestFieldsAreIgnored`. Round-trip all schema fields for a version-2 PDF region entry; reject invalid page/revision/region/counts; preserve all `OcrResult` doubles, status, warnings and `imagePreserved`.
+- [ ] **Step 1: Add failing tests** named `versionTwoManifest_roundTripsEveryContractField`, `manifestRejectsInvalidIdentityRegionAndCounts`, `ocrResultRoundTripsCoordinatesWarningsAndOwnership`, and `unknownManifestFieldsAreIgnored`. Round-trip all schema fields for a version-2 PDF region entry; reject invalid page/revision/region/counts; preserve all `OcrResult` doubles, status, warnings and `imagePreserved`. Add an app-module consumer test that constructs a manifest with a `JsonObject` and reads its JSON fields, proving the core-reader public dependency is visible transitively.
 - [ ] **Step 2: Run tests and verify RED.** Run the two focused Gradle test tasks; expect missing codec symbols or missing manifest fields.
-- [ ] **Step 3: Implement the complete version-2 model and explicit JSON codecs.** Add the existing project version `org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3` as a dependency (no serialization compiler plugin; codecs build JSON values explicitly); keep `ocr` and `visuals` JSON data extensible, validate required manifest fields and safe project-relative file names, and make `PreparedManifestStore.isHit(cached, expected)` compare document id, page, source revision, region, cache key, and version.
-- [ ] **Step 4: Run focused and module tests.** `:core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest` must pass.
+- [ ] **Step 3: Implement the complete version-2 model and explicit JSON codecs.** Add the existing project version `org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3` as an `api` dependency of `core-reader`, because its public manifest model exposes `JsonObject` and `JsonArray` (no serialization compiler plugin; codecs build JSON values explicitly); keep `ocr` and `visuals` JSON data extensible, validate required manifest fields and safe project-relative file names, and make `PreparedManifestStore.isHit(cached, expected)` compare document id, page, source revision, region, cache key, and version.
+- [ ] **Step 4: Run focused and module tests.** `:core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:testDebugUnitTest` must pass.
 - [ ] **Step 5: Commit.** `feat(android): model prepared OCR manifests`; include an Unreleased changelog line.
 
 ### Task 3: SAF Project Region Cache
