@@ -79,6 +79,7 @@
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
+  - [ ] 安卓启动与 16 KB 页面兼容性修复，契约见 `features/startup-and-16kb-compatibility.md`，实施拆分见 `startup-and-16kb-compatibility-plan.md`。
   - _Requirement: 构建与测试，全部 EARS_
 
 - [ ] 13. 分支、变更日志、PR 准备

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Specify Android startup-owner and 16 KB native-library compatibility acceptance under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓启动 owner 与 16 KB 原生库兼容性验收。
+
 - Expose the prepared manifest JSON types transitively to Android app consumers. / 通过 Android `core-reader` 向应用消费者传递公开的预处理清单 JSON 类型。
 
 - Specify an Android app-module consumer test for the prepared manifest JSON API boundary. / 补充安卓 app 模块对预处理清单 JSON 公开 API 边界的消费测试要求。
