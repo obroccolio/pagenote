@@ -19,6 +19,25 @@ data class PreparedOcrCacheEntry(
   val regionPng: ByteArray,
 )
 
+interface PreparedRegionCacheStore {
+  fun read(
+    srcDirectoryUri: String,
+    documentId: String,
+    page: Int,
+    sourceRevision: String,
+    region: PageRegion,
+    engine: String,
+  ): PreparedOcrCacheEntry?
+
+  fun write(
+    srcDirectoryUri: String,
+    manifest: PreparedManifest,
+    result: OcrResult,
+    pagePng: ByteArray,
+    regionPng: ByteArray,
+  ): PreparedOcrCacheWriteResult
+}
+
 sealed interface PreparedOcrCacheWriteResult {
   data object Saved : PreparedOcrCacheWriteResult
   data class NotSaved(val reason: String) : PreparedOcrCacheWriteResult
@@ -33,8 +52,8 @@ fun interface PreparedImageValidator {
 class ProjectPreparedCache(
   private val documents: PreparedDocumentAccess,
   private val imageValidator: PreparedImageValidator = BitmapFactoryPreparedImageValidator,
-) {
-  fun read(
+) : PreparedRegionCacheStore {
+  override fun read(
     srcDirectoryUri: String,
     documentId: String,
     page: Int,
@@ -64,7 +83,7 @@ class ProjectPreparedCache(
     PreparedOcrCacheEntry(manifest, ocr, files.getValue(PAGE_IMAGE), files.getValue(REGION_IMAGE))
   }.getOrNull()
 
-  fun write(
+  override fun write(
     srcDirectoryUri: String,
     manifest: PreparedManifest,
     result: OcrResult,

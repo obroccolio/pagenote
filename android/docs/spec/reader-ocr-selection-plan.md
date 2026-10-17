@@ -35,6 +35,10 @@
 - `android/core-reader/src/main/java/io/pagenote/core/reader/PreparedManifestCodec.kt`: JSON representation of the prepared-manifest contract.
 - `android/app/src/main/java/io/pagenote/android/PreparedDocumentAccess.kt`: fakeable SAF document-provider boundary.
 - `android/app/src/main/java/io/pagenote/android/ProjectPreparedCache.kt`: SAF tree adapter and prepared-region cache lifecycle.
+- `android/app/src/main/java/io/pagenote/android/PdfDocumentSession.kt` and `PdfSourceSnapshot.kt`: immutable renderer snapshot, source revision, and cleanup.
+- `android/app/src/test/java/io/pagenote/android/PdfSourceSnapshotTest.kt`: exact-byte snapshot/hash regression.
+- `android/app/src/test/java/io/pagenote/android/ReaderOcrSelectionTest.kt`: selection-state and cache-coordinator policy tests.
+- `android/app/src/androidTest/java/io/pagenote/android/ReaderOcrSelectionTest.kt`: Compose action and pointer-routing tests.
 - `android/feature-ocr/src/main/java/io/pagenote/feature/ocr/OcrResultJsonCodec.kt`: stable JSON round-trip for the existing `OcrResult` fields.
 - `android/app/src/main/java/io/pagenote/android/ReaderOcrSelection.kt`: Compose selection overlay, action state, and input locking.
 - `android/app/src/main/java/io/pagenote/android/MainActivity.kt`: wire toolbar actions, viewport selection, cache lookup, OCR, and result lifecycle.
@@ -106,22 +110,26 @@
 
 **Files:**
 - Create: `android/app/src/main/java/io/pagenote/android/ReaderOcrSelection.kt`
-- Modify: `android/app/build.gradle.kts` (Compose UI instrumentation-test dependencies)
 - Modify: `android/app/src/main/java/io/pagenote/android/MainActivity.kt`
 - Modify: `android/app/src/main/res/values/strings.xml`
 - Modify: `android/app/src/main/res/values-zh-rCN/strings.xml`
 - Test: `android/app/src/test/java/io/pagenote/android/ReaderOcrSelectionTest.kt`
 - Test: `android/app/src/androidTest/java/io/pagenote/android/ReaderOcrSelectionTest.kt`
+- Test: `android/app/src/test/java/io/pagenote/android/PdfSourceSnapshotTest.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/PdfDocumentSession.kt`
+- Create: `android/app/src/main/java/io/pagenote/android/PdfSourceSnapshot.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/ProjectPreparedCache.kt`
 
 **Interfaces:**
 - Consumes: Task 1 mapper, Task 3 cache store, the existing `OfflineOcrEngine.recognize(bitmap, region)` and `OcrResultDialog`.
 - Produces: a native selection overlay with `Region OCR`, `Recognize`, and `Cancel` actions; result lifecycle that preserves page/source identity and restores normal input after result dismissal.
+- Cache access is consumed through a `PreparedRegionCacheStore` interface; `ProjectPreparedCache` remains the production SAF implementation.
 
-- [ ] **Step 1: Add failing interaction/policy tests.** Add Compose UI test dependencies and instrumentation cases named `regionActionEntersSelectionAndCancelRestoresInput`, `dragSelectsRegionWithoutAddingPenStrokeOrZoom`, and `recognizeUsesCurrentSelectionAndResultDismissalRestoresInput`. Verify selection and OCR lock pen/pan/zoom/navigation, a cache hit bypasses inference, a write failure adds a visible not-cached warning without hiding OCR output, and closing the result restores input. Stylus event injection remains device acceptance.
-- [ ] **Step 2: Run tests and verify RED.** Run the focused app unit test and `:app:compileDebugAndroidTestKotlin --offline`; expect missing selection composable/state before implementation.
-- [ ] **Step 3: Implement Compose integration.** Add touch/stylus rectangle selection on the displayed transformed page; route selection gestures before the pen canvas; render a separate full-page OCR bitmap and region PNG; hash the active PDF source on `Dispatchers.IO`; check cache before inference; lock page/input while selecting or showing/running OCR; keep the existing full-page action unchanged; localize all new controls and warnings.
-- [ ] **Step 4: Run Android verification.** Run `cd android && ./gradlew testDebugUnitTest :feature-ocr:compileDebugAndroidTestKotlin :app:compileDebugAndroidTestKotlin :app:assembleDebug --offline --rerun-tasks`. On an available Android device/emulator, verify finger/stylus selection, cache hit, offline recognition, read-only fallback, and input restoration.
-- [ ] **Step 5: Commit.** `feat(android): add reader region OCR selection`; include an Unreleased changelog line and mark the completed 9.2 subtask in `android/docs/spec/tasks.md`.
+- [x] **Step 1: Add failing interaction/policy tests.** Reuse the existing Compose UI test dependency and add instrumentation cases named `regionActionEntersSelectionAndCancelRestoresInput`, `dragSelectsRegionWithoutAddingPenStrokeOrZoom`, and `recognizeUsesCurrentSelectionAndResultDismissalRestoresInput`. Add JVM cases for `sourceSnapshotHashMatchesCopiedBytes`, cache-hit inference bypass, write-failure warning preservation, and source-hash failure bypassing cache. Stylus event injection remains device acceptance.
+- [x] **Step 2: Run tests and verify RED.** The focused unit tests failed on the missing snapshot/state/coordinator APIs, and Android-test compilation failed on the absent selection composable and viewport parameters.
+- [x] **Step 3: Implement Compose integration.** Copy and hash the SAF PDF to an app-cache snapshot on `Dispatchers.IO`, open `PdfRenderer` on those exact bytes, and delete the snapshot on close; if copying fails, retain direct-SAF rendering and disable caching for that renderer. Add touch/stylus rectangle selection on the displayed transformed page; route selection gestures before the pen canvas; render a separate full-page OCR bitmap and region PNG; check cache before inference through `PreparedRegionCacheStore`; lock page/input while selecting or showing/running OCR; keep the existing full-page action unchanged; localize all new controls and warnings.
+- [x] **Step 4: Run Android verification.** `./gradlew testDebugUnitTest :feature-ocr:compileDebugAndroidTestKotlin :app:compileDebugAndroidTestKotlin :app:assembleDebug --offline --rerun-tasks` passed; all four ABI APKs passed `scripts/check_16kb_apks.py`. No Android device or AVD is currently available, so device-only interaction and startup acceptance remains pending under task 12.
+- [x] **Step 5: Commit.** `feat(android): add reader region OCR selection`; include an Unreleased changelog line and mark the implemented 9.2 subtask in `android/docs/spec/tasks.md`. Device-only stylus and startup acceptance remains pending under task 12.
 
 **Dependencies:** Task 1 and Task 2 are independent. Task 3 depends on Task 2. Task 4 depends on Tasks 1–3.
 

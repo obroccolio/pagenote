@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add transformed-page region OCR selection with offline recognition, project-backed cache reuse, and explicit persistence warnings; render PDFs from the exact hashed snapshot used for cache identity, with uncached SAF fallback. / 安卓阅读器新增变换页面区域 OCR 选择、离线识别、项目缓存复用和持久化告警；PDF 从用于缓存身份校验的精确哈希快照渲染，并在快照不可用时回退为不缓存的 SAF 阅读。
+
 - Treat failed SAF child queries as cache-write failures and retain both caller and OCR warnings in Android prepared manifests. / 将 SAF 子项查询失败视为缓存写入失败，并在安卓预处理清单中同时保留调用方与 OCR 警告。
 
 - Cache successful and partial Android region OCR results in SAF projects with source/region/engine/version identity checks, validated images and completion manifests written last; retain OCR results when project persistence fails. / 安卓区域 OCR 的成功及部分结果可缓存到 SAF 项目，并校验原文、区域、引擎和版本身份、验证图片且最后写入完成清单；项目持久化失败时仍保留 OCR 结果。

@@ -66,6 +66,11 @@
   <string name="page_count">%1$d / %2$d</string>
   <string name="recognizing">识别中</string>
   <string name="ocr">OCR</string>
+  <string name="region_ocr_action">区域 OCR</string>
+  <string name="recognize_region_action">识别区域</string>
+  <string name="ocr_selection_hint">在页面上拖动以选择区域。</string>
+  <string name="recognizing_region">正在识别所选区域…</string>
+  <string name="ocr_not_cached">识别已完成，但结果未能保存到项目缓存。</string>
   <string name="zoom_out">缩小</string>
   <string name="zoom_in">放大</string>
   <string name="fit_width">适宽</string>

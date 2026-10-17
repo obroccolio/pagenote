@@ -24,7 +24,7 @@ Extend the Android PDF reader's explicit OCR actions with manual region selectio
 ## Cache Contract
 
 - Cache entries live under `src/prepared/<page>-<cacheKey-prefix>/` in the opened pagenote project.
-- `sourceRevision` is the lowercase SHA-256 of the exact source PDF snapshot used by the active `PdfDocumentSession`. Compute it on an IO dispatcher, reuse it only for that renderer/session, and clear it when the opened source changes; if hashing or SAF writes fail, OCR may still complete but the result is explicitly reported as not cached.
+- `sourceRevision` is the lowercase SHA-256 of the exact PDF snapshot used by the active `PdfDocumentSession`. On an IO dispatcher, copy the SAF source to a temporary app-cache snapshot while hashing it, then open the renderer from those copied bytes. Delete the snapshot when the renderer closes. If snapshot creation fails, keep the existing direct-SAF reader fallback, allow OCR, disable cache reads/writes for that session, and explicitly report that the result was not cached.
 - The cache key is `PreparedCache.cacheKey(sourceRevision, "region-ocr", region, engine)`, with the page encoded by `PreparedCache.folderName(page, key)`. The cache key therefore changes when the source, region, engine, or prepared-cache version changes.
 - Each complete cache entry contains `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`. `manifest.json` conforms to `contracts/prepared-manifest.schema.json`, identifies the document/page/source revision/region/key, records actual bitmap dimensions and scale, retains warnings, and sets `visualReviewRequired` to `true`.
 - The saved manifest warnings are the stable, de-duplicated union of warnings already supplied by the caller and warnings produced by the OCR result; neither source may be silently dropped.
@@ -32,6 +32,7 @@ Extend the Android PDF reader's explicit OCR actions with manual region selectio
 - Write image and result files before `manifest.json`; the manifest is the completion marker. A cache hit requires a valid manifest with an exact document/page/source-revision/region/key match and every listed file to exist and decode. Invalid, incomplete, or stale entries are misses and must never be returned as successful results.
 - SAF child enumeration distinguishes a successful query with no matching name from a failed query, including a null query cursor. Enumeration failures are I/O failures; a write must stop before changing existing entry files when it cannot determine whether the prior completion manifest exists.
 - Only `ok` and `partial` OCR results may be cached. A read-only project or a provider that rejects writes still allows recognition, reports that persistence was unavailable, and does not claim a cache hit.
+- The cache coordinator depends on a `PreparedRegionCacheStore` interface so cache hit, miss, and write-failure behavior can be tested without a live SAF provider or OCR runtime.
 
 ## Acceptance (EARS)
 
@@ -41,6 +42,7 @@ Extend the Android PDF reader's explicit OCR actions with manual region selectio
 - When a selection is empty or outside the page, the Android reader shall show a recoverable validation message and shall not invoke the OCR engine.
 - When the selected region has a valid cache hit, the Android reader shall display the cached result without running OCR again.
 - When the source PDF bytes, page, region, OCR engine, or cache version differ, the Android reader shall treat the prior cache as stale and perform recognition for the current selection.
+- When the PDF source cannot be copied to an immutable renderer snapshot, the Android reader shall continue reading and permit OCR but shall skip project-cache lookup and persistence for that session.
 - When recognition succeeds or is partial, the Android reader shall preserve the full-page image and region image in the project cache when the SAF provider permits writes, and shall keep block coordinates in full-page normalized space.
 - When cache persistence is unavailable, the Android reader shall still show the OCR result and explicitly report that it was not cached.
 - When recognition fails or is cancelled, the Android reader shall not cache a successful result, shall preserve the source page, and shall release temporary bitmaps.

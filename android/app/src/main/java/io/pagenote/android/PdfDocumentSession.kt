@@ -15,10 +15,13 @@ import io.pagenote.core.reader.PdfTextExtractionStatus
 import io.pagenote.core.reader.PdfTextMapper
 import io.pagenote.core.reader.PdfTextRect
 import java.io.Closeable
+import java.io.File
 
 class PdfDocumentSession private constructor(
   private val descriptor: ParcelFileDescriptor,
   private val renderer: PdfRenderer,
+  val sourceRevision: String?,
+  private val snapshotFile: File?,
 ) : Closeable {
   val pageCount: Int get() = renderer.pageCount
 
@@ -62,8 +65,15 @@ class PdfDocumentSession private constructor(
 
   @Synchronized
   override fun close() {
-    renderer.close()
-    descriptor.close()
+    try {
+      renderer.close()
+    } finally {
+      try {
+        descriptor.close()
+      } finally {
+        snapshotFile?.delete()
+      }
+    }
   }
 
   @RequiresApi(35)
@@ -85,18 +95,39 @@ class PdfDocumentSession private constructor(
   }
 
   companion object {
-    fun open(resolver: ContentResolver, uri: Uri): PdfDocumentSession {
-      val descriptor = resolver.openFileDescriptor(uri, "r")
-        ?: throw IllegalStateException("无法打开 PDF 文件")
+    fun open(resolver: ContentResolver, uri: Uri, cacheDir: File): PdfDocumentSession {
+      var snapshot: File? = null
+      try {
+        val input = resolver.openInputStream(uri)
+          ?: throw IllegalStateException("无法读取 PDF 文件")
+        val snapshotFile = File.createTempFile("pagenote-pdf-", ".pdf", cacheDir)
+        snapshot = snapshotFile
+        val revision = input.use { copyPdfSourceSnapshot(it, snapshotFile) }
+        val descriptor = ParcelFileDescriptor.open(snapshotFile, ParcelFileDescriptor.MODE_READ_ONLY)
+        return createSession(descriptor, revision, snapshotFile)
+      } catch (_: Exception) {
+        snapshot?.delete()
+        val descriptor = resolver.openFileDescriptor(uri, "r")
+          ?: throw IllegalStateException("无法打开 PDF 文件")
+        return createSession(descriptor, sourceRevision = null, snapshotFile = null)
+      }
+    }
+
+    private fun createSession(
+      descriptor: ParcelFileDescriptor,
+      sourceRevision: String?,
+      snapshotFile: File?,
+    ): PdfDocumentSession {
       try {
         val renderer = PdfRenderer(descriptor)
         if (renderer.pageCount < 1) {
           renderer.close()
           throw IllegalArgumentException("PDF 中没有页面")
         }
-        return PdfDocumentSession(descriptor, renderer)
+        return PdfDocumentSession(descriptor, renderer, sourceRevision, snapshotFile)
       } catch (error: Exception) {
         descriptor.close()
+        snapshotFile?.delete()
         throw error
       }
     }

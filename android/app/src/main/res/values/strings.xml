@@ -66,6 +66,11 @@
   <string name="page_count">%1$d / %2$d</string>
   <string name="recognizing">Recognizing</string>
   <string name="ocr">OCR</string>
+  <string name="region_ocr_action">Region OCR</string>
+  <string name="recognize_region_action">Recognize</string>
+  <string name="ocr_selection_hint">Drag over the page to select a region.</string>
+  <string name="recognizing_region">Recognizing selection…</string>
+  <string name="ocr_not_cached">Recognized, but the result could not be saved to the project cache.</string>
   <string name="zoom_out">Zoom out</string>
   <string name="zoom_in">Zoom in</string>
   <string name="fit_width">Fit width</string>

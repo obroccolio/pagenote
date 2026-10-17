@@ -236,6 +236,8 @@ private fun ReaderHome(
   var ocrResultPage by remember { mutableIntStateOf(0) }
   var showOcrResult by remember { mutableStateOf(false) }
   var isOcrRunning by remember { mutableStateOf(false) }
+  var readerOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var isOpening by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
@@ -424,6 +426,7 @@ private fun ReaderHome(
   }
 
   suspend fun changePage(nextPage: Int) {
+    if (readerOcrState.inputLocked) return
     if (hasUnsavedChanges && !saveCurrentNote()) return
     noteStatus = null
     showOcrResult = false
@@ -431,6 +434,7 @@ private fun ReaderHome(
   }
 
   fun recognizeCurrentPage() {
+    if (readerOcrState.inputLocked) return
     val activeRenderer = renderer ?: return
     val targetPage = pageIndex
     showOcrResult = false
@@ -469,6 +473,78 @@ private fun ReaderHome(
         showOcrResult = true
       } finally {
         isOcrRunning = false
+      }
+    }
+  }
+
+  fun recognizeSelectedRegion(request: ReaderOcrState) {
+    val activeRenderer = renderer ?: return
+    val activeProject = project ?: return
+    val targetPage = request.pageIndex ?: return
+    val selection = request.selection ?: return
+    val documentId = activeProject.manifest.id
+    scope.launch {
+      var input: Bitmap? = null
+      suspend fun finish(result: OcrResult) {
+        if (renderer === activeRenderer && project?.manifest?.id == documentId &&
+          pageIndex == targetPage && readerOcrState.mode == ReaderOcrMode.RECOGNIZING
+        ) {
+          regionOcrResult = result
+          readerOcrState = readerOcrState.showResult()
+        }
+      }
+      try {
+        val outcome = withTimeout(OcrPolicy.TIMEOUT_MS) {
+          val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+          input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
+          val pageImage = input ?: error("OCR page image is unavailable")
+          val regionEngine = selection.toEngineRegion()
+          val processor = RegionOcrProcessor(
+            ProjectPreparedCache(SafPreparedDocumentAccess(context.contentResolver)),
+          )
+          processor.recognize(
+            srcDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+            documentId = documentId,
+            page = targetPage + 1,
+            sourceRevision = activeRenderer.sourceRevision,
+            selection = selection,
+            imageWidth = pageImage.width,
+            imageHeight = pageImage.height,
+            engine = OcrResultMapper.ENGINE,
+            notCachedWarning = context.getString(R.string.ocr_not_cached),
+            recognize = {
+              withContext(Dispatchers.Default) { engine.recognize(pageImage, regionEngine) }
+            },
+            encodeImages = {
+              val pixels = regionEngine.toPixelRect(pageImage.width, pageImage.height)
+              val regionImage = Bitmap.createBitmap(
+                pageImage, pixels.left, pixels.top, pixels.width, pixels.height,
+              )
+              try {
+                PreparedOcrImages(pageImage.toPngBytes(), regionImage.toPngBytes())
+              } finally {
+                regionImage.recycle()
+              }
+            },
+          )
+        }
+        finish(outcome.result)
+      } catch (timeout: TimeoutCancellationException) {
+        finish(OcrResult(
+          engine = OcrResultMapper.ENGINE,
+          status = "failed",
+          warnings = listOf(context.getString(R.string.ocr_timeout)),
+        ))
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        finish(OcrResult(
+          engine = OcrResultMapper.ENGINE,
+          status = "failed",
+          warnings = listOf(error.message ?: context.getString(R.string.offline_ocr_failed)),
+        ))
+      } finally {
+        input?.let { if (!it.isRecycled) it.recycle() }
       }
     }
   }
@@ -662,7 +738,7 @@ private fun ReaderHome(
               )
             }
             val supportsPenWrite = projectPenStore.supportsWrite()
-            val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri)
+            val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
             ReaderProjectData(
               project = opened,
               noteText = noteText,
@@ -689,6 +765,8 @@ private fun ReaderHome(
           noteStatus = if (noteWritable) null else context.getString(R.string.read_only_project)
           ocrResult = null
           showOcrResult = false
+          regionOcrResult = null
+          readerOcrState = ReaderOcrState()
           pageIndex = 0
         } catch (error: Exception) {
           errorMessage = context.getString(R.string.select_project_error, error.message ?: "")
@@ -769,7 +847,8 @@ private fun ReaderHome(
             projectPicker.launch(null)
           }
         },
-        enabled = !isOpening && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
+        enabled = !isOpening && !isSaving && !isPenSaving && failedPenSave == null &&
+          !isOcrRunning && !readerOcrState.inputLocked,
       ) {
         Text(stringResource(if (isOpening) R.string.opening_project else R.string.open_project))
       }
@@ -801,14 +880,14 @@ private fun ReaderHome(
         Button(
           onClick = { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
           enabled = pageIndex > 0 && !isRendering && !isSaving && !isPenSaving &&
-            failedPenSave == null && !isOcrRunning,
+            failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked,
         ) {
           Text(stringResource(R.string.previous_page))
         }
         Text(stringResource(R.string.page_count, pageIndex + 1, activeRenderer.pageCount))
         Button(
           onClick = ::recognizeCurrentPage,
-          enabled = !isRendering && !isOcrRunning,
+          enabled = !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
         ) {
           Text(stringResource(if (isOcrRunning) R.string.recognizing else R.string.ocr))
         }
@@ -819,7 +898,8 @@ private fun ReaderHome(
             }
           },
           enabled = pageIndex < activeRenderer.pageCount - 1 &&
-            !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
+            !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning &&
+            !readerOcrState.inputLocked,
         ) {
           Text(stringResource(R.string.next_page))
         }
@@ -839,19 +919,27 @@ private fun ReaderHome(
             pageTutorError = null
             showPageTutor = true
           },
-          enabled = !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning,
+          enabled = !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning &&
+            !readerOcrState.inputLocked,
         ) { Text(stringResource(R.string.page_tutor_action)) }
+        ReaderOcrActions(
+          state = readerOcrState,
+          currentPage = pageIndex,
+          enabled = !isOcrRunning && !isRendering,
+          onStateChange = { readerOcrState = it },
+          onRecognize = ::recognizeSelectedRegion,
+        )
         TextButton(
           onClick = { applyViewportZoom(0.8f) },
-          enabled = viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
+          enabled = !readerOcrState.inputLocked && viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
         ) { Text(stringResource(R.string.zoom_out)) }
         Text("${(viewportTransform.scale * 100f).roundToInt()}%")
         TextButton(
           onClick = { applyViewportZoom(1.25f) },
-          enabled = viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
+          enabled = !readerOcrState.inputLocked && viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
         ) { Text(stringResource(R.string.zoom_in)) }
-        TextButton(onClick = ::fitViewportWidth) { Text(stringResource(R.string.fit_width)) }
-        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }) {
+        TextButton(onClick = ::fitViewportWidth, enabled = !readerOcrState.inputLocked) { Text(stringResource(R.string.fit_width)) }
+        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }, enabled = !readerOcrState.inputLocked) {
           Text(stringResource(R.string.fit_page))
         }
         listOf(
@@ -860,26 +948,26 @@ private fun ReaderHome(
           PenCanvasTool.ERASER to R.string.eraser,
         ).forEach { (tool, label) ->
           if (penTool == tool) {
-            Button(onClick = { penTool = tool }, enabled = penWritable) {
+            Button(onClick = { penTool = tool }, enabled = penWritable && !readerOcrState.inputLocked) {
               Text(stringResource(label))
             }
           } else {
-            TextButton(onClick = { penTool = tool }, enabled = penWritable) {
+            TextButton(onClick = { penTool = tool }, enabled = penWritable && !readerOcrState.inputLocked) {
               Text(stringResource(label))
             }
           }
         }
         TextButton(
           onClick = ::undoPenPage,
-          enabled = penWritable && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
+          enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.undo)) }
         TextButton(
           onClick = ::redoPenPage,
-          enabled = penWritable && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
+          enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.redo)) }
         TextButton(
           onClick = ::clearPenPage,
-          enabled = penWritable && penStrokes.isNotEmpty(),
+          enabled = penWritable && !readerOcrState.inputLocked && penStrokes.isNotEmpty(),
         ) { Text(stringResource(R.string.clear_page)) }
       }
       penStatus?.let { status ->
@@ -921,12 +1009,16 @@ private fun ReaderHome(
               loading = isRendering,
               strokes = penStrokes,
               tool = penTool,
-              inputEnabled = penWritable,
+              inputEnabled = penWritable && !readerOcrState.inputLocked,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
               transform = viewportTransform,
               onTransformChanged = { viewportTransform = it },
               onBoundsChanged = { viewportBounds = it },
+              selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+              gesturesEnabled = !readerOcrState.inputLocked,
+              selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
+              onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
               modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
             )
             Box(
@@ -956,12 +1048,16 @@ private fun ReaderHome(
               loading = isRendering,
               strokes = penStrokes,
               tool = penTool,
-              inputEnabled = penWritable,
+              inputEnabled = penWritable && !readerOcrState.inputLocked,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
               transform = viewportTransform,
               onTransformChanged = { viewportTransform = it },
               onBoundsChanged = { viewportBounds = it },
+              selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+              gesturesEnabled = !readerOcrState.inputLocked,
+              selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
+              onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             Box(
@@ -1004,6 +1100,15 @@ private fun ReaderHome(
         page = ocrResultPage + 1,
         result = result,
         onDismiss = { showOcrResult = false },
+      )
+    }
+  }
+  if (readerOcrState.mode == ReaderOcrMode.RESULT) {
+    regionOcrResult?.let { result ->
+      OcrResultDialog(
+        page = (readerOcrState.pageIndex ?: pageIndex) + 1,
+        result = result,
+        onDismiss = { readerOcrState = readerOcrState.dismissResult() },
       )
     }
   }
@@ -1053,7 +1158,7 @@ private fun isReaderErrorStatus(status: String): Boolean =
     status.contains("read-only", ignoreCase = true) || status.contains("not saved", ignoreCase = true)
 
 @Composable
-private fun PdfPageViewport(
+internal fun PdfPageViewport(
   bitmap: Bitmap?,
   sourceName: String,
   page: Int,
@@ -1066,10 +1171,15 @@ private fun PdfPageViewport(
   transform: PdfViewportTransform,
   onTransformChanged: (PdfViewportTransform) -> Unit,
   onBoundsChanged: (PdfViewportBounds) -> Unit,
+  selectionEnabled: Boolean = false,
+  gesturesEnabled: Boolean = true,
+  selection: NormalizedOcrRegion? = null,
+  onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val latestTransform by rememberUpdatedState(transform)
   val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
+  val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds(),
@@ -1096,31 +1206,41 @@ private fun PdfPageViewport(
       LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
 
       Box(
-        modifier = Modifier.fillMaxSize().pointerInput(page, bounds) {
+        modifier = Modifier.fillMaxSize().pointerInput(page, bounds, selectionEnabled, gesturesEnabled) {
           awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
-            do {
-              val event = awaitPointerEvent()
-              val touchChanges = event.changes.filter {
-                it.type == PointerType.Touch && it.pressed && it.previousPressed
-              }
-              val pointers = touchChanges.map { change ->
-                PdfViewportPointer(change.id.value, change.position.x, change.position.y)
-              }
-              val previousPointers = touchChanges.map { change ->
-                PdfViewportPointer(
-                  change.id.value,
-                  change.previousPosition.x,
-                  change.previousPosition.y,
-                )
-              }
-              val gesture = PdfViewportTransform.calculateTwoPointerGesture(
-                previous = previousPointers,
-                current = pointers,
-              )
-              if (gesture != null) {
-                latestOnTransformChanged(
-                  PdfViewportTransform.applyGesture(
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (selectionEnabled && down.type != PointerType.Mouse) {
+              val start = PdfSelectionPoint(down.position.x, down.position.y)
+              latestOnSelectionChanged(null)
+              down.consume()
+              do {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change != null) {
+                  latestOnSelectionChanged(mapPdfSelectionToOcrRegion(
+                    start = start,
+                    end = PdfSelectionPoint(change.position.x, change.position.y),
+                    bounds = bounds,
+                    transform = latestTransform,
+                  ))
+                  if (change.pressed) change.consume()
+                }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+            } else if (gesturesEnabled) {
+              do {
+                val event = awaitPointerEvent()
+                val touchChanges = event.changes.filter {
+                  it.type == PointerType.Touch && it.pressed && it.previousPressed
+                }
+                val pointers = touchChanges.map { change ->
+                  PdfViewportPointer(change.id.value, change.position.x, change.position.y)
+                }
+                val previousPointers = touchChanges.map { change ->
+                  PdfViewportPointer(change.id.value, change.previousPosition.x, change.previousPosition.y)
+                }
+                val gesture = PdfViewportTransform.calculateTwoPointerGesture(previousPointers, pointers)
+                if (gesture != null) {
+                  latestOnTransformChanged(PdfViewportTransform.applyGesture(
                     current = latestTransform,
                     viewportWidthPx = bounds.viewportWidthPx,
                     viewportHeightPx = bounds.viewportHeightPx,
@@ -1131,11 +1251,16 @@ private fun PdfPageViewport(
                     zoomChange = gesture.zoomChange,
                     panX = gesture.panX,
                     panY = gesture.panY,
-                  ),
-                )
-                touchChanges.forEach { it.consume() }
-              }
-            } while (event.changes.any { it.pressed })
+                  ))
+                  touchChanges.forEach { it.consume() }
+                }
+              } while (event.changes.any { it.pressed })
+            } else {
+              do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { it.consume() }
+              } while (event.changes.any { it.pressed })
+            }
           }
         },
         contentAlignment = Alignment.Center,
@@ -1166,6 +1291,7 @@ private fun PdfPageViewport(
               view.onStrokeErased = onStrokeErased
             },
           )
+          OcrSelectionOverlay(selection)
         }
       }
     } else if (loading) {
@@ -1407,7 +1533,7 @@ private fun NotePanelHeaderActions(
 }
 
 @Composable
-private fun OcrResultDialog(
+internal fun OcrResultDialog(
   page: Int,
   result: OcrResult,
   onDismiss: () -> Unit,
@@ -1448,6 +1574,10 @@ private fun OcrResultDialog(
         }
       }
     },
-    confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    confirmButton = {
+      TextButton(modifier = Modifier.testTag("ocr_result_close"), onClick = onDismiss) {
+        Text(stringResource(R.string.close))
+      }
+    },
   )
 }

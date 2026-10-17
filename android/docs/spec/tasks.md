@@ -5,9 +5,10 @@
 
 # Implementation Plan
 
-- [x] 1. 跨端契约与测试夹具
-  - 在 `android/docs/spec/contracts/` 落 `project.schema.json`、`annotations.schema.json`、`ai-reviews.schema.json`、`prepared-manifest.schema.json`、分页与 revision 示例。
-  - 在 `android/shared-tests/` 放桌面语义回归夹具：分页、空页、assets、revision 冲突、标注、准备缓存。
+- [ ] 1. 跨端契约与测试夹具（部分：schemas 与分页/空页、标注、AI review、准备 manifest 契约回归已落地；shared-tests 尚缺 assets 和 `expectedRevision` 冲突用例）
+  - [x] 在 `android/docs/spec/contracts/` 落 `project.schema.json`、`annotations.schema.json`、`ai-reviews.schema.json`、`prepared-manifest.schema.json` 与分页示例。
+  - [x] 在 `android/shared-tests/` 覆盖分页、空页、标注和准备 manifest 的核心桌面语义。
+  - [ ] 补充 assets 与 `expectedRevision` 冲突的共享回归夹具和断言。
   - _Requirement: 项目与数据兼容，构建与测试_
 
 - [x] 2. 安卓工程骨架与构建隔离
@@ -16,10 +17,10 @@
   - 桌面构建忽略 `android/`，安卓构建只认 `android/`；验证互不干扰。
   - _Requirement: 构建与测试，约束与非功能_
 
-- [x] 3. 项目管理与分页笔记
-  - 实现项目新建、打开、保存、assets 导入导出、原子写。
-  - 实现 `splitPageNotes` 同语义分页与合并，空页占位。
-  - 实现整页 SHA-256 revision、`expectedRevision` 冲突拒绝、按页历史与恢复。
+- [ ] 3. 项目管理与分页笔记（部分：SAF 已接通打开现有 PDF 项目、分页笔记编辑/保存、SHA-256 revision 与冲突拒绝；项目创建、assets 导入导出和按页历史/恢复 UI 尚未接入）
+  - [x] 解码并校验现有项目清单，通过 SAF 打开现有 PDF 项目。
+  - [x] 实现 `splitPageNotes` 同语义分页与合并、空页占位，以及整页 SHA-256 revision 和 `expectedRevision` 冲突拒绝。
+  - [ ] 接入项目创建、assets 导入导出、SAF 原子写与按页历史/恢复工作流。
   - _Requirement: 项目与数据兼容，阅读与笔记_
 
 - [ ] 4. 阅读器与双栏自适应（部分：渲染比例/区域映射/准备缓存校验已落地；SAF 项目入口、PdfRenderer 阅读、PDF/笔记窄屏堆叠与宽屏并排已接通，真机验收待续）
@@ -37,10 +38,10 @@
   - 超长页截断与按需读取，不一次全量装入。
   - _Requirement: 阅读与笔记_
 
-- [x] 6. 标注与 AI 标注工作台
-  - 文字选区标注、区域框选标注、标注列表、删除。
-  - AI 标注创建、改写、状态流转，成功改写后才能 `applied`。
-  - 交接读写与 stale 判定。
+- [ ] 6. 标注与 AI 标注工作台（部分：annotation/review/handoff 数据模型与 File store 状态规则已实现；app 目前仅接入分页手写笔迹读写，文字/区域批注、列表/删除、AI review 与 handoff 用户流程尚未接入）
+  - [x] 实现 annotation、AI review、handoff 数据模型、校验和本地 store 单测。
+  - [ ] 将 store 改为项目 SAF 可用的数据边界，并接入文字/区域批注创建、列表、删除与 AI review 改写/状态流转。
+  - [ ] 接入交接读写 UI 与 stale 冲突处理。
   - _Requirement: 标注_
 
 - [ ] 7. 手写笔迹（部分：原生 View、压感、分页编辑和 SAF 项目保存已实现；真机验收待做）
@@ -49,16 +50,16 @@
   - [ ] 主动笔与被动笔、边缘、断触、误触抑制真机验证。
   - _Requirement: 笔迹，布局与适配_
 
-- [x] 8. 页面准备管线
-  - 原生文字、文字块、整页与区域 PNG、Markdown 表格抽取。
-  - 缓存键、manifest、坐标 1000x1000、区域保留整页图、原文变化失效、刷新重试。
+- [ ] 8. 页面准备管线（部分：API 35 PDF 原生文本/文字块抽取、整页渲染及缓存 key/manifest 契约已实现；区域图生成、Markdown 表格抽取和 reader 调用的项目缓存刷新流程尚未完成）
+  - [x] 原生文字/文字块抽取、整页 `PdfRenderer` 渲染、缓存 key、manifest 与 1000x1000 区域契约。
+  - [ ] 接通区域 PNG 生成、Markdown 表格抽取、项目缓存失效和刷新重试，并由页面准备流程统一调用。
   - _Requirement: 页面准备与 OCR_
 
 - [ ] 9. 离线 OCR（部分：已打包 PP-OCRv6 tiny 中英文模型、端侧 ONNX 引擎和当前页手动识别入口；自动触发、页面准备缓存、区域重识别与真机验收待续）
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
   - 触发规则、超时处理、失败明确标记、飞行模式可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
-  - [ ] 阅读器区域选择和 SAF 项目缓存，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
+  - [x] 阅读器区域选择、离线识别与 SAF 项目缓存；JVM 回归、仪器测试编译、四 ABI APK 构建及 16 KB 对齐检查通过，真机手写笔/启动验收待完成，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
 
 - [ ] 10. 端侧 Agent 与 OpenAI 兼容接入（部分：客户端、任务循环与数据契约已实现；项目工具接入及端到端闭环待续）
