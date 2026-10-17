@@ -95,6 +95,31 @@ object HandoffStore {
     return record
   }
 
+  /**
+   * Delete only one page's handoff. Missing file or missing page is a no-op (false),
+   * so cleanup never touches other pages.
+   */
+  fun deletePage(srcDir: File, page: Int): Boolean {
+    require(page >= 1) { "bad page" }
+    val file = File(srcDir, "ai-handoffs.json")
+    if (!file.exists()) return false
+    val records = readAll(file).toMutableMap()
+    if (!records.containsKey(page)) return false
+    records.remove(page)
+    val root = buildJsonObject {
+      records.toSortedMap().forEach { (key, value) ->
+        put(key.toString(), buildJsonObject {
+          put("summary", JsonPrimitive(value.summary))
+          put("noteRevision", JsonPrimitive(value.noteRevision))
+          put("sourceRevision", JsonPrimitive(value.sourceRevision))
+          put("updated", JsonPrimitive(value.updated.orEmpty()))
+        })
+      }
+    }
+    atomicWrite(file, Json.encodeToString(JsonObject.serializer(), root))
+    return true
+  }
+
   private fun atomicWrite(file: File, text: String) {
     file.parentFile?.mkdirs()
     val tmp = File(file.parentFile, file.name + "." + UUID.randomUUID() + ".tmp")

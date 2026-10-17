@@ -53,4 +53,23 @@ class HandoffStoreTest {
     } catch (_: IllegalArgumentException) {
     }
   }
+
+  @Test
+  fun deletePageOnlyRemovesTargetPage() {
+    val dir = Files.createTempDirectory("pagenote-handoffs").toFile()
+    HandoffStore.write(dir, 1, "p1", noteRevision, sourceRevision, noteRevision)
+    HandoffStore.write(dir, 2, "p2", noteRevision, sourceRevision, noteRevision)
+    assertTrue(HandoffStore.deletePage(dir, 1))
+    val file = File(dir, "ai-handoffs.json")
+    assertNull(HandoffStore.readAll(file)[1])
+    assertEquals("p2", HandoffStore.readAll(file)[2]?.summary)
+    assertFalse(HandoffStore.deletePage(dir, 1))
+  }
+
+  @Test
+  fun deletePageOnMissingFileIsNoop() {
+    val dir = Files.createTempDirectory("pagenote-handoffs").toFile()
+    assertFalse(HandoffStore.deletePage(dir, 1))
+    assertFalse(File(dir, "ai-handoffs.json").exists())
+  }
 }
