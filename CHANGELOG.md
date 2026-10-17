@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Define Android-only SPECs for reader settings and OCR region recognition under `android/docs/spec/`. / 在 `android/docs/spec/` 中定义安卓阅读器设置与选区 OCR 的独立 SPEC。
+
 - Add API 35 native PDF text extraction with an explicit OCR fallback on Android 29–34, plus two-finger zoom/pan, fit-width, and reset controls in the Android reader. / 安卓阅读器新增 API 35 原生 PDF 文本抽取（Android 29–34 明确回退离线 OCR），并支持双指缩放/平移、适宽和重置视图。
 
 - Add Android port skeleton under `android/` (SPEC, Gradle modules, project/reader/notes/annotations/pen/OCR/agent) with unit tests; desktop builds ignore `android/`. / 新增安卓移植骨架（SPEC、Gradle 模块、项目/阅读/笔记/标注/笔迹/OCR/Agent）并附单测；桌面构建忽略 `android/`。
