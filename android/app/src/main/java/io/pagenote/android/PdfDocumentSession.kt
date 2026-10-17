@@ -28,6 +28,8 @@ class PdfDocumentSession private constructor(
   val sourceRevision: String?,
   private val snapshotFile: File?,
 ) : Closeable {
+  private var closed = false
+
   val pageCount: Int get() = renderer.pageCount
 
   @Synchronized
@@ -74,6 +76,8 @@ class PdfDocumentSession private constructor(
 
   @Synchronized
   override fun close() {
+    if (closed) return
+    closed = true
     try {
       renderer.close()
     } finally {

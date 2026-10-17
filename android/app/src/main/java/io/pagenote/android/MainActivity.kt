@@ -1084,7 +1084,6 @@ private fun ReaderHome(
           penWritable = writable && supportsPenWrite,
         )
       }
-      renderer?.close()
       renderer = loaded.renderer
       markdownSource = loaded.markdownSource
       project = loaded.project

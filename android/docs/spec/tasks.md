@@ -91,7 +91,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查，以及 Pixel Tablet API 34、API 35 AVD 各 59 项 Android 仪器测试全部通过；4 KB 真机冷启动 smoke 通过，16 KB 页面运行时及真实功能矩阵仍待完成）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；4 KB 真机冷启动 smoke 通过，16 KB 页面运行时及真实功能矩阵仍待完成；PDF session 重复关闭回归由 API 35 AVD 验证）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
