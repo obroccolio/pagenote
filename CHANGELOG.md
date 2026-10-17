@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add a generic Android SAF annotation store covering all item types with page delete and pen-write coexistence. / 安卓新增通用 SAF 标注存储，覆盖全部批注类型与按页删除，并与手写笔迹写入共存。
+
 - Add GFM table extraction for Android page preparation and refresh-forced region OCR cache rewrite. / 安卓页面准备新增 GFM 表格抽取与区域 OCR 缓存 refresh 强制重做。
 
 - Add per-page Android note history with save-time snapshots, a version preview dialog, and confirmed revision-checked restore. / 安卓笔记新增按页历史：保存时自动快照、版本预览弹窗、二次确认的 revision 校验恢复。
