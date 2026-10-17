@@ -21,7 +21,7 @@
   - [x] 解码并校验现有项目清单，通过 SAF 打开现有 PDF 项目。
   - [x] 实现 `splitPageNotes` 同语义分页与合并、空页占位，以及整页 SHA-256 revision 和 `expectedRevision` 冲突拒绝。
   - [x] 接入按页历史快照/列表/恢复工作流（保存成功自动快照去重，历史弹窗预览与二次确认恢复，`expectedRevision` 冲突不覆盖；契约见 `features/note-history-restore.md`）。
-  - [x] 接入 SAF 项目创建（名称校验、目录选择、完整结构落盘、失败清理、创建后直接打开；契约见 `features/project-create.md`）。
+  - [x] 接入 SAF 项目创建（名称校验、目录选择、完整结构落盘、失败清理、创建后直接打开；权限 URI、manifest 文件名和 picker 返回状态在 task 12 补充回归修复；契约见 `features/project-create.md`）。
   - [x] 接入资源引用直读（SAF 项目即源目录：打开时扫描 `assets/` 引用并提示缺失，保存时直写引用不搬运；契约见 `features/project-assets-saf.md`）。
   - _Requirement: 项目与数据兼容，阅读与笔记_
 
@@ -95,7 +95,9 @@
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
     - [ ] `MainActivityLaunchTest` 设备执行尚未得到结果：runner 在 USB 设置页前台期间中断；单测重试持续挂起且未产生应用异常栈。
-    - [ ] SAF 项目选择器和阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
+    - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
+    - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
+    - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
   - _Requirement: 构建与测试，全部 EARS_
 
 - [x] 13. 分支、变更日志、PR 准备（分支基于 beta、CHANGELOG 随推更新、产物独立于 release/，待开 PR）

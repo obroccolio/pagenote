@@ -8,7 +8,11 @@ import io.pagenote.core.project.ProjectStore
 import java.io.IOException
 
 class ProjectCreator(private val resolver: ContentResolver) {
-  fun create(parentTreeUri: Uri, name: String): Uri {
+  companion object {
+    const val PROJECT_MANIFEST_MIME_TYPE = "application/vnd.pagenote.project"
+  }
+
+  fun create(parentTreeUri: Uri, name: String): ProjectOpenTarget {
     val manifest = ProjectStore.newManifest(name)
     val parentId = DocumentsContract.getTreeDocumentId(parentTreeUri)
     if (childExists(parentTreeUri, parentId, name)) {
@@ -30,12 +34,12 @@ class ProjectCreator(private val resolver: ContentResolver) {
       writeText(projectUri, "src", "left.md", "# ${manifest.name}\n", "text/markdown")
       writeText(projectUri, "src", "right.md", "", "text/markdown")
       val manifestUri = DocumentsContract.createDocument(
-        resolver, projectUri, "application/json", "project.pagenote",
+        resolver, projectUri, PROJECT_MANIFEST_MIME_TYPE, "project.pagenote",
       ) ?: throw IOException("无法创建 project.pagenote")
       resolver.openOutputStream(manifestUri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
         it.write(manifestJson(manifest))
       } ?: throw IOException("无法写入 project.pagenote")
-      return projectUri
+      return ProjectOpenTarget.fromCreatedProject(parentTreeUri, projectUri)
     } catch (error: Exception) {
       runCatching {
         if (srcUri != null) DocumentsContract.deleteDocument(resolver, srcUri)

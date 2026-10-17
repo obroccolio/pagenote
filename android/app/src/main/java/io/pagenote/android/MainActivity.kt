@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -968,15 +969,18 @@ private fun ReaderHome(
     }
   }
 
-  var showNewProject by remember { mutableStateOf(false) }
-  var newProjectName by remember { mutableStateOf("") }
-  var newProjectDir by remember { mutableStateOf<Uri?>(null) }
+  var showNewProject by rememberSaveable { mutableStateOf(false) }
+  var newProjectName by rememberSaveable { mutableStateOf("") }
+  var newProjectDir by rememberSaveable { mutableStateOf<Uri?>(null) }
   var isCreatingProject by remember { mutableStateOf(false) }
+  var isChoosingNewProjectDir by rememberSaveable { mutableStateOf(false) }
   var newProjectError by remember { mutableStateOf<String?>(null) }
 
   val newProjectDirPicker = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.OpenDocumentTree(),
   ) { treeUri: Uri? ->
+    isChoosingNewProjectDir = false
+    showNewProject = true
     if (treeUri != null) {
       try {
         context.contentResolver.takePersistableUriPermission(
@@ -987,6 +991,11 @@ private fun ReaderHome(
       }
       newProjectDir = treeUri
     }
+  }
+
+  fun chooseNewProjectDirectory() {
+    isChoosingNewProjectDir = true
+    newProjectDirPicker.launch(null)
   }
 
   fun assetChildExists(assetsUri: Uri, treeUri: Uri, name: String): Boolean {
@@ -1005,27 +1014,32 @@ private fun ReaderHome(
     return false
   }
 
-  suspend fun openProjectTree(treeUri: Uri, manageOpening: Boolean = true) {
+  suspend fun openProjectTree(target: ProjectOpenTarget, manageOpening: Boolean = true) {
     if (manageOpening) {
       isOpening = true
       errorMessage = null
     }
     try {
       var writable = true
-      try {
-        context.contentResolver.takePersistableUriPermission(
-          treeUri,
-          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-        )
-      } catch (_: SecurityException) {
-        writable = false
-        context.contentResolver.takePersistableUriPermission(
-          treeUri,
-          Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
+      if (target.needsPersistablePermission) {
+        try {
+          context.contentResolver.takePersistableUriPermission(
+            target.accessTreeUri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+          )
+        } catch (_: SecurityException) {
+          writable = false
+          context.contentResolver.takePersistableUriPermission(
+            target.accessTreeUri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+          )
+        }
       }
       val loaded = withContext(Dispatchers.IO) {
-        val opened = ProjectDocumentOpener(context.contentResolver).open(treeUri)
+        val opened = ProjectDocumentOpener(context.contentResolver).open(
+          target.accessTreeUri,
+          target.rootDocumentId,
+        )
         val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
         val noteText = noteStore.read()
         val supportsNoteWrite = noteStore.supportsWrite()
@@ -1130,21 +1144,21 @@ private fun ReaderHome(
       return
     }
     if (dir == null) {
-      newProjectDirPicker.launch(null)
+      chooseNewProjectDirectory()
       return
     }
     scope.launch {
       isCreatingProject = true
       newProjectError = null
       try {
-        val projectTree = withContext(Dispatchers.IO) {
+        val projectTarget = withContext(Dispatchers.IO) {
           ProjectCreator(context.contentResolver).create(dir, name)
         }
         showNewProject = false
         newProjectName = ""
         newProjectDir = null
         if (hasUnsavedChanges && !saveCurrentNote()) return@launch
-        openProjectTree(projectTree, manageOpening = true)
+        openProjectTree(projectTarget, manageOpening = true)
       } catch (error: Exception) {
         newProjectError = context.getString(R.string.new_project_failed, error.message ?: "")
       } finally {
@@ -1158,7 +1172,7 @@ private fun ReaderHome(
     contract = ActivityResultContracts.OpenDocumentTree(),
   ) { treeUri: Uri? ->
     if (treeUri != null) {
-      scope.launch { openProjectTree(treeUri) }
+      scope.launch { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
     }
   }
 
@@ -1651,10 +1665,10 @@ private fun ReaderHome(
       hasDir = newProjectDir != null,
       error = newProjectError,
       creating = isCreatingProject,
-      onChooseDir = { newProjectDirPicker.launch(null) },
+      onChooseDir = { chooseNewProjectDirectory() },
       onConfirm = { createNewProject(scope) },
       onDismiss = {
-        if (!isCreatingProject) {
+        if (NewProjectDialogPolicy.canDismiss(isCreatingProject, isChoosingNewProjectDir)) {
           showNewProject = false
           newProjectError = null
         }

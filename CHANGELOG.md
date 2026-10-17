@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Fix Android SAF project creation to retain the selected parent grant, preserve the `project.pagenote` filename, and keep the creation dialog state across folder selection. / 修复安卓 SAF 项目创建：沿用已选父目录授权、保留 `project.pagenote` 文件名，并在选择目录返回后保持弹窗及输入状态。
+
 - Clarify Android OCR cache metadata and crop contracts, Agent tool validation requirements, and the limits of current device smoke evidence. / 明确安卓 OCR 缓存元数据与裁剪契约、Agent 工具校验要求及当前真机烟测证据边界。
 
 - Preserve valid Android region OCR selections across invalid drags, use consistent crop rounding, and store OCR counts with the actual PDF render scale. / 安卓区域 OCR 无效拖动时保留有效选区、统一裁剪取整，并记录 OCR 计数与 PDF 实际渲染比例。

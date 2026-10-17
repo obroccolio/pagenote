@@ -23,13 +23,13 @@ data class OpenedProject(
 }
 
 class ProjectDocumentOpener(private val resolver: ContentResolver) {
-  fun open(treeUri: Uri): OpenedProject {
-    val rootDocumentId = try {
+  fun open(treeUri: Uri, rootDocumentId: String? = null): OpenedProject {
+    val projectRootId = rootDocumentId ?: try {
       DocumentsContract.getTreeDocumentId(treeUri)
     } catch (error: IllegalArgumentException) {
       throw IllegalArgumentException("请选择项目文件夹", error)
     }
-    val manifestUri = findDocument(treeUri, rootDocumentId, listOf("project.pagenote"))
+    val manifestUri = findDocument(treeUri, projectRootId, listOf("project.pagenote"))
       ?: throw IllegalArgumentException("项目文件夹中没有 project.pagenote")
     val manifestText = resolver.openInputStream(manifestUri)?.bufferedReader(Charsets.UTF_8)?.use {
       it.readText()
@@ -37,14 +37,14 @@ class ProjectDocumentOpener(private val resolver: ContentResolver) {
     val manifest = ProjectManifestCodec.decode(manifestText)
     val sourceSegments = ProjectValidation.resolveLinkSegments(manifest.left)
     val notesSegments = ProjectValidation.resolveLinkSegments(manifest.right)
-    val sourceUri = findDocument(treeUri, rootDocumentId, sourceSegments)
+    val sourceUri = findDocument(treeUri, projectRootId, sourceSegments)
       ?: throw IllegalArgumentException("找不到原文：${manifest.left}")
-    val sourceDirectoryUri = findDocument(treeUri, rootDocumentId, listOf("src"))
+    val sourceDirectoryUri = findDocument(treeUri, projectRootId, listOf("src"))
       ?: throw IllegalArgumentException("项目文件夹中没有 src 目录")
-    val annotationsUri = findDocument(treeUri, rootDocumentId, listOf("src", "annotations.json"))
-    val reviewsUri = findDocument(treeUri, rootDocumentId, listOf("src", "ai-reviews.json"))
-    val handoffsUri = findDocument(treeUri, rootDocumentId, listOf("src", "ai-handoffs.json"))
-    val notesUri = findDocument(treeUri, rootDocumentId, notesSegments)
+    val annotationsUri = findDocument(treeUri, projectRootId, listOf("src", "annotations.json"))
+    val reviewsUri = findDocument(treeUri, projectRootId, listOf("src", "ai-reviews.json"))
+    val handoffsUri = findDocument(treeUri, projectRootId, listOf("src", "ai-handoffs.json"))
+    val notesUri = findDocument(treeUri, projectRootId, notesSegments)
       ?: throw IllegalArgumentException("找不到笔记：${manifest.right}")
     val sourceName = manifest.leftName ?: sourceSegments.last()
     val extension = sourceSegments.last().substringAfterLast('.', "").lowercase()
