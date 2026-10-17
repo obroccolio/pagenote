@@ -78,6 +78,35 @@ fun mapPdfSelectionToOcrRegion(
   return region.takeIf { it.right > it.left && it.bottom > it.top }
 }
 
+/** Map a single tap to 0..1000 page coordinates; null when outside the rendered page. */
+fun mapPdfTapToPagePoint(
+  tap: PdfSelectionPoint,
+  bounds: PdfViewportBounds,
+  transform: PdfViewportTransform,
+): Pair<Double, Double>? {
+  if (listOf(
+      tap.x, tap.y,
+      bounds.viewportWidthPx, bounds.viewportHeightPx,
+      bounds.pageWidthPx, bounds.pageHeightPx,
+      transform.scale, transform.translationX, transform.translationY,
+    ).any { !it.isFinite() } ||
+    bounds.viewportWidthPx <= 0f || bounds.viewportHeightPx <= 0f ||
+    bounds.pageWidthPx <= 0f || bounds.pageHeightPx <= 0f || transform.scale <= 0f
+  ) {
+    return null
+  }
+  val pageX = (tap.x - bounds.viewportWidthPx / 2f - transform.translationX) /
+    transform.scale + bounds.pageWidthPx / 2f
+  val pageY = (tap.y - bounds.viewportHeightPx / 2f - transform.translationY) /
+    transform.scale + bounds.pageHeightPx / 2f
+  if (!pageX.isFinite() || !pageY.isFinite() ||
+    pageX < 0f || pageX > bounds.pageWidthPx || pageY < 0f || pageY > bounds.pageHeightPx
+  ) {
+    return null
+  }
+  return (pageX / bounds.pageWidthPx * 1000.0) to (pageY / bounds.pageHeightPx * 1000.0)
+}
+
 data class PdfViewportPointer(val id: Long, val x: Float, val y: Float)
 
 data class PdfViewportGesture(
