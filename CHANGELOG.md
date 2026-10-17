@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Cache successful and partial Android region OCR results in SAF projects with source/region/engine/version identity checks, validated images and completion manifests written last; retain OCR results when project persistence fails. / 安卓区域 OCR 的成功及部分结果可缓存到 SAF 项目，并校验原文、区域、引擎和版本身份、验证图片且最后写入完成清单；项目持久化失败时仍保留 OCR 结果。
+
 - Harden Android page-tutor saves against stale previews and partial SAF writes; fail closed when recovery-copy capability discovery or an advertised create/write operation fails, report retained-copy names when cleanup fails, report only warnings for context actually sent, and cover retry/warning states. / 加固安卓逐页讲解保存：防止旧指令预览被追加；恢复副本能力查询异常或 SAF 明确支持创建但实际创建/写入失败时停止覆盖，并在清理失败时报告残留副本名称；只提示实际发送上下文的截断，并覆盖错误重试和警告状态。
 
 - Add Android page tutoring with bounded PDF/OCR context, a Markdown preview, and explicit revision-checked append to the current page note. / 安卓新增逐页 AI 讲解，基于有界 PDF/OCR 上下文生成 Markdown 预览，并经用户确认和 revision 校验后追加到当前页笔记。

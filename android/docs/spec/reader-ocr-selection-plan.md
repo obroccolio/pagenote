@@ -95,11 +95,11 @@
 - `PreparedOcrCacheWriteResult` distinguishes `Saved` from `NotSaved(reason)`; cache I/O failure must not discard an otherwise valid recognition result.
 - `PreparedDocumentAccess` exposes `findChild`, `createDirectory`, `createFile`, `delete`, `openInput`, and `openOutput`; production uses `ContentResolver`/`DocumentsContract`, tests use an in-memory fake. `PreparedImageValidator` is injected so local tests can reject malformed images and the Android adapter validates with `BitmapFactory`.
 
-- [ ] **Step 1: Add failing tests** named `emptyTreeIsMiss`, `savedEntryRoundTripsResultAndImages`, `changedDocumentPageSourceRegionEngineOrVersionIsMiss`, `malformedManifestOrMissingFileIsMiss`, `invalidImageOrResultIsMiss`, `writeFailureReturnsNotSaved`, and `manifestIsRequiredAsCompletionMarker`, using an in-memory `PreparedDocumentAccess` and injected image validator.
-- [ ] **Step 2: Run tests and verify RED.** Run `cd android && ./gradlew :app:testDebugUnitTest --tests io.pagenote.android.ProjectPreparedCacheTest --offline`; expect missing store/API or failing cache cases.
-- [ ] **Step 3: Implement SAF-backed storage.** Create/find `src/prepared/<page>-<key-prefix>` through `DocumentsContract`; read and validate every required file; encode `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`; remove an old completion manifest before replacement and write the new manifest last. Add the `ContentResolver` adapter and fakeable document-access interface.
-- [ ] **Step 4: Run cache, codec, and app tests.** Run `:app:testDebugUnitTest :core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:assembleDebug --offline`.
-- [ ] **Step 5: Commit.** `feat(android): cache region OCR in SAF projects`; include an Unreleased changelog line.
+- [x] **Step 1: Add failing tests** named `emptyTreeIsMiss`, `savedEntryRoundTripsResultAndImages`, `changedDocumentPageSourceRegionEngineOrVersionIsMiss`, `malformedManifestOrMissingFileIsMiss`, `invalidImageOrResultIsMiss`, `writeFailureReturnsNotSaved`, and `manifestIsRequiredAsCompletionMarker`, using an in-memory `PreparedDocumentAccess` and injected image validator.
+- [x] **Step 2: Run tests and verify RED.** Run `cd android && ./gradlew :app:testDebugUnitTest --tests io.pagenote.android.ProjectPreparedCacheTest --offline`; first run failed on missing cache APIs; the later focused run passed all seven tests.
+- [x] **Step 3: Implement SAF-backed storage.** Create/find `src/prepared/<page>-<key-prefix>` through `DocumentsContract`; read and validate every required file; encode `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`; remove an old completion manifest before replacement and write the new manifest last. Add the `ContentResolver` adapter and fakeable document-access interface.
+- [x] **Step 4: Run cache, codec, and app tests.** `:app:testDebugUnitTest :core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:assembleDebug --offline` passed.
+- [x] **Step 5: Commit.** `feat(android): cache region OCR in SAF projects`; include an Unreleased changelog line.
 
 ### Task 4: Reader Selection and OCR Integration
 
