@@ -12,7 +12,7 @@
 
 - [x] 2. 安卓工程骨架与构建隔离
   - 新建 Gradle 工程与 `app/core-project/core-reader/feature-notes/feature-annotations/feature-pen/feature-ocr/agent/shared-tests` 模块。
-  - 接本地 SDK 与 Gradle Wrapper，`assembleDebug` 可出可安装产物。
+  - 接本地 SDK 与 Gradle Wrapper，`assembleDebug` 按 ABI 可出可安装产物。
   - 桌面构建忽略 `android/`，安卓构建只认 `android/`；验证互不干扰。
   - _Requirement: 构建与测试，约束与非功能_
 
@@ -54,7 +54,7 @@
   - 缓存键、manifest、坐标 1000x1000、区域保留整页图、原文变化失效、刷新重试。
   - _Requirement: 页面准备与 OCR_
 
-- [x] 9. 离线 OCR
+- [ ] 9. 离线 OCR（部分：已打包 PP-OCRv6 tiny 中英文模型、端侧 ONNX 引擎和当前页手动识别入口；自动触发、页面准备缓存、区域重识别与真机验收待续）
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
   - 触发规则、超时处理、失败明确标记、飞行模式可用。
   - _Requirement: 页面准备与 OCR_

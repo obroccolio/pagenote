@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,14 +25,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -58,10 +63,20 @@ import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
+import io.pagenote.feature.ocr.OfflineOcrEngine
+import io.pagenote.feature.ocr.OcrPolicy
+import io.pagenote.feature.ocr.OcrResult
+import io.pagenote.feature.ocr.OcrResultMapper
+import io.pagenote.feature.ocr.OcrResultPolicy
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -74,6 +89,7 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
 }
 
 @Composable
@@ -89,6 +105,11 @@ private fun ReaderHome() {
   var noteBaseRevision by remember { mutableStateOf(PageNotes.revision("")) }
   var noteWritable by remember { mutableStateOf(false) }
   var noteStatus by remember { mutableStateOf<String?>(null) }
+  var ocrEngine by remember { mutableStateOf<OfflineOcrEngine?>(null) }
+  var ocrResult by remember { mutableStateOf<OcrResult?>(null) }
+  var ocrResultPage by remember { mutableIntStateOf(0) }
+  var showOcrResult by remember { mutableStateOf(false) }
+  var isOcrRunning by remember { mutableStateOf(false) }
   var isOpening by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
@@ -158,7 +179,51 @@ private fun ReaderHome() {
   suspend fun changePage(nextPage: Int) {
     if (hasUnsavedChanges && !saveCurrentNote()) return
     noteStatus = null
+    showOcrResult = false
     pageIndex = nextPage
+  }
+
+  fun recognizeCurrentPage() {
+    val activeRenderer = renderer ?: return
+    val targetPage = pageIndex
+    showOcrResult = false
+    scope.launch {
+      isOcrRunning = true
+      try {
+        val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
+          val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+          val input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
+          try {
+            engine.recognize(input)
+          } finally {
+            input.recycle()
+          }
+        }
+        ocrResult = result
+        ocrResultPage = targetPage
+        showOcrResult = true
+      } catch (timeout: TimeoutCancellationException) {
+        ocrResult = OcrResult(
+          engine = OcrResultMapper.ENGINE,
+          status = "failed",
+          warnings = listOf("OCR 超时。原始页面未改变，请稍后重试。"),
+        )
+        ocrResultPage = targetPage
+        showOcrResult = true
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        ocrResult = OcrResult(
+          engine = OcrResultMapper.ENGINE,
+          status = "failed",
+          warnings = listOf(error.message ?: "离线 OCR 初始化失败"),
+        )
+        ocrResultPage = targetPage
+        showOcrResult = true
+      } finally {
+        isOcrRunning = false
+      }
+    }
   }
 
   val projectPicker = rememberLauncherForActivityResult(
@@ -201,6 +266,8 @@ private fun ReaderHome() {
           noteBaseRevision = PageNotes.revision(firstPage)
           noteWritable = writable && loaded.second
           noteStatus = if (noteWritable) null else "只读项目：存储位置未授予笔记写入权限"
+          ocrResult = null
+          showOcrResult = false
           pageIndex = 0
         } catch (error: Exception) {
           errorMessage = error.message ?: "项目打开失败"
@@ -211,11 +278,20 @@ private fun ReaderHome() {
     }
   }
 
-  DisposableEffect(renderer) {
-    onDispose { renderer?.close() }
+  val rendererToClose = renderer
+  DisposableEffect(rendererToClose) {
+    onDispose { rendererToClose?.close() }
   }
   DisposableEffect(Unit) {
     onDispose { pageBitmap?.recycle() }
+  }
+  val ocrEngineToClose = ocrEngine
+  DisposableEffect(ocrEngineToClose) {
+    onDispose {
+      ocrEngineToClose?.let { engine ->
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { engine.close() }
+      }
+    }
   }
 
   LaunchedEffect(notesMarkdown, pageIndex) {
@@ -267,7 +343,7 @@ private fun ReaderHome() {
             projectPicker.launch(null)
           }
         },
-        enabled = !isOpening && !isSaving,
+        enabled = !isOpening && !isSaving && !isOcrRunning,
       ) {
         Text(if (isOpening) "正在打开" else "打开项目")
       }
@@ -292,18 +368,25 @@ private fun ReaderHome() {
       ) {
         Button(
           onClick = { scope.launch { changePage((pageIndex - 1).coerceAtLeast(0)) } },
-          enabled = pageIndex > 0 && !isRendering && !isSaving,
+          enabled = pageIndex > 0 && !isRendering && !isSaving && !isOcrRunning,
         ) {
           Text("上一页")
         }
         Text("${pageIndex + 1} / ${activeRenderer.pageCount}")
+        Button(
+          onClick = ::recognizeCurrentPage,
+          enabled = !isRendering && !isOcrRunning,
+        ) {
+          Text(if (isOcrRunning) "识别中" else "OCR")
+        }
         Button(
           onClick = {
             scope.launch {
               changePage((pageIndex + 1).coerceAtMost(activeRenderer.pageCount - 1))
             }
           },
-          enabled = pageIndex < activeRenderer.pageCount - 1 && !isRendering && !isSaving,
+          enabled = pageIndex < activeRenderer.pageCount - 1 &&
+            !isRendering && !isSaving && !isOcrRunning,
         ) {
           Text("下一页")
         }
@@ -379,6 +462,16 @@ private fun ReaderHome() {
           Text("选择一个 pagenote 项目文件夹", style = MaterialTheme.typography.bodyLarge)
         }
       }
+    }
+  }
+
+  if (showOcrResult) {
+    ocrResult?.let { result ->
+      OcrResultDialog(
+        page = ocrResultPage + 1,
+        result = result,
+        onDismiss = { showOcrResult = false },
+      )
     }
   }
 }
@@ -518,4 +611,45 @@ private fun NotePanel(
       }
     }
   }
+}
+
+@Composable
+private fun OcrResultDialog(
+  page: Int,
+  result: OcrResult,
+  onDismiss: () -> Unit,
+) {
+  val needsReview = OcrResultPolicy.needsVisualReview(result)
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("第 $page 页 OCR") },
+    text = {
+      Column(
+        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        Text("状态：${result.status} · ${result.engine}")
+        if (needsReview) {
+          Text("识别结果需要对照原图核实", color = MaterialTheme.colorScheme.error)
+        }
+        result.warnings.forEach { warning ->
+          Text(warning, color = MaterialTheme.colorScheme.error)
+        }
+        if (result.blocks.isEmpty()) {
+          Text("没有可显示的识别文字。")
+        }
+        result.blocks.forEachIndexed { index, block ->
+          Text("${index + 1}. ${block.text}")
+          Text(
+            "置信度 ${(block.confidence * 100).toInt()}% · " +
+              "位置 x=${block.x.toInt()}‰ y=${block.y.toInt()}‰ " +
+              "宽=${block.width.toInt()}‰ 高=${block.height.toInt()}‰",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+    },
+    confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+  )
 }

@@ -33,7 +33,7 @@ Mermaid 只在需要表达 Agent 循环与页面准备状态机时使用，本�
 - 语言与 UI：Kotlin + Jetpack Compose。理由是手写笔低延迟与双栏自适应必须走原生；代价是不能直接复用桌面 Web 前端。
 - PDF：首选 Pdfium/MuPDF 系开源方案，兜底系统 `PdfRenderer`。原生文字走 PDF 文本抽取，位图页走渲染加 OCR。超大页限制像素并记录实际比例。
 - Markdown：复用桌面渲染约定（GFM、公式、代码高亮、Mermaid、表格、图片）。移动编辑选用轻量开源 Markdown 工程适配，不自研编辑器；复杂 Word/PPT 回桌面。
-- OCR：ONNX Runtime Mobile 或 ML Kit 二选一，终态必须离线中英文可用。保留原生与 OCR 双通道、坐标、置信度、警告、原图，失败明确标记。
+- OCR：选用 PaddleOCR PP-OCRv6 tiny + ONNX Runtime Mobile，模型随 APK 离线提供。保留原生与 OCR 双通道、坐标、置信度、警告、原图，失败明确标记。
 - 模型：只做 OpenAI 兼容 `/v1/chat/completions` 客户端，支持自定义 BaseURL/Key/模型名。软件不内置模型，不硬编码密钥。默认可配本地中转 `http://127.0.0.1:3457/v1` 与 `cline-free/mimo-v2.6-flash`，仅作默认配置项，不作为代码常量密钥。
 - 并发：Agent 按页独立请求，携带当前页与相邻源页材料；不支持后台批量全章生成。
 
@@ -128,6 +128,7 @@ MyProject/
 ### 4.7 feature-ocr
 
 - 职责：整页与区域 OCR、置信度、警告、缓存。
+- 推理引擎使用 bundled PP-OCRv6 tiny det/rec ONNX 模型，不下载模型、不请求网络；Apache-2.0 与第三方许可随安卓模块保存。
 - 触发规则：原生非空字符不足、含位图、疑似乱码则补充 OCR；仍是启发式，不保证全发现。
 - 超时保留原图并返回可操作错误；离线可用，不请求网络。
 
@@ -161,3 +162,4 @@ MyProject/
 - 基于 `beta` 的 `codex/android-port` 分支开发，PR 目标 `beta`，不直推 `main`。
 - 每次推送附 `CHANGELOG.md` 未发布区条目，区分本地构建与公开发布。
 - 安卓产物独立于桌面 `release/`，不混入 Mac/Win 包。
+- 本地 Android APK 按 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 分包，不生成包含所有原生库的 universal APK；发布 AAB 由商店按设备拆分 ABI。
