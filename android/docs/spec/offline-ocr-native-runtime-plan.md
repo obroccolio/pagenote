@@ -13,13 +13,15 @@
 
 ## Decision
 
-Keep the existing PaddleOCR models, ONNX Runtime, Kotlin pipeline, and public `OfflineOcrEngine` boundary. Build a project-owned OpenCV Android AAR from a pinned upstream source revision using NDK r28 or newer, NEON as the ARM64 baseline, and no TBB runtime CPU probe. Build only OpenCV modules required by `feature-ocr`, but preserve the Java/JNI methods currently used by the pipeline. Package the four ABIs currently emitted by the app. Do not patch machine code or catch/translate `SIGILL`.
+Keep the existing PaddleOCR models, ONNX Runtime, Kotlin pipeline, and public `OfflineOcrEngine` boundary. Build a project-owned OpenCV Android AAR from OpenCV 4.10.0 source commit `71d3237a093b60a27601c20e9ee6c3e52154e8b1` using NDK r28 or newer, JDK 17 for its upstream Gradle 7.6.3 wrapper, NEON as the ARM64 baseline, and no TBB runtime CPU probe. Statically link the selected OpenCV modules into the JNI library so the AAR does not depend on separately packaged OpenCV module `.so` files. Preserve the Java/JNI APIs used by the pipeline, but exclude OpenCV's `NativeCameraView.java`: it is the only generated Java source that requires the omitted `videoio` module and is unrelated to OCR. Package the four ABIs currently emitted by the app. Do not patch machine code or catch/translate `SIGILL`.
+
+The pinned upstream Android library build currently compiles `NativeCameraView.java` even when the `videoio` module is excluded; this produces 18 Java compile errors for `VideoCapture`, `VideoWriter`, and `Videoio`. The reproducible build must apply a narrow source-set exclusion to that upstream Gradle template. An initial ARM64-only shared-module build also produced a JNI wrapper with `DT_NEEDED` references to three unbundled OpenCV module libraries, so the final configuration must use static OpenCV modules and verify that the AAR's JNI wrapper has no OpenCV `DT_NEEDED` entries.
 
 The supported target AVD must not require the SVE path. If a source build still contains an SVE `RDVL` path, treat that as a failed build configuration rather than relaxing the runtime test. The tradeoff is that SVE-capable physical devices use the portable NEON path for this OCR dependency.
 
 ## Tasks
 
-1. Build the native AAR from the pinned OpenCV source with reproducible script/configuration and retain upstream license notices.
+1. Build the native AAR from the pinned OpenCV source with reproducible script/configuration, the narrow camera-example exclusion, statically linked OCR modules, and retained upstream license notices.
 2. Add a native-artifact check that rejects `RDVL` in the ARM64 OpenCV library and verifies every ELF `LOAD` alignment is at least 16 KB.
 3. Replace the Maven AAR with the project-built artifact without changing PaddleOCR or ONNX model assets; update third-party notices and dependency provenance.
 4. Run the seven real-model OCR instrumentation tests on API 34, API 35 4 KB, and API 35 16 KB ARM64 AVDs. Require bundled Chinese/English recognition, region coordinate mapping, bitmap ownership, and explicit failure behavior.
@@ -36,4 +38,4 @@ The supported target AVD must not require the SVE path. If a source build still 
 
 ## Current Status
 
-Investigation only. The existing instrumentation failure is reproducible. No production dependency or source has changed yet.
+Investigation only. The existing instrumentation failure is reproducible. A source build produced the JNI wrapper and selected shared modules, but its first packaging attempt exposed the upstream camera-example dependency and an incomplete shared-library packaging shape. The pinned static-module configuration and source exclusion are specified but not yet validated. No production dependency or source has changed yet.
