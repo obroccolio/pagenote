@@ -22,16 +22,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.pagenote.agent.AgentEvent
+import io.pagenote.agent.SerialPages
 
 @Composable
 internal fun AgentTaskDialog(
   page: Int,
   instruction: String,
+  pageRange: String,
+  report: SerialPages.Report?,
   isRunning: Boolean,
   errorMessage: String?,
   event: AgentEvent?,
   onInstructionChange: (String) -> Unit,
-  onRun: (String) -> Unit,
+  onPageRangeChange: (String) -> Unit,
+  onRun: (String, String) -> Unit,
   onDismiss: () -> Unit,
 ) {
   AlertDialog(
@@ -56,6 +60,14 @@ internal fun AgentTaskDialog(
           maxLines = 4,
           enabled = !isRunning,
         )
+        OutlinedTextField(
+          value = pageRange,
+          onValueChange = onPageRangeChange,
+          modifier = Modifier.fillMaxWidth().testTag("agent_task_pages"),
+          label = { Text(stringResource(R.string.agent_task_pages)) },
+          singleLine = true,
+          enabled = !isRunning,
+        )
         if (isRunning) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -70,6 +82,18 @@ internal fun AgentTaskDialog(
             text = message,
             modifier = Modifier.testTag("agent_task_error"),
             color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+          )
+        }
+        report?.let { batch ->
+          Text(
+            text = stringResource(
+              R.string.agent_task_batch,
+              batch.completed.joinToString(", ").ifBlank { "-" },
+              batch.updated.joinToString(", ").ifBlank { "-" },
+              batch.incomplete.joinToString(", ").ifBlank { "-" },
+            ),
+            modifier = Modifier.testTag("agent_task_batch"),
             style = MaterialTheme.typography.bodyMedium,
           )
         }
@@ -108,7 +132,7 @@ internal fun AgentTaskDialog(
       Button(
         modifier = Modifier.testTag("agent_task_run"),
         enabled = !isRunning && instruction.isNotBlank(),
-        onClick = { onRun(instruction) },
+        onClick = { onRun(instruction, pageRange) },
       ) {
         Text(stringResource(R.string.agent_task_run))
       }

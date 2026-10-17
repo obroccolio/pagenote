@@ -188,4 +188,9 @@
   <string name="note_preview_truncated">本页笔记较长（共 %1$d 字），预览仅显示前 %2$d 字；编辑仍为全文，保存不受影响。</string>
   <string name="annotation_kind_text">文字</string>
   <string name="annotation_kind_region">区域</string>
+  <string name="agent_task_pages">页范围（如 3 或 2-4）</string>
+  <string name="agent_task_batch">批量完成页：%1$s；修改页：%2$s；未完成页：%3$s。</string>
+  <string name="agent_task_bad_range">页范围无效：%1$s</string>
+  <string name="agent_task_rate_limited">触发限流，已停止。未完成页：%1$s</string>
+  <string name="agent_task_incomplete">部分页未完成：%1$s</string>
 </resources>

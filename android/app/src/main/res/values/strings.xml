@@ -188,4 +188,9 @@
   <string name="note_preview_truncated">This note page is long (%1$d chars). Preview shows the first %2$d chars; editing still uses the full text.</string>
   <string name="annotation_kind_text">Text</string>
   <string name="annotation_kind_region">Region</string>
+  <string name="agent_task_pages">Pages (e.g. 3 or 2-4)</string>
+  <string name="agent_task_batch">Batch completed: %1$s; updated: %2$s; incomplete: %3$s.</string>
+  <string name="agent_task_bad_range">Bad page range: %1$s</string>
+  <string name="agent_task_rate_limited">Rate limited; stopped. Incomplete pages: %1$s</string>
+  <string name="agent_task_incomplete">Some pages incomplete: %1$s</string>
 </resources>

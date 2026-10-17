@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Run batched Android agent page tasks with serial execution and honest scope reports. / 安卓 Agent 支持批量页任务：串行执行并如实报告完成范围。
+
 - Unify Android offline OCR auto-triggering with a shared native/bitmap rule. / 安卓离线 OCR 自动触发统一为共享的原文/位图判定规则。
 
 - Add Android region annotations with normalized rect items, list, and delete. / 安卓新增区域批注：归一化 rect 落盘、列表与删除。

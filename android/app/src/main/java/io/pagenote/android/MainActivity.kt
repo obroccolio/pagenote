@@ -95,6 +95,8 @@ import io.pagenote.agent.PageTutorResult
 import io.pagenote.agent.AgentEvent
 import io.pagenote.agent.AgentRunner
 import io.pagenote.agent.LocalToolDispatcher
+import io.pagenote.agent.ModelEndpoint
+import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
 import io.pagenote.feature.notes.NotePage
@@ -263,6 +265,8 @@ private fun ReaderHome(
   val agentRunner = remember { AgentRunner(OkHttpChatClient()) }
   var showAgentTask by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
+  var agentPageRange by remember { mutableStateOf("") }
+  var agentReport by remember { mutableStateOf<SerialPages.Report?>(null) }
   var agentEvent by remember { mutableStateOf<AgentEvent?>(null) }
   var agentError by remember { mutableStateOf<String?>(null) }
   var isAgentRunning by remember { mutableStateOf(false) }
@@ -760,6 +764,69 @@ private fun ReaderHome(
     }
   }
 
+  suspend fun executeAgentPage(
+    activeProject: OpenedProject,
+    activeMarkdown: String?,
+    activeRenderer: PdfDocumentSession?,
+    targetPage: Int,
+    instruction: String,
+    endpoint: ModelEndpoint,
+  ): AgentEvent {
+    val targetPageIndex = targetPage - 1
+    val notesSnapshot = withContext(Dispatchers.IO) {
+      ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
+    }
+    val currentNote = NotePage.pageAt(notesSnapshot, targetPage)
+    val expectedRevision = PageNotes.revision(currentNote)
+    val totalPages = if (activeMarkdown != null) {
+      MarkdownSourcePages.pageCount(activeMarkdown, notesSnapshot)
+    } else {
+      activeRenderer!!.pageCount
+    }
+    require(targetPage in 1..totalPages) { "page out of range" }
+    val sourceText = if (activeMarkdown != null) {
+      MarkdownSourcePages.pageAt(activeMarkdown, targetPage)
+    } else {
+      val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(targetPageIndex) }
+      native.fullText
+    }
+    if (sourceText.isBlank()) {
+      throw PageTutorSourceException(context.getString(R.string.page_tutor_source_failed))
+    }
+    val neighbors = if (activeMarkdown != null) {
+      listOf(targetPageIndex - 1, targetPageIndex + 1)
+        .filter { it in 0 until totalPages }
+        .mapNotNull { neighborIndex ->
+          val text = MarkdownSourcePages.pageAt(activeMarkdown, neighborIndex + 1)
+          if (text.isBlank()) null else text to (neighborIndex + 1)
+        }
+    } else {
+      listOf(targetPageIndex - 1, targetPageIndex + 1)
+        .filter { it in 0 until activeRenderer!!.pageCount }
+        .mapNotNull { neighborIndex ->
+          val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(neighborIndex) }
+          if (native.fullText.isBlank()) null else native.fullText to (neighborIndex + 1)
+        }
+    }
+    val input = AgentTaskInput.build(
+      documentId = activeProject.manifest.id,
+      page = targetPage,
+      totalPages = totalPages,
+      instruction = instruction,
+      noteMarkdown = currentNote,
+      noteRevision = expectedRevision,
+      sourceText = sourceText,
+      neighbors = neighbors,
+    )
+    val handlers = ProjectAgentTools.handlers(
+      context.contentResolver,
+      activeProject,
+      activeRenderer,
+      targetPage,
+    )
+    return agentRunner.run(input.task, endpoint, input.messages, LocalToolDispatcher(handlers))
+  }
+
   fun runAgentTask(instruction: String) {
     val activeProject = project ?: return
     val targetPageIndex = pageIndex
@@ -777,54 +844,14 @@ private fun ReaderHome(
           agentError = noteStatus ?: context.getString(R.string.note_save_failed, "")
           return@launch
         }
-        val currentNote = noteDraft
-        val expectedRevision = noteBaseRevision
-        val totalPages = if (activeMarkdown != null) {
-          MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
-        } else {
-          activeRenderer!!.pageCount
-        }
-        val sourceText = if (activeMarkdown != null) {
-          MarkdownSourcePages.pageAt(activeMarkdown, targetPageIndex + 1)
-        } else {
-          val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(targetPageIndex) }
-          native.fullText
-        }
-        if (sourceText.isBlank()) {
-          throw PageTutorSourceException(context.getString(R.string.page_tutor_source_failed))
-        }
-        val neighbors = if (activeMarkdown != null) {
-          listOf(targetPageIndex - 1, targetPageIndex + 1)
-            .filter { it in 0 until totalPages }
-            .mapNotNull { neighborIndex ->
-              val text = MarkdownSourcePages.pageAt(activeMarkdown, neighborIndex + 1)
-              if (text.isBlank()) null else text to (neighborIndex + 1)
-            }
-        } else {
-          listOf(targetPageIndex - 1, targetPageIndex + 1)
-            .filter { it in 0 until activeRenderer!!.pageCount }
-            .mapNotNull { neighborIndex ->
-              val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(neighborIndex) }
-              if (native.fullText.isBlank()) null else native.fullText to (neighborIndex + 1)
-            }
-        }
-        val input = AgentTaskInput.build(
-          documentId = activeProject.manifest.id,
-          page = targetPageIndex + 1,
-          totalPages = totalPages,
+        val event = executeAgentPage(
+          activeProject = activeProject,
+          activeMarkdown = activeMarkdown,
+          activeRenderer = activeRenderer,
+          targetPage = targetPageIndex + 1,
           instruction = instruction,
-          noteMarkdown = currentNote,
-          noteRevision = expectedRevision,
-          sourceText = sourceText,
-          neighbors = neighbors,
+          endpoint = endpoint,
         )
-        val handlers = ProjectAgentTools.handlers(
-          context.contentResolver,
-          activeProject,
-          activeRenderer,
-          targetPageIndex + 1,
-        )
-        val event = agentRunner.run(input.task, endpoint, input.messages, LocalToolDispatcher(handlers))
         if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex) {
           agentError = context.getString(R.string.page_tutor_conflict)
         } else {
@@ -850,6 +877,87 @@ private fun ReaderHome(
         throw cancelled
       } catch (error: PageTutorSourceException) {
         agentError = "${context.getString(R.string.page_tutor_source_failed)} ${error.message.orEmpty()}"
+      } catch (error: Exception) {
+        agentError = "${context.getString(R.string.page_tutor_request_failed)} ${error.message.orEmpty()}"
+      } finally {
+        isAgentRunning = false
+      }
+    }
+  }
+
+  fun runAgentBatch(instruction: String, rangeText: String) {
+    val activeProject = project ?: return
+    val activeMarkdown = markdownSource
+    val activeRenderer = renderer
+    if (activeRenderer == null && activeMarkdown == null) return
+    scope.launch {
+      agentInstruction = instruction
+      agentPageRange = rangeText
+      isAgentRunning = true
+      agentError = null
+      agentEvent = null
+      agentReport = null
+      try {
+        val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
+        if (hasUnsavedChanges && !saveCurrentNote()) {
+          agentError = noteStatus ?: context.getString(R.string.note_save_failed, "")
+          return@launch
+        }
+        val notesSnapshot = withContext(Dispatchers.IO) {
+          ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
+        }
+        val totalPages = if (activeMarkdown != null) {
+          MarkdownSourcePages.pageCount(activeMarkdown, notesSnapshot)
+        } else {
+          activeRenderer!!.pageCount
+        }
+        val pages = try {
+          val raw = rangeText.trim().ifBlank { (pageIndex + 1).toString() }
+          AgentPageRange.parse(raw, totalPages)
+        } catch (error: IllegalArgumentException) {
+          agentError = context.getString(R.string.agent_task_bad_range, rangeText.trim())
+          return@launch
+        }
+        val documentId = activeProject.manifest.id
+        val report = SerialPages.run(pages) { targetPage ->
+          if (project?.manifest?.id != documentId) return@run AgentEvent.Failed("project changed")
+          executeAgentPage(
+            activeProject = activeProject,
+            activeMarkdown = activeMarkdown,
+            activeRenderer = activeRenderer,
+            targetPage = targetPage,
+            instruction = instruction,
+            endpoint = endpoint,
+          )
+        }
+        agentReport = report
+        agentEvent = if (report.incomplete.isEmpty()) {
+          AgentEvent.Done(pages = report.completed, updated = report.updated)
+        } else {
+          val reason = if (report.stoppedByRateLimit) {
+            context.getString(R.string.agent_task_rate_limited, report.incomplete.joinToString(", "))
+          } else {
+            context.getString(R.string.agent_task_incomplete, report.incomplete.joinToString(", "))
+          }
+          AgentEvent.Failed(reason)
+        }
+        if (pageIndex + 1 in report.updated) {
+          val latest = withContext(Dispatchers.IO) {
+            ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
+          }
+          notesMarkdown = latest
+          val freshPage = NotePage.pageAt(latest, pageIndex + 1)
+          noteDraft = freshPage
+          noteBaseRevision = PageNotes.revision(freshPage)
+          noteStatus = context.getString(R.string.note_reloaded)
+        }
+      } catch (missing: MissingModelConfigException) {
+        agentError = context.getString(R.string.page_tutor_model_missing)
+        showAgentModelSettings = true
+      } catch (timeout: TimeoutCancellationException) {
+        agentError = context.getString(R.string.page_tutor_timeout)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
       } catch (error: Exception) {
         agentError = "${context.getString(R.string.page_tutor_request_failed)} ${error.message.orEmpty()}"
       } finally {
@@ -1512,15 +1620,19 @@ private fun ReaderHome(
     AgentTaskDialog(
       page = pageIndex + 1,
       instruction = agentInstruction,
+      pageRange = agentPageRange,
+      report = agentReport,
       isRunning = isAgentRunning,
       errorMessage = agentError,
       event = agentEvent,
       onInstructionChange = { agentInstruction = it },
-      onRun = ::runAgentTask,
+      onPageRangeChange = { agentPageRange = it },
+      onRun = { instruction, range -> runAgentBatch(instruction, range) },
       onDismiss = {
         showAgentTask = false
         agentEvent = null
         agentError = null
+        agentReport = null
       },
     )
   }
