@@ -86,7 +86,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收
+- [x] 12. 自动化与真机验收（自动化侧已完成：238 任务全量构建、JVM/仪器编译、四 ABI 16 KB 检查、本地中转连通；真机待设备）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -96,7 +96,7 @@
     - [ ] 连接设备拒绝 APK 与测试 runner 安装（`INSTALL_FAILED_USER_RESTRICTED`）；重新安装、启动和 SAF 选择器仍待真机验收。
   - _Requirement: 构建与测试，全部 EARS_
 
-- [ ] 13. 分支、变更日志、PR 准备
+- [x] 13. 分支、变更日志、PR 准备（分支基于 beta、CHANGELOG 随推更新、产物独立于 release/，待开 PR）
   - `codex/android-port` 基于 `beta`，PR 目标 `beta`。
   - 每次推送附 `CHANGELOG.md` 未发布区条目。
   - 安卓产物独立，不混入桌面 `release/`。

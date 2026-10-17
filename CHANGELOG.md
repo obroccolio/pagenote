@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Complete Android automation gates with full builds, 16 KB checks, and relay verification; device acceptance pending. / 安卓自动化门禁收尾：全量构建、16 KB 检查与中转验证通过，真机待续。
+
 - Mark Android pen input complete with pressure, page-scoped editing, and SAF persistence; device validation pending. / 安卓手写笔迹收尾：压感、按页编辑与 SAF 保存已落地，真机验证待续。
 
 - Mark Android reader settings complete with persisted theme, language, split ratio, and animation. / 安卓阅读设置收尾：主题、语言、分栏比例与动画均已持久化生效。
