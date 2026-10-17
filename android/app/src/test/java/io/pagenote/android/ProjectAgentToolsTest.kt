@@ -39,4 +39,39 @@ class ProjectAgentToolsTest {
     assertTrue(ProjectAgentTools.READ_TOOLS.contains("read_review"))
     assertTrue(ProjectAgentTools.READ_TOOLS.contains("read_handoff"))
   }
+
+  @Test
+  fun writeToolsAreRegistered() {
+    assertTrue(ProjectAgentTools.WRITE_TOOLS.contains("write_note"))
+    assertTrue(ProjectAgentTools.WRITE_TOOLS.contains("patch_note"))
+    assertTrue(ProjectAgentTools.WRITE_TOOLS.contains("write_review_status"))
+    assertTrue(ProjectAgentTools.WRITE_TOOLS.contains("write_handoff"))
+  }
+
+  @Test
+  fun patchArgsValidation() {
+    val parsed = ProjectAgentTools.parsePatch(
+      mapOf("start" to "5", "end" to "10", "replacement" to "hi"),
+      pageLength = 20,
+    )
+    assertEquals(5, parsed.start)
+    assertEquals(10, parsed.end)
+    assertEquals("hi", parsed.replacement)
+
+    try {
+      ProjectAgentTools.parsePatch(mapOf("start" to "-1", "replacement" to "x"), pageLength = 20)
+      throw AssertionError("expected bad patch")
+    } catch (_: IllegalArgumentException) {
+    }
+    try {
+      ProjectAgentTools.parsePatch(mapOf("start" to "25", "replacement" to "x"), pageLength = 20)
+      throw AssertionError("expected bad patch")
+    } catch (_: IllegalArgumentException) {
+    }
+    try {
+      ProjectAgentTools.parsePatch(mapOf("start" to "5"), pageLength = 20)
+      throw AssertionError("expected missing replacement")
+    } catch (_: IllegalArgumentException) {
+    }
+  }
 }

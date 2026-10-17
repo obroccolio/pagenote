@@ -12,6 +12,18 @@ import kotlinx.serialization.json.jsonPrimitive
 
 object ProjectAgentTools {
   val READ_TOOLS = listOf("read_page", "read_review", "read_handoff")
+  val WRITE_TOOLS = listOf("write_note", "patch_note", "write_review_status", "write_handoff")
+
+  data class ParsedPatch(val start: Int, val end: Int, val replacement: String)
+
+  fun parsePatch(args: Map<String, String>, pageLength: Int): ParsedPatch {
+    val replacement = args["replacement"] ?: throw IllegalArgumentException("missing replacement")
+    val start = args["start"]?.toIntOrNull() ?: throw IllegalArgumentException("bad start")
+    require(start in 0..pageLength) { "bad start: $start" }
+    val end = args["end"]?.toIntOrNull() ?: minOf(pageLength, start + replacement.length)
+    require(end in start..pageLength) { "bad end: $end" }
+    return ParsedPatch(start, end, replacement)
+  }
 
   fun parsePage(args: Map<String, String>, currentPage: Int): Int {
     val raw = args["page"] ?: return currentPage.also { require(it >= 1) { "bad page" } }
@@ -32,6 +44,10 @@ object ProjectAgentTools {
     "read_page" to { request -> readPage(resolver, project, renderer, currentPage, request) },
     "read_review" to { request -> readReview(resolver, project, request) },
     "read_handoff" to { request -> readHandoff(resolver, project, renderer, request) },
+    "write_note" to { request -> writeNote(resolver, project, request) },
+    "patch_note" to { request -> patchNote(resolver, project, request) },
+    "write_review_status" to { request -> writeReviewStatus(resolver, project, request) },
+    "write_handoff" to { request -> writeHandoff(resolver, project, renderer, request) },
   )
 
   private suspend fun readPage(
@@ -122,5 +138,108 @@ object ProjectAgentTools {
     } catch (error: Exception) {
       ToolResult(ok = false, detail = error.message ?: "read_handoff failed")
     }
+  }
+}
+
+private suspend fun writeNote(
+  resolver: ContentResolver,
+  project: OpenedProject,
+  request: ToolRequest,
+): ToolResult {
+  val page = try {
+    ProjectAgentTools.parsePage(request.args, -1)
+  } catch (error: IllegalArgumentException) {
+    return ToolResult(ok = false, detail = error.message ?: "bad page")
+  }
+  val markdown = request.args["markdown"] ?: return ToolResult(ok = false, detail = "missing markdown")
+  val expectedRevision = request.args["expectedRevision"]
+    ?: return ToolResult(ok = false, detail = "missing expectedRevision")
+  return try {
+    val store = ProjectNoteStore(resolver, project.notesUri)
+    val latest = store.read()
+    val edited = io.pagenote.feature.notes.PageNoteEditor.replacePage(
+      latestMarkdown = latest, page = page, replacement = markdown, expectedRevision = expectedRevision,
+    )
+    store.write(edited.markdown, expectedOriginal = latest)
+    ToolResult(ok = true, detail = "page=$page revision=${edited.pageRevision}", touchedPage = page, updatedPage = page)
+  } catch (error: Exception) {
+    ToolResult(ok = false, detail = error.message ?: "write_note failed")
+  }
+}
+
+private suspend fun patchNote(
+  resolver: ContentResolver,
+  project: OpenedProject,
+  request: ToolRequest,
+): ToolResult {
+  val page = try {
+    ProjectAgentTools.parsePage(request.args, -1)
+  } catch (error: IllegalArgumentException) {
+    return ToolResult(ok = false, detail = error.message ?: "bad page")
+  }
+  val expectedRevision = request.args["expectedRevision"]
+    ?: return ToolResult(ok = false, detail = "missing expectedRevision")
+  return try {
+    val store = ProjectNoteStore(resolver, project.notesUri)
+    val latest = store.read()
+    val current = io.pagenote.feature.notes.NotePage.pageAt(latest, page)
+    val parsed = try {
+      ProjectAgentTools.parsePatch(request.args, current.length)
+    } catch (error: IllegalArgumentException) {
+      return ToolResult(ok = false, detail = error.message ?: "bad patch")
+    }
+    val patched = io.pagenote.feature.notes.NoteRange.patch(current, parsed.start, parsed.replacement, parsed.end)
+    val edited = io.pagenote.feature.notes.PageNoteEditor.replacePage(
+      latestMarkdown = latest, page = page, replacement = patched, expectedRevision = expectedRevision,
+    )
+    store.write(edited.markdown, expectedOriginal = latest)
+    ToolResult(ok = true, detail = "page=$page revision=${edited.pageRevision}", touchedPage = page, updatedPage = page)
+  } catch (error: Exception) {
+    ToolResult(ok = false, detail = error.message ?: "patch_note failed")
+  }
+}
+
+private suspend fun writeReviewStatus(
+  resolver: ContentResolver,
+  project: OpenedProject,
+  request: ToolRequest,
+): ToolResult {
+  val id = request.args["id"] ?: return ToolResult(ok = false, detail = "missing id")
+  val status = request.args["status"] ?: return ToolResult(ok = false, detail = "missing status")
+  val noteRewritten = request.args["noteRewritten"]?.toBooleanStrictOrNull() ?: false
+  return try {
+    val store = ProjectReviewStore(resolver, project.sourceDirectoryUri, project.reviewsUri)
+    store.transition(id, status, noteRewritten = noteRewritten)
+    ToolResult(ok = true, detail = "review=$id status=$status")
+  } catch (error: Exception) {
+    ToolResult(ok = false, detail = error.message ?: "write_review_status failed")
+  }
+}
+
+private suspend fun writeHandoff(
+  resolver: ContentResolver,
+  project: OpenedProject,
+  renderer: PdfDocumentSession?,
+  request: ToolRequest,
+): ToolResult {
+  val page = try {
+    ProjectAgentTools.parsePage(request.args, -1)
+  } catch (error: IllegalArgumentException) {
+    return ToolResult(ok = false, detail = error.message ?: "bad page")
+  }
+  val summary = request.args["summary"] ?: return ToolResult(ok = false, detail = "missing summary")
+  val expectedRevision = request.args["expectedRevision"]
+    ?: return ToolResult(ok = false, detail = "missing expectedRevision")
+  val sourceRevision = request.args["sourceRevision"]
+    ?: return ToolResult(ok = false, detail = "missing sourceRevision")
+  return try {
+    val notes = ProjectNoteStore(resolver, project.notesUri).read()
+    val current = io.pagenote.feature.notes.NotePage.pageAt(notes, page)
+    val currentRev = io.pagenote.core.project.PageNotes.revision(current)
+    val store = ProjectHandoffStore(resolver, project.sourceDirectoryUri, project.handoffsUri)
+    store.write(page, summary, expectedRevision, sourceRevision, currentRev)
+    ToolResult(ok = true, detail = "handoff page=$page", touchedPage = page, updatedPage = page)
+  } catch (error: Exception) {
+    ToolResult(ok = false, detail = error.message ?: "write_handoff failed")
   }
 }
