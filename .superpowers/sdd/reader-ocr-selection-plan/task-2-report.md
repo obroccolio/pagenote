@@ -110,4 +110,4 @@ BUILD SUCCESSFUL in 3s
 
 The successful run emitted the existing Gradle 10 compatibility warning. No unrelated paths were modified.
 
-Fix round 2 commit: `aa8bba8 fix(android): expose manifest JSON API`.
+Fix round 2 commit: `4deb79c9b37382c592c0ad2bf66d91222e0a6b72 fix(android): expose manifest JSON API`.

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Correct the Android manifest API implementation commit reference in the review ledger. / 修正安卓 manifest API 审查记录中的实现提交引用。
+
 - Add a reusable Android APK checker for 16 KB ELF and ZIP alignment. / 新增可复用的安卓 APK 16 KB ELF 与 ZIP 对齐检查脚本。
 
 - Replace the legacy OpenCV AAR with official OpenCV 4.14.0, whose 64-bit OpenCV and C++ runtime libraries are 16 KB ELF-aligned. / 将旧版 OpenCV AAR 替换为官方 4.14.0，其 64 位 OpenCV 与 C++ 运行库均采用 16 KB ELF 对齐。
