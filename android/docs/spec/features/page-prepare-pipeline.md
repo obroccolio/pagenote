@@ -25,6 +25,14 @@
 - 写缓存时 manifest 最后写；`tables.json` 与 `text.txt` 同桌面字段落盘；失败不丢原文结果，记 warning。
 - 准备期间原文变化（sourceRevision 漂移）抛错重试，不写脏缓存。
 
+## Wiring Status
+
+- `RegionOcrProcessor.recognize(..., refresh)` 即区域 OCR 的统一调用点：`refresh=false` 先读缓存命中直返，`refresh=true` 跳读强写；`sourceRevision == null` 跳过读写并记 `notCachedWarning`。
+- PDF 区域 OCR manifest 记录与位图一致的 `PdfPagePolicy.renderScale`，并由 OCR 文本与 blocks 生成 `ocrCharacters`、`textCharacters`、`blockCount`。
+- OCR 推理和区域 PNG 编码当前顺序各裁一次区域图；共享裁剪对象的性能优化待真机 profiling 证明有收益后再做。
+- `PagePreparePipeline`（core-reader 纯内存）只定缓存语义：命中直返 / refresh 重做 / revision 漂移拒用旧缓存，不直接碰 SAF；SAF 读写仍由 `RegionOcrProcessor` + `PreparedRegionCacheStore` 执行。
+- Markdown 表格抽取（`MarkdownTables`）暂只用于 Agent 上下文组装，不写入区域 OCR 缓存（该缓存 `kind == "pdf"`）；`tables.json` / `tableCount` 待 Markdown 准备缓存独立切片再接，本版不伪称已落盘。
+
 ## Non-goals
 
 - Mermaid PNG/SVG 渲染不移植：移动端无 headless 浏览器管线，源码透出 + warning 已满足 Agent 可读需求。

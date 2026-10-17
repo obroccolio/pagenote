@@ -56,7 +56,7 @@
 
 - [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通，Mermaid PNG 按 Non-goals 不移植）
   - [x] 原生文字/文字块抽取、整页 `PdfRenderer` 渲染、缓存 key、manifest 与 1000x1000 区域契约。
-  - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source）、项目缓存 `refresh` 重做（`RegionOcrProcessor.refresh` 跳读强写），由页面准备流程统一调用；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
+  - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
   - _Requirement: 页面准备与 OCR_
 
 - [x] 9. 离线 OCR（中英文整页/区域识别、自动触发规则、超时与失败标记、页面准备缓存、区域重识别均已落地，真机待 task 12）
@@ -86,14 +86,16 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [x] 12. 自动化与真机验收（自动化侧已完成：238 任务全量构建、JVM/仪器编译、四 ABI 16 KB 检查、本地中转连通；真机待设备）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/仪器编译/四 ABI 16 KB 检查已通过；4 KB 真机冷启动 smoke 通过，功能矩阵与 16 KB 运行时验收仍待完成）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
   - [ ] 安卓启动与 16 KB 页面兼容性修复，契约见 `features/startup-and-16kb-compatibility.md`，实施拆分见 `startup-and-16kb-compatibility-plan.md`。
-    - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过，设备启动复测待完成。
+    - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
-    - [ ] 连接设备拒绝 APK 与测试 runner 安装（`INSTALL_FAILED_USER_RESTRICTED`）；重新安装、启动和 SAF 选择器仍待真机验收。
+    - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
+    - [ ] `MainActivityLaunchTest` 设备执行尚未得到结果：runner 在 USB 设置页前台期间中断；单测重试持续挂起且未产生应用异常栈。
+    - [ ] SAF 项目选择器和阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
   - _Requirement: 构建与测试，全部 EARS_
 
 - [x] 13. 分支、变更日志、PR 准备（分支基于 beta、CHANGELOG 随推更新、产物独立于 release/，待开 PR）

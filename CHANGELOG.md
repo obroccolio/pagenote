@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Clarify Android OCR cache metadata and crop contracts, Agent tool validation requirements, and the limits of current device smoke evidence. / 明确安卓 OCR 缓存元数据与裁剪契约、Agent 工具校验要求及当前真机烟测证据边界。
+
 - Converge Android agent tools to the seven wired handlers with matching schemas and scope docs. / 安卓 Agent 工具收敛到 7 个已接线实现，声明与范围文档对齐。
 
 - Complete Android automation gates with full builds, 16 KB checks, and relay verification; device acceptance pending. / 安卓自动化门禁收尾：全量构建、16 KB 检查与中转验证通过，真机待续。

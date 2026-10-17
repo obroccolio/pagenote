@@ -28,6 +28,7 @@ Extend the Android PDF reader's explicit OCR actions with manual region selectio
 - `sourceRevision` is the lowercase SHA-256 of the exact PDF snapshot used by the active `PdfDocumentSession`. On an IO dispatcher, copy the SAF source to a temporary app-cache snapshot while hashing it, then open the renderer from those copied bytes. Delete the snapshot when the renderer closes. If snapshot creation fails, keep the existing direct-SAF reader fallback, allow OCR, disable cache reads/writes for that session, and explicitly report that the result was not cached.
 - The cache key is `PreparedCache.cacheKey(sourceRevision, "region-ocr", region, engine)`, with the page encoded by `PreparedCache.folderName(page, key)`. The cache key therefore changes when the source, region, engine, or prepared-cache version changes.
 - Each complete cache entry contains `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`. `manifest.json` conforms to `contracts/prepared-manifest.schema.json`, identifies the document/page/source revision/region/key, records actual bitmap dimensions and scale, retains warnings, and sets `visualReviewRequired` to `true`.
+- The manifest `scale` is the `PdfPagePolicy.renderScale` used for the rendered PDF page. `ocrCharacters` and `textCharacters` equal `OcrResultPolicy.textOf(result).length`, and `blockCount` equals `result.blocks.size`.
 - The saved manifest warnings are the stable, de-duplicated union of warnings already supplied by the caller and warnings produced by the OCR result; neither source may be silently dropped.
 - `blocks.json` stores the existing `OcrResult` fields: engine, status, imagePreserved, warnings, and blocks with text, confidence, x, y, width, and height in full-page normalized coordinates. `ocr.txt` is `OcrResultPolicy.textOf(result)`.
 - Write image and result files before `manifest.json`; the manifest is the completion marker. A cache hit requires a valid manifest with an exact document/page/source-revision/region/key match and every listed file to exist and decode. Invalid, incomplete, or stale entries are misses and must never be returned as successful results.
@@ -53,6 +54,7 @@ Extend the Android PDF reader's explicit OCR actions with manual region selectio
 ## Verification
 
 - JVM tests cover viewport-to-page conversion for fit, non-square pages, zoom, pan, letterbox margins, edge clipping, and empty selections.
+- JVM tests verify that an invalid follow-up drag preserves the prior valid selection and that region manifests retain OCR counts and the renderer scale.
 - Cache tests cover exact hits, changed source/page/region/engine/version misses, malformed/incomplete entries, write failure, and serialized `OcrResult` round trips.
 - Android tests compile the Compose selection integration and verify touch selection mode does not produce pen strokes or zoom gestures; stylus routing is verified on-device.
 - Device acceptance uses a Chinese/English PDF in airplane mode; it checks finger and stylus selection, all four page edges, zoom/pan alignment, cache reuse, read-only SAF behavior, and restored pen input after cancel/recognition.
