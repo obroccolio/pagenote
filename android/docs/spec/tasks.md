@@ -28,10 +28,10 @@
 - [ ] 4. 阅读器与双栏自适应（部分：渲染比例/区域映射/准备缓存校验已落地；SAF 项目入口、PdfRenderer 阅读、PDF/笔记窄屏堆叠与宽屏并排已接通，真机验收待续）
   - [ ] 4.1 SAF 打开项目目录、解码并校验 `project.pagenote`、使用 `PdfRenderer` 翻页。
   - [ ] 4.2 原生文字/文字块抽取、整页与区域 PNG、缩放平移及缓存接入（部分完成：API 35 原生文本抽取和 PDF 视口缩放/平移已实现，区域图像与缓存接入待完成）。
-  - [ ] 4.3 手机上下页、平板左右对照、Markdown 源文档阅读。
+  - [x] 4.3 手机上下页、平板左右对照、Markdown 源文档阅读（Markdown 源按 `PageNotes.split` 分页、页数取 max、对齐笔记页，PDF 专属入口禁用；契约见 `features/markdown-source-reading.md`）。
   - PDF 按页渲染、原生文字与文字块抽取、整页 PNG。
   - 手机竖屏上下页，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
-  - Markdown 源文档阅读。
+  - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
 - [ ] 5. 笔记渲染与轻量编辑（部分：Markwon 基础编辑/预览、GFM 表格、分页读写与 revision 冲突校验已落地；公式、代码高亮、Mermaid、图片和历史界面待续）

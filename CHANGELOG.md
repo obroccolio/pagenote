@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Read Markdown-source pagenote projects on Android with paged Markwon preview aligned to note pages and PDF-only actions disabled. / 安卓支持 Markdown 源项目阅读：按页 Markwon 预览与笔记页对齐，PDF 专属入口禁用。
+
 - Wire Android agent write tools with mandatory revision guards and updated-page reporting. / 安卓 Agent 接入写工具：强制 revision 保护并报告实际修改页。
 
 - Wire read-only Android agent project tools for page text, reviews, and handoffs. / 安卓 Agent 接入只读项目工具：页面文本、审阅与交接。

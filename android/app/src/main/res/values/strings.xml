@@ -176,4 +176,6 @@
   <string name="close">Close</string>
   <string name="note_edit">Edit</string>
   <string name="note_preview">Preview</string>
+  <string name="markdown_source_empty">This source page is empty. Notes on this page can still be edited and saved.</string>
+  <string name="markdown_source_truncated">This source page was truncated for preview. The original file is unchanged.</string>
 </resources>

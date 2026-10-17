@@ -196,7 +196,8 @@ private fun ReaderSettingsHost() {
 private data class ReaderProjectData(
   val project: OpenedProject,
   val noteText: String,
-  val renderer: PdfDocumentSession,
+  val renderer: PdfDocumentSession?,
+  val markdownSource: String?,
   val noteWritable: Boolean,
   val penStore: ProjectPenStore,
   val penPageStore: PenPageStore,
@@ -214,6 +215,8 @@ private fun ReaderHome(
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   var project by remember { mutableStateOf<OpenedProject?>(null) }
   var renderer by remember { mutableStateOf<PdfDocumentSession?>(null) }
+  var markdownSource by remember { mutableStateOf<String?>(null) }
+  val isMarkdownReading = project != null && renderer == null && markdownSource != null
   var pageIndex by remember { mutableIntStateOf(0) }
   var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
   var viewportTransform by remember(project?.sourceUri, pageIndex) {
@@ -455,6 +458,7 @@ private fun ReaderHome(
 
   fun recognizeCurrentPage() {
     if (readerOcrState.inputLocked) return
+    if (isMarkdownReading) return
     val activeRenderer = renderer ?: return
     val targetPage = pageIndex
     showOcrResult = false
@@ -498,6 +502,7 @@ private fun ReaderHome(
   }
 
   fun recognizeSelectedRegion(request: ReaderOcrState) {
+    if (isMarkdownReading) return
     val activeRenderer = renderer ?: return
     val activeProject = project ?: return
     val targetPage = request.pageIndex ?: return
@@ -573,8 +578,10 @@ private fun ReaderHome(
 
   fun explainCurrentPage(instruction: String) {
     val activeProject = project ?: return
-    val activeRenderer = renderer ?: return
     val targetPageIndex = pageIndex
+    val activeMarkdown = markdownSource
+    val activeRenderer = renderer
+    if (activeRenderer == null && activeMarkdown == null) return
     scope.launch {
       pageTutorInstruction = instruction
       isPageTutorRunning = true
@@ -590,41 +597,67 @@ private fun ReaderHome(
 
         val currentNote = noteDraft
         val expectedRevision = noteBaseRevision
-        val pageSourceLoader = PageTutorSourceLoader(
-          nativeText = { page ->
-            withContext(Dispatchers.IO) { activeRenderer.extractText(page) }
-          },
-          ocrText = { page ->
-            val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-            val bitmap = withContext(Dispatchers.IO) { activeRenderer.render(page) }
-            try {
-              withContext(Dispatchers.Default) { engine.recognize(bitmap) }
-            } finally {
-              bitmap.recycle()
+        val totalPages = if (activeMarkdown != null) {
+          MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
+        } else {
+          activeRenderer!!.pageCount
+        }
+        val currentSource: PageTutorSourceText
+        val neighbors: List<PageRequest.PageMaterial>
+        if (activeMarkdown != null) {
+          val text = MarkdownSourcePages.pageAt(activeMarkdown, targetPageIndex + 1)
+          if (text.isBlank()) {
+            throw PageTutorSourceException("Markdown 源本页为空。")
+          }
+          currentSource = PageTutorSourceText(text = text, usedOcr = false)
+          neighbors = listOf(targetPageIndex - 1, targetPageIndex + 1)
+            .filter { it in 0 until totalPages }
+            .mapNotNull { neighborIndex ->
+              val neighborText = MarkdownSourcePages.pageAt(activeMarkdown, neighborIndex + 1)
+              if (neighborText.isBlank()) null else PageRequest.PageMaterial(
+                page = neighborIndex + 1,
+                text = neighborText,
+              )
             }
-          },
-        )
-        val (currentSource, neighbors) = withTimeout(OcrPolicy.TIMEOUT_MS) {
-          val current = pageSourceLoader.loadCurrent(targetPageIndex)
-          val adjacent = mutableListOf<PageRequest.PageMaterial>()
-          listOf(targetPageIndex - 1, targetPageIndex + 1)
-            .filter { it in 0 until activeRenderer.pageCount }
-            .forEach { neighborIndex ->
-              pageSourceLoader.loadNeighbor(neighborIndex)?.let { source ->
-                adjacent += PageRequest.PageMaterial(
-                  page = neighborIndex + 1,
-                  text = source.text,
-                )
+        } else {
+          val pageSourceLoader = PageTutorSourceLoader(
+            nativeText = { page ->
+              withContext(Dispatchers.IO) { activeRenderer!!.extractText(page) }
+            },
+            ocrText = { page ->
+              val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+              val bitmap = withContext(Dispatchers.IO) { activeRenderer!!.render(page) }
+              try {
+                withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+              } finally {
+                bitmap.recycle()
               }
-            }
-          current to adjacent
+            },
+          )
+          val loaded = withTimeout(OcrPolicy.TIMEOUT_MS) {
+            val current = pageSourceLoader.loadCurrent(targetPageIndex)
+            val adjacent = mutableListOf<PageRequest.PageMaterial>()
+            listOf(targetPageIndex - 1, targetPageIndex + 1)
+              .filter { it in 0 until activeRenderer!!.pageCount }
+              .forEach { neighborIndex ->
+                pageSourceLoader.loadNeighbor(neighborIndex)?.let { source ->
+                  adjacent += PageRequest.PageMaterial(
+                    page = neighborIndex + 1,
+                    text = source.text,
+                  )
+                }
+              }
+            current to adjacent
+          }
+          currentSource = loaded.first
+          neighbors = loaded.second
         }
         val result = pageTutor.explain(
           endpoint = endpoint,
           request = PageTutorRequest(
             documentId = activeProject.manifest.id,
             page = targetPageIndex + 1,
-            totalPages = activeRenderer.pageCount,
+            totalPages = totalPages,
             instruction = instruction,
             sourceText = currentSource.text,
             noteMarkdown = currentNote,
@@ -775,12 +808,6 @@ private fun ReaderHome(
       }
       val loaded = withContext(Dispatchers.IO) {
         val opened = ProjectDocumentOpener(context.contentResolver).open(treeUri)
-        require(opened.sourceExtension == "pdf") {
-          context.getString(
-            R.string.unsupported_format,
-            opened.sourceExtension.ifBlank { "" },
-          )
-        }
         val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
         val noteText = noteStore.read()
         val supportsNoteWrite = noteStore.supportsWrite()
@@ -795,18 +822,39 @@ private fun ReaderHome(
           )
         }
         val supportsPenWrite = projectPenStore.supportsWrite()
-        val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
+        val isMarkdown = MarkdownSourcePages.isMarkdownExtension(opened.sourceExtension)
+        if (!isMarkdown) {
+          require(opened.sourceExtension == "pdf") {
+            // UI 侧再做一次本地化；这里只抛英文技术信息避免 IO 线程触碰资源。
+            "Unsupported source format: ${opened.sourceExtension.ifBlank { "(empty)" }}"
+          }
+        }
+        val markdownText = if (isMarkdown) {
+          context.contentResolver.openInputStream(opened.sourceUri)?.bufferedReader(Charsets.UTF_8)?.use {
+            it.readText()
+          } ?: throw IllegalStateException("无法读取 Markdown 原文")
+        } else {
+          null
+        }
+        val pdf = if (isMarkdown) {
+          null
+        } else {
+          PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
+        }
         ReaderProjectData(
           project = opened,
           noteText = noteText,
           renderer = pdf,
+          markdownSource = markdownText,
           noteWritable = writable && supportsNoteWrite,
           penStore = projectPenStore,
           penPageStore = loadedPenPages,
           penWritable = writable && supportsPenWrite,
         )
       }
+      renderer?.close()
       renderer = loaded.renderer
+      markdownSource = loaded.markdownSource
       project = loaded.project
       notesMarkdown = loaded.noteText
       penStore = loaded.penStore
@@ -844,7 +892,13 @@ private fun ReaderHome(
       readerOcrState = ReaderOcrState()
       pageIndex = 0
     } catch (error: Exception) {
-      errorMessage = context.getString(R.string.select_project_error, error.message ?: "")
+      val detail = error.message.orEmpty()
+      errorMessage = if (detail.startsWith("Unsupported source format:")) {
+        val extension = detail.substringAfter("Unsupported source format:").trim().ifBlank { "" }
+        context.getString(R.string.unsupported_format, extension.ifBlank { "" })
+      } else {
+        context.getString(R.string.select_project_error, detail)
+      }
     } finally {
       if (manageOpening) isOpening = false
     }
@@ -992,7 +1046,14 @@ private fun ReaderHome(
 
     val activeRenderer = renderer
     val activeProject = project
-    if (activeRenderer != null && activeProject != null) {
+    val activeMarkdown = markdownSource
+    val totalPages = when {
+      activeProject == null -> 0
+      activeRenderer != null -> activeRenderer.pageCount
+      activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
+      else -> 0
+    }
+    if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
       Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1005,20 +1066,20 @@ private fun ReaderHome(
         ) {
           Text(stringResource(R.string.previous_page))
         }
-        Text(stringResource(R.string.page_count, pageIndex + 1, activeRenderer.pageCount))
+        Text(stringResource(R.string.page_count, pageIndex + 1, totalPages))
         Button(
           onClick = ::recognizeCurrentPage,
-          enabled = !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
+          enabled = !isMarkdownReading && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
         ) {
           Text(stringResource(if (isOcrRunning) R.string.recognizing else R.string.ocr))
         }
         Button(
           onClick = {
             scope.launch {
-              changePage((pageIndex + 1).coerceAtMost(activeRenderer.pageCount - 1))
+              changePage((pageIndex + 1).coerceAtMost(totalPages - 1))
             }
           },
-          enabled = pageIndex < activeRenderer.pageCount - 1 &&
+          enabled = pageIndex < totalPages - 1 &&
             !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning &&
             !readerOcrState.inputLocked,
         ) {
@@ -1046,21 +1107,21 @@ private fun ReaderHome(
         ReaderOcrActions(
           state = readerOcrState,
           currentPage = pageIndex,
-          enabled = !isOcrRunning && !isRendering,
+          enabled = !isMarkdownReading && !isOcrRunning && !isRendering,
           onStateChange = { readerOcrState = it },
           onRecognize = ::recognizeSelectedRegion,
         )
         TextButton(
           onClick = { applyViewportZoom(0.8f) },
-          enabled = !readerOcrState.inputLocked && viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
+          enabled = !isMarkdownReading && !readerOcrState.inputLocked && viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
         ) { Text(stringResource(R.string.zoom_out)) }
         Text("${(viewportTransform.scale * 100f).roundToInt()}%")
         TextButton(
           onClick = { applyViewportZoom(1.25f) },
-          enabled = !readerOcrState.inputLocked && viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
+          enabled = !isMarkdownReading && !readerOcrState.inputLocked && viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
         ) { Text(stringResource(R.string.zoom_in)) }
-        TextButton(onClick = ::fitViewportWidth, enabled = !readerOcrState.inputLocked) { Text(stringResource(R.string.fit_width)) }
-        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }, enabled = !readerOcrState.inputLocked) {
+        TextButton(onClick = ::fitViewportWidth, enabled = !isMarkdownReading && !readerOcrState.inputLocked) { Text(stringResource(R.string.fit_width)) }
+        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }, enabled = !isMarkdownReading && !readerOcrState.inputLocked) {
           Text(stringResource(R.string.fit_page))
         }
         listOf(
@@ -1069,11 +1130,11 @@ private fun ReaderHome(
           PenCanvasTool.ERASER to R.string.eraser,
         ).forEach { (tool, label) ->
           if (penTool == tool) {
-            Button(onClick = { penTool = tool }, enabled = penWritable && !readerOcrState.inputLocked) {
+            Button(onClick = { penTool = tool }, enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked) {
               Text(stringResource(label))
             }
           } else {
-            TextButton(onClick = { penTool = tool }, enabled = penWritable && !readerOcrState.inputLocked) {
+            TextButton(onClick = { penTool = tool }, enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked) {
               Text(stringResource(label))
             }
           }
@@ -1081,7 +1142,7 @@ private fun ReaderHome(
         TextButton(
           modifier = Modifier.testTag("annotate_mode"),
           onClick = { annotateMode = !annotateMode },
-          enabled = penWritable && !readerOcrState.inputLocked,
+          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked,
         ) { Text(stringResource(if (annotateMode) R.string.annotate_on else R.string.annotate)) }
         TextButton(
           modifier = Modifier.testTag("annotations_list"),
@@ -1100,15 +1161,15 @@ private fun ReaderHome(
         ) { Text(stringResource(R.string.handoff_action)) }
         TextButton(
           onClick = ::undoPenPage,
-          enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
+          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.undo)) }
         TextButton(
           onClick = ::redoPenPage,
-          enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
+          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.redo)) }
         TextButton(
           onClick = ::clearPenPage,
-          enabled = penWritable && !readerOcrState.inputLocked && penStrokes.isNotEmpty(),
+          enabled = !isMarkdownReading && penWritable && !readerOcrState.inputLocked && penStrokes.isNotEmpty(),
         ) { Text(stringResource(R.string.clear_page)) }
       }
       penStatus?.let { status ->
@@ -1136,40 +1197,50 @@ private fun ReaderHome(
       }
     }
 
-    if (activeRenderer != null && activeProject != null) {
+    if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
       BoxWithConstraints(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
         if (maxWidth >= 840.dp) {
           val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(settings.leftPercent)
           Row(modifier = Modifier.fillMaxSize()) {
-            PdfPageViewport(
-              bitmap = pageBitmap,
-              sourceName = activeProject.sourceName,
-              page = pageIndex,
-              loading = isRendering,
-              strokes = penStrokes,
-              tool = penTool,
-              inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
-              onStrokeAdded = ::applyPenStroke,
-              onStrokeErased = ::erasePenStroke,
-              transform = viewportTransform,
-              onTransformChanged = { viewportTransform = it },
-              onBoundsChanged = { viewportBounds = it },
-              selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-              gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
-              selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-              onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
-              annotateTapEnabled = annotateMode,
-              onAnnotateTap = { tap ->
-                val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
-                if (point != null) {
-                  annotateDraft = point
-                  annotateText = ""
-                }
-              },
-              modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
-            )
+            if (activeMarkdown != null) {
+              MarkdownSourcePane(
+                markdown = activeMarkdown,
+                sourceName = activeProject.sourceName,
+                page = pageIndex + 1,
+                sourceDirectoryUri = activeProject.sourceDirectoryUri,
+                modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
+              )
+            } else {
+              PdfPageViewport(
+                bitmap = pageBitmap,
+                sourceName = activeProject.sourceName,
+                page = pageIndex,
+                loading = isRendering,
+                strokes = penStrokes,
+                tool = penTool,
+                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
+                onStrokeAdded = ::applyPenStroke,
+                onStrokeErased = ::erasePenStroke,
+                transform = viewportTransform,
+                onTransformChanged = { viewportTransform = it },
+                onBoundsChanged = { viewportBounds = it },
+                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
+                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
+                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                annotateTapEnabled = annotateMode,
+                onAnnotateTap = { tap ->
+                  val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                  if (point != null) {
+                    annotateDraft = point
+                    annotateText = ""
+                  }
+                },
+                modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
+              )
+            }
             Box(
               modifier = Modifier.fillMaxHeight().padding(horizontal = 5.dp)
                 .width(1.dp).background(MaterialTheme.colorScheme.outlineVariant),
@@ -1194,33 +1265,43 @@ private fun ReaderHome(
           }
         } else {
           Column(modifier = Modifier.fillMaxSize()) {
-            PdfPageViewport(
-              bitmap = pageBitmap,
-              sourceName = activeProject.sourceName,
-              page = pageIndex,
-              loading = isRendering,
-              strokes = penStrokes,
-              tool = penTool,
-              inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
-              onStrokeAdded = ::applyPenStroke,
-              onStrokeErased = ::erasePenStroke,
-              transform = viewportTransform,
-              onTransformChanged = { viewportTransform = it },
-              onBoundsChanged = { viewportBounds = it },
-              selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-              gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
-              selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-              onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
-              annotateTapEnabled = annotateMode,
-              onAnnotateTap = { tap ->
-                val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
-                if (point != null) {
-                  annotateDraft = point
-                  annotateText = ""
-                }
-              },
-              modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+            if (activeMarkdown != null) {
+              MarkdownSourcePane(
+                markdown = activeMarkdown,
+                sourceName = activeProject.sourceName,
+                page = pageIndex + 1,
+                sourceDirectoryUri = activeProject.sourceDirectoryUri,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+              )
+            } else {
+              PdfPageViewport(
+                bitmap = pageBitmap,
+                sourceName = activeProject.sourceName,
+                page = pageIndex,
+                loading = isRendering,
+                strokes = penStrokes,
+                tool = penTool,
+                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
+                onStrokeAdded = ::applyPenStroke,
+                onStrokeErased = ::erasePenStroke,
+                transform = viewportTransform,
+                onTransformChanged = { viewportTransform = it },
+                onBoundsChanged = { viewportBounds = it },
+                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
+                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
+                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                annotateTapEnabled = annotateMode,
+                onAnnotateTap = { tap ->
+                  val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                  if (point != null) {
+                    annotateDraft = point
+                    annotateText = ""
+                  }
+                },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+              )
+            }
             Box(
               modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
                 .height(1.dp).background(MaterialTheme.colorScheme.outlineVariant),
@@ -1288,7 +1369,7 @@ private fun ReaderHome(
       onSave = settingsStore::save,
     )
   }
-  if (showPageTutor && renderer != null && project != null) {
+  if (showPageTutor && project != null && (renderer != null || markdownSource != null)) {
     PageTutorDialog(
       page = pageIndex + 1,
       instruction = pageTutorInstruction,
@@ -1389,12 +1470,12 @@ private fun ReaderHome(
       onChanged = { noteStatus = it },
     )
   }
-  if (showHandoff && project != null && renderer != null) {
+  if (showHandoff && project != null && (renderer != null || markdownSource != null)) {
     HandoffDialog(
       page = pageIndex + 1,
       project = project!!,
       noteRevision = PageNotes.revision(noteDraft),
-      sourceRevision = renderer!!.sourceRevision.orEmpty(),
+      sourceRevision = renderer?.sourceRevision.orEmpty(),
       onDismiss = { showHandoff = false },
       onChanged = { noteStatus = it },
     )
@@ -1939,6 +2020,73 @@ private fun isReaderErrorStatus(status: String): Boolean =
   status.contains("冲突") || status.contains("失败") || status.contains("只读") ||
     status.contains("conflict", ignoreCase = true) || status.contains("fail", ignoreCase = true) ||
     status.contains("read-only", ignoreCase = true) || status.contains("not saved", ignoreCase = true)
+
+@Composable
+internal fun MarkdownSourcePane(
+  markdown: String,
+  sourceName: String,
+  page: Int,
+  sourceDirectoryUri: Uri?,
+  modifier: Modifier = Modifier,
+) {
+  val context = LocalContext.current
+  val markwon = remember(context, sourceDirectoryUri) {
+    Markwon.builder(context)
+      .usePlugin(TablePlugin.create(context))
+      .usePlugin(
+        ImagesPlugin.create().addSchemeHandler(
+          NoteAssetSchemeHandler(context.contentResolver, sourceDirectoryUri),
+        ),
+      )
+      .build()
+  }
+  val (previewText, truncated) = remember(markdown, page) {
+    MarkdownSourcePages.previewPage(markdown, page)
+  }
+  val rewritten = remember(previewText) { NotePreviewRewrite.forPreview(previewText) }
+  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+  Column(modifier = modifier.padding(8.dp).testTag("markdown_source_pane")) {
+    Text(
+      text = "$sourceName · ${page}",
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+    if (previewText.isBlank()) {
+      Text(
+        text = stringResource(R.string.markdown_source_empty),
+        modifier = Modifier.padding(top = 12.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    } else {
+      AndroidView(
+        modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+        factory = { viewContext ->
+          TextView(viewContext).apply {
+            textSize = 16f
+            gravity = Gravity.TOP or Gravity.START
+            setTextColor(contentColorInt)
+            setPadding(12, 10, 12, 10)
+          }
+        },
+        update = { view ->
+          view.setTextColor(contentColorInt)
+          markwon.setMarkdown(view, rewritten)
+        },
+      )
+    }
+    if (truncated) {
+      Text(
+        text = stringResource(R.string.markdown_source_truncated),
+        modifier = Modifier.padding(top = 4.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}
 
 @Composable
 internal fun PdfPageViewport(
