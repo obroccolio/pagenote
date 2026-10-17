@@ -14,7 +14,7 @@ Prove that Android can read and update an existing desktop-format `.pagenote` pr
 ## Out of Scope
 
 - No changes to the desktop project schema, production SAF implementation, Android reader UI, or user project files.
-- This provider-backed test does not claim that Android DocumentsUI selection, persisted grants from a real storage provider, the user's completed pattern-recognition PDF, or a physical tablet have been tested. Those remain separate task 12 acceptance checks.
+- This provider-backed automated test does not claim real DocumentsUI selection, persisted grants from a storage provider, or physical-device behavior. The user's completed 69-page project has separate manual AVD evidence below.
 - No OCR inference is performed; the offline OCR runtime gate is tracked by `features/offline-ocr.md`.
 
 ## Acceptance (EARS)
@@ -44,4 +44,11 @@ Prove that Android can read and update an existing desktop-format `.pagenote` pr
 - Both instrumentation tests pass on Pixel Tablet API 34, API 35 4 KB, and the official API 35 16 KB AVD (`getconf PAGESIZE = 16384`). The fixture contains a generated 69-page PDF and 69 note sections; rendered pages 1/35/69 have distinct verified color markers.
 - The save/reopen test changes page 35 and confirms pages 1 and 69 are unchanged. The stale expected-original test confirms a concurrent note update is not overwritten.
 - `:app:testDebugUnitTest`, `:core-project:testDebugUnitTest`, `:app:assembleDebug`, and `:app:assembleDebugAndroidTest` pass.
-- No system DocumentsUI picker, persistable grant flow, physical device, or user's actual pattern-recognition PDF was exercised by this fixture.
+- This fixture itself does not exercise the system DocumentsUI picker, persistable grant flow, physical device, or the user's actual PDF.
+
+## Separate Real-Project AVD Check (2026-10-18)
+
+- The user's desktop project was read without modifying it. A private copy was assembled outside the repository as a standard v1 project with the 69-page PDF, 69 notes, ten uploaded attachments, and one formerly inline image.
+- The copy opened via the real DocumentsUI folder picker and persistable SAF tree grant on API 35 4 KB and 16 KB tablet AVDs. The reader reported 69 pages on both; the 16 KB AVD page size was 16384 bytes.
+- Page 31 was visually checked on the API 35 4 KB tablet AVD: PDF, note Markdown, LaTeX formulas, and its local project image rendered. The API 35 16 KB AVD smoke test verified opening page 1; it did not repeat the page-31 visual check.
+- This check does not claim physical-device behavior, note editing/save, full-page review, handwriting, OCR, or Agent end-to-end acceptance.

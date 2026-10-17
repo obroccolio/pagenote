@@ -3,6 +3,7 @@ package io.pagenote.android
 object NotePreviewRewrite {
   const val DEFAULT_ASSET_SCHEME = "pagenote-asset"
   private val ATTACHMENT_SRC = Regex("/attachments/([a-f0-9-]+\\.[a-z0-9]+)", RegexOption.IGNORE_CASE)
+  private val PROJECT_ASSET_SRC = Regex("(?<!/)assets/([a-f0-9-]+\\.[a-z0-9]+)", RegexOption.IGNORE_CASE)
   private val FENCE_OPEN = Regex("^ {0,3}(`{3,}|~{3,})(.*)$")
   private val FENCE_CLOSE = Regex("^ {0,3}(`{3,}|~{3,})[ \\t]*$")
   private val CODE_LANGUAGE_ALIASES = mapOf(
@@ -18,6 +19,7 @@ object NotePreviewRewrite {
     var text = rewriteFences(markdown)
     text = rewriteInlineMath(text)
     text = ATTACHMENT_SRC.replace(text) { "$assetBase://${it.groupValues[1]}" }
+    text = PROJECT_ASSET_SRC.replace(text) { "$assetBase://${it.groupValues[1]}" }
     return text
   }
 

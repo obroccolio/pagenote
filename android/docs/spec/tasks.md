@@ -93,7 +93,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与设备验收（API 34/35 AVD 构建、JVM/仪器测试及 16 KB 运行时验证通过；严格离线 OCR 验收通过。真实 DocumentsUI/持久授权、用户 69 页项目打开和全功能交互矩阵仍待验收；已解决的 OpenCV SIGILL 不再作为待办）
+- [ ] 12. 自动化与设备验收（API 34/35 AVD 构建、JVM/仪器测试及 16 KB 运行时验证通过；严格离线 OCR 与用户 69 页项目的 SAF 打开验收通过。完整功能交互矩阵及真机仍待验收；已解决的 OpenCV SIGILL 不再作为待办）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -104,10 +104,11 @@
   - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，最新记录的 71 项 app 仪器测试全部通过。
   - [x] 修复 OCR 测试 runner 曾静默运行 0 tests 的问题，并以项目自建 OpenCV 4.10.0 AAR 解决旧版 `RDVL`/SIGILL；API 34、API 35 4 KB/16 KB 的模型识别测试均通过。API 35 16 KB AVD 的严格断网测试由 `scripts/test_offline_ocr_avd.sh` 验证。
   - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
-  - [ ] 真实 DocumentsUI 选取、持久 URI 授权、用户已完成讲解的模式识别 PDF 打开及 app 界面/手写交互验收仍待完成；隔离 Provider 用例不替代这些检查。
+  - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
+  - [ ] 手机/平板上的笔记保存、手写笔、OCR 与 Agent 完整交互矩阵以及实体设备仍待验收；本次导入检查不替代这些检查。
   - [x] Pixel Tablet API 34 与 API 35 AVD 的完整 app instrumentation suite（最新 71 项）通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
-    - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
+    - [x] SAF 打开既有项目已通过真实 DocumentsUI 和用户 69 页项目副本验收；阅读编辑/保存、笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
   - _Requirement: 构建与测试，全部 EARS_
 

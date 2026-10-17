@@ -110,4 +110,15 @@ class NotePreviewRewriteTest {
     assertFalse(rewritten.contains("/attachments/"))
   }
 
+  @Test
+  fun projectAssetImageRewritesToLocalScheme() {
+    val rewritten = NotePreviewRewrite.forPreview(
+      "![p](assets/123e4567-e89b-12d3-a456-426614174000.png)",
+      assetBase = "pagenote-asset",
+    )
+
+    assertTrue(rewritten.contains("pagenote-asset://123e4567-e89b-12d3-a456-426614174000.png"))
+    assertFalse(rewritten.contains("assets/123e4567-e89b-12d3-a456-426614174000.png"))
+  }
+
 }
