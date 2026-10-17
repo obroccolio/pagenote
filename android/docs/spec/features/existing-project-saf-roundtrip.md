@@ -28,7 +28,7 @@ Prove that Android can read and update an existing desktop-format `.pagenote` pr
 
 ## Test Design
 
-- Implement the fixture as an Android test-only `DocumentsProvider` with stable root/document IDs and file-backed PDF/notes streams so all production access uses `ContentResolver` and `DocumentsContract`.
+- Implement the fixture as an Android test-only `ContentProvider` exposing SAF-shaped tree/document URIs, stable document IDs, `ContentResolver` streams, and the `findDocumentPath` contract required by the production recovery-safe note writer. This avoids pretending that a direct instrumentation call received a system picker grant.
 - Generate the PDF during test setup with distinct page labels, avoiding a checked-in binary fixture.
 - Use one round-trip test for open/render/edit/reopen/page isolation and a separate conflict test for stale-write rejection.
 - Run on API 34 and API 35 AVDs; record SAF picker and real persisted-grant validation separately.
@@ -38,3 +38,10 @@ Prove that Android can read and update an existing desktop-format `.pagenote` pr
 - The instrumentation tests must execute (nonzero count) on API 34 and API 35.
 - Each run must assert 69 pages, non-empty rendering at pages 1/35/69, persisted page 35 content after a fresh opener, unchanged neighboring notes, and no mutation after a stale-write conflict.
 - `:app:testDebugUnitTest`, `:app:assembleDebugAndroidTest`, and the relevant `connectedDebugAndroidTest` runs must pass. This integration test complements, but does not replace, the task 12 real-provider/manual workflow.
+
+## Verification Results (2026-10-18)
+
+- Both instrumentation tests pass on Pixel Tablet API 34, API 35 4 KB, and the official API 35 16 KB AVD (`getconf PAGESIZE = 16384`). The fixture contains a generated 69-page PDF and 69 note sections; rendered pages 1/35/69 have distinct verified color markers.
+- The save/reopen test changes page 35 and confirms pages 1 and 69 are unchanged. The stale expected-original test confirms a concurrent note update is not overwritten.
+- `:app:testDebugUnitTest`, `:core-project:testDebugUnitTest`, `:app:assembleDebug`, and `:app:assembleDebugAndroidTest` pass.
+- No system DocumentsUI picker, persistable grant flow, physical device, or user's actual pattern-recognition PDF was exercised by this fixture.

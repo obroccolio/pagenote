@@ -4,5 +4,10 @@
       android:name="io.pagenote.android.NoteAssetSafTestProvider"
       android:authorities="io.pagenote.android.test.note-assets"
       android:exported="true" />
+    <provider
+      android:name="io.pagenote.android.ExistingProjectSafTestProvider"
+      android:authorities="io.pagenote.android.test.existing-project"
+      android:exported="true"
+      android:grantUriPermissions="true" />
   </application>
 </manifest>

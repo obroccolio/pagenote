@@ -1,6 +1,6 @@
 # Android Reader Session Restoration
 
-> Status: implementation slice; automated API 34/35 verification is complete, with OS-level process-reclaim smoke still open.
+> Status: implementation slice complete; automated API 34/35 verification and an API 34 process-death/task-restoration smoke are complete. Natural low-memory-killer behavior and physical-device verification remain open.
 
 ## Goal
 

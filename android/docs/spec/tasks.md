@@ -92,7 +92,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；官方 16 KB API 35 AVD 启动且 69 项 app 仪器测试通过，但 OCR 原生运行时 SIGILL、SAF 既有项目打开和完整功能矩阵仍未完成；PDF session 重复关闭回归由 API 35 AVD 验证）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；官方 16 KB API 35 AVD 启动且 69 项 app 仪器测试通过，隔离 SAF URI 往返测试亦在 API 34/35/16 KB AVD 通过；OCR 原生运行时 SIGILL、真实 DocumentsUI/持久授权、用户项目打开和完整功能矩阵仍未完成；PDF session 重复关闭回归由 API 35 AVD 验证）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -102,7 +102,8 @@
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
   - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，69 项 app 仪器测试全部通过。
   - [ ] OCR 模块此前缺少 `testInstrumentationRunner`，Gradle 曾报告 0 tests；现补齐配置后实际发现 7 tests，但首个 OCR 初始化在 `libopencv_java4.so` 的 SVE `RDVL` 指令 SIGILL，Android 15 4 KB 与 16 KB AVD 均可复现。AVD CPU 特征不匹配仅为假设，待验证；详情见 `features/offline-ocr.md` 与 `startup-and-16kb-compatibility-plan.md`。
-  - [ ] 既有 v1 `.pagenote` 项目的 SAF 往返测试：69 页 PDF 按第 1/35/69 页渲染，修改第 35 页后重开并确认邻页笔记未变；契约见 `features/existing-project-saf-roundtrip.md`。测试 Provider 不代替真实 DocumentsUI/持久授权/用户文件验收。
+  - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
+  - [ ] 真实 DocumentsUI 选取、持久 URI 授权、用户已完成讲解的模式识别 PDF 打开及 app 界面/手写交互验收仍待完成；隔离 Provider 用例不替代这些检查。
   - [x] Pixel Tablet API 34 与 API 35 AVD 各运行 59 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
@@ -121,7 +122,7 @@
   - Compose 回归测试确认菜单开合不重置工作区状态；实际项目内旋转/断点变化的整机验收仍需在 task 12 补做。
   - _Requirement: 布局与适配、桌面菜单语义一致_
 
-- [ ] 15. 阅读器会话恢复（Activity 重建与 Android 系统回收进程后恢复项目、页码、归一化视口、笔工具和未保存笔记草稿；不更改项目文件格式）
+- [x] 15. 阅读器会话恢复（Activity 重建与 Android 系统回收进程后恢复项目、页码、归一化视口、笔工具和未保存笔记草稿；不更改项目文件格式。模拟器 SIGKILL 任务恢复烟测已通过；自然低内存回收与真机验证仍属于 task 12 的环境验收）
   - [x] Activity 级 `ReaderSessionViewModel`、紧凑 `SavedStateHandle` 检查点、归一化 PDF 视口书签和按 SAF 目标/项目/页隔离的 app-private `AtomicFile` 草稿日志已实现。
   - [x] JVM 单测、AtomicFile 仪器测试、Activity 重建与 fresh-ViewModel 恢复/版本冲突测试已实现；Pixel Tablet API 34、API 35 各 69 项 app instrumentation tests 通过。
   - [x] `:app:assembleDebug` 通过；四 ABI debug APK 均通过 16 KB 对齐检查。
