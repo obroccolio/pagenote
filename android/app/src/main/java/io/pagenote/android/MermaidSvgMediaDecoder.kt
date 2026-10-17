@@ -54,6 +54,7 @@ private class MermaidSvgDrawable(
     val bounds = bounds
     if (bounds.width() <= 0 || bounds.height() <= 0) return
     canvas.save()
+    canvas.clipRect(bounds)
     canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
     canvas.scale(bounds.width() / svgWidth, bounds.height() / svgHeight)
     svg.renderToCanvas(canvas)

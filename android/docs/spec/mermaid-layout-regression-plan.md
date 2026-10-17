@@ -34,6 +34,7 @@
 **Files:**
 - Modify: `android/app/src/androidTest/java/io/pagenote/android/MarkdownMermaidPreviewTest.kt`
 - Modify: `android/app/src/main/java/io/pagenote/android/MermaidPreviewHost.kt` or the specific Markwon image/span integration proven responsible by investigation
+- Modify: `android/app/src/main/java/io/pagenote/android/MermaidSvgMediaDecoder.kt` if the failing evidence identifies SVG drawing bounds as the source
 - Modify: `android/docs/spec/features/note-rich-render.md`
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
@@ -42,10 +43,12 @@
 - Consumes: the existing `MermaidPreviewHost.setMarkdown`, `NotePreviewRewrite.forPreview`, `MermaidRenderCoordinator`, and bundled Mermaid renderer.
 - Produces: a passing instrumentation regression named `mermaidBlockDoesNotOverlapFollowingParagraphAtTabletNotePaneWidth`, asserting the rendered SVG block's measured/drawn region is disjoint from preceding and following Markdown text after async load.
 
-- [ ] Capture a fresh baseline screenshot of disposable imported project page 12 on the Pixel Tablet API 35 AVD, then record the overlap and measured host/diagram dimensions.
-- [ ] Add or adjust the named instrumentation regression using synthetic long Chinese paragraphs, the page-12 graph structure, a display formula after the graph, and the measured tablet note-pane width; run it and observe the expected failure before changing production code.
-- [ ] Trace the failing assertion through Markwon's image-span size callback, `MermaidSvgMediaDecoder` intrinsic dimensions, and the real `TextView` host; record the root cause in the Android SPEC implementation notes.
-- [ ] Implement the smallest production change that makes the test pass without weakening the offline image policy or replacing the Markdown renderer.
-- [ ] Run the focused instrumentation regression on API 35, then API 34; verify the imported project's page 12 visually and inspect pages 1, 35, and 69 for unintended layout changes.
-- [ ] Run `:app:testDebugUnitTest`, `:feature-notes:testDebugUnitTest`, and the full Android instrumentation suite on API 34 and API 35; run `:app:assembleDebug` and the four-ABI 16 KB APK checks.
-- [ ] Update the feature/task docs and Unreleased changelog with only verified behavior, then commit as `fix(android): prevent Mermaid preview overlap` and push to `fork/codex/android-port`.
+- [x] Capture the disposable imported project's page-12 baseline on the Pixel Tablet API 35 AVD; record the 1115x1272 preview host and 856x332 diagram plus the visible overlap.
+- [x] Add the named instrumentation regression using the page-12 graph, long Chinese paragraphs, formulas, and tablet note-pane width. The pre-fix drawable-bound assertion failed as expected with 15,553 painted pixels outside the declared bounds.
+- [x] Trace the failure through the asynchronous Markwon image span and `MermaidSvgDrawable.draw()`; the SVG Canvas was not clipped to drawable bounds. Record the root cause in `note-rich-render.md`.
+- [x] Clip SVG drawing to the drawable bounds and retain the asynchronous `TextView` re-measure after intrinsic drawable dimensions resolve; offline image policy and renderer remain unchanged.
+- [x] Run the focused regression on API 35 and API 34; run the full 66-test app instrumentation suite on each AVD. The automated `NotePanel` pixel regression verifies the imported page-12 content shape at tablet note-pane width. Manual inspection of original-project pages 1, 35, and 69 remains under task 12.
+- [x] Run `:app:testDebugUnitTest`, `:feature-notes:testDebugUnitTest`, and the full Android instrumentation suite on API 34 and API 35; run `:app:assembleDebug` and the four-ABI 16 KB APK checks.
+- [x] Update the feature/task docs and Unreleased changelog with only verified behavior.
+
+Repository: commit as `fix(android): prevent Mermaid preview overlap` and push to `fork/codex/android-port` after the checked acceptance gates pass.
