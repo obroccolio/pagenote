@@ -43,7 +43,8 @@
 - [ ] 6. 标注与 AI 标注工作台（部分：annotation/review/handoff 数据模型与 File store 状态规则已实现；app 目前仅接入分页手写笔迹读写，文字/区域批注、列表/删除、AI review 与 handoff 用户流程尚未接入）
   - [x] 实现 annotation、AI review、handoff 数据模型、校验和本地 store 单测。
   - [x] 通用标注 SAF 数据边界已落地（`ProjectAnnotationStore` 全类型读写/删页，`AnnotationSafBoundary` 纯函数，与笔迹写共存；契约见 `features/annotation-saf-boundary.md`）。
-  - [ ] 接入文字/区域批注创建、列表、删除与 AI review 改写/状态流转 UI。
+  - [x] 文字批注创建/列表/删除 UI 已落地（批注模式点选落点、文本输入、全量页写回、非笔迹列表与删除；契约见 `features/annotation-text-ui.md`）。
+  - [ ] 接入 AI review 改写/状态流转 UI。
   - [ ] 接入交接读写 UI 与 stale 冲突处理。
   - _Requirement: 标注_
 

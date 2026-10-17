@@ -257,6 +257,10 @@ private fun ReaderHome(
   val isPenSaving = pendingPenSaves > 0
   var errorMessage by remember { mutableStateOf<String?>(null) }
   var showNoteHistory by remember { mutableStateOf(false) }
+  var annotateMode by remember { mutableStateOf(false) }
+  var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+  var annotateText by remember { mutableStateOf("") }
+  var showAnnotations by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
 
@@ -1071,6 +1075,16 @@ private fun ReaderHome(
           }
         }
         TextButton(
+          modifier = Modifier.testTag("annotate_mode"),
+          onClick = { annotateMode = !annotateMode },
+          enabled = penWritable && !readerOcrState.inputLocked,
+        ) { Text(stringResource(if (annotateMode) R.string.annotate_on else R.string.annotate)) }
+        TextButton(
+          modifier = Modifier.testTag("annotations_list"),
+          onClick = { showAnnotations = true },
+          enabled = !readerOcrState.inputLocked,
+        ) { Text(stringResource(R.string.annotations)) }
+        TextButton(
           onClick = ::undoPenPage,
           enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.undo)) }
@@ -1122,16 +1136,24 @@ private fun ReaderHome(
               loading = isRendering,
               strokes = penStrokes,
               tool = penTool,
-              inputEnabled = penWritable && !readerOcrState.inputLocked,
+              inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
               transform = viewportTransform,
               onTransformChanged = { viewportTransform = it },
               onBoundsChanged = { viewportBounds = it },
               selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-              gesturesEnabled = !readerOcrState.inputLocked,
+              gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
               selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
               onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+              annotateTapEnabled = annotateMode,
+              onAnnotateTap = { tap ->
+                val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                if (point != null) {
+                  annotateDraft = point
+                  annotateText = ""
+                }
+              },
               modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
             )
             Box(
@@ -1165,16 +1187,24 @@ private fun ReaderHome(
               loading = isRendering,
               strokes = penStrokes,
               tool = penTool,
-              inputEnabled = penWritable && !readerOcrState.inputLocked,
+              inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
               transform = viewportTransform,
               onTransformChanged = { viewportTransform = it },
               onBoundsChanged = { viewportBounds = it },
               selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-              gesturesEnabled = !readerOcrState.inputLocked,
+              gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
               selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
               onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+              annotateTapEnabled = annotateMode,
+              onAnnotateTap = { tap ->
+                val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                if (point != null) {
+                  annotateDraft = point
+                  annotateText = ""
+                }
+              },
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             Box(
@@ -1288,6 +1318,54 @@ private fun ReaderHome(
       },
     )
   }
+  if (annotateDraft != null && project != null) {
+    AnnotationTextInputDialog(
+      text = annotateText,
+      onTextChange = { annotateText = it },
+      onConfirm = {
+        scope.launch {
+          val point = annotateDraft ?: return@launch
+          val store = ProjectAnnotationStore(
+            context.contentResolver,
+            project!!.sourceDirectoryUri,
+            project!!.annotationsUri,
+          )
+          try {
+            val existing = withContext(Dispatchers.IO) {
+              store.readPage("document", pageIndex + 1)
+            }
+            val item = AnnotationTextDraft.toItem(
+              point.first, point.second, "#dc3545", 3.0, annotateText,
+            )
+            val merged = existing.toMutableList()
+            merged.add(item.toJsonElement())
+            withContext(Dispatchers.IO) {
+              store.writePage("document", pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
+            }
+            noteStatus = context.getString(R.string.annotation_saved)
+          } catch (error: Exception) {
+            noteStatus = context.getString(R.string.annotation_save_failed, error.message ?: "")
+          } finally {
+            annotateDraft = null
+            annotateText = ""
+            annotateMode = false
+          }
+        }
+      },
+      onDismiss = {
+        annotateDraft = null
+        annotateText = ""
+      },
+    )
+  }
+  if (showAnnotations && project != null) {
+    AnnotationListDialog(
+      page = pageIndex + 1,
+      project = project!!,
+      onDismiss = { showAnnotations = false },
+      onChanged = { noteStatus = it },
+    )
+  }
   if (showNoteHistory && project != null) {
     NoteHistoryDialog(
       page = pageIndex + 1,
@@ -1376,6 +1454,200 @@ internal fun NewProjectDialog(
   )
 }
 
+@Composable
+internal fun AnnotationTextInputDialog(
+  text: String,
+  onTextChange: (String) -> Unit,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.annotation_text_label)) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.annotation_hint))
+        AndroidView(
+          factory = { viewContext ->
+            EditText(viewContext).apply {
+              inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+              setText(text)
+              setSelection(getText().length)
+              addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(editable: Editable?) {
+                  onTextChange(editable?.toString().orEmpty())
+                }
+              })
+            }
+          },
+          update = { editText ->
+            if (editText.text.toString() != text) {
+              editText.setText(text)
+              editText.setSelection(editText.text.length)
+            }
+          },
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        modifier = Modifier.testTag("annotation_confirm"),
+        onClick = onConfirm,
+        enabled = text.isNotBlank(),
+      ) { Text(stringResource(R.string.annotation_add)) }
+    },
+    dismissButton = {
+      TextButton(modifier = Modifier.testTag("annotation_cancel"), onClick = onDismiss) {
+        Text(stringResource(R.string.cancel))
+      }
+    },
+  )
+}
+
+@Composable
+internal fun AnnotationListDialog(
+  page: Int,
+  project: OpenedProject,
+  onDismiss: () -> Unit,
+  onChanged: (String) -> Unit,
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var items by remember(project, page) { mutableStateOf<List<kotlinx.serialization.json.JsonElement>>(emptyList()) }
+  var loadError by remember(project, page) { mutableStateOf<String?>(null) }
+  var pendingDelete by remember { mutableStateOf<Int?>(null) }
+
+  LaunchedEffect(project, page) {
+    loadError = null
+    items = withContext(Dispatchers.IO) {
+      runCatching {
+        ProjectAnnotationStore(
+          context.contentResolver, project.sourceDirectoryUri, project.annotationsUri,
+        ).readPage("document", page).toList()
+      }.getOrElse {
+        loadError = context.getString(R.string.annotation_save_failed, it.message ?: "")
+        emptyList()
+      }
+    }
+  }
+
+  fun nonPenEntries(): List<Pair<Int, kotlinx.serialization.json.JsonObject>> =
+    items.mapIndexedNotNull { index, element ->
+      val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapIndexedNotNull null
+      val type = obj["type"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
+      if (type == "pen" || type == "highlight") null else index to obj
+    }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.annotation_title, page)) },
+    text = {
+      Column(
+        modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val entries = nonPenEntries()
+        if (loadError == null && entries.isEmpty()) {
+          Text(stringResource(R.string.annotation_empty))
+        }
+        entries.forEach { (index, obj) ->
+          val type = obj["type"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          val label = if (type == "text") {
+            obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          } else {
+            context.getString(R.string.annotation_other_type, type)
+          }
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(label, modifier = Modifier.weight(1f))
+            if (type == "text") {
+              TextButton(
+                modifier = Modifier.testTag("annotation_delete_$index"),
+                onClick = { pendingDelete = index },
+              ) { Text(stringResource(R.string.delete)) }
+            }
+          }
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(modifier = Modifier.testTag("annotations_close"), onClick = onDismiss) {
+        Text(stringResource(R.string.close))
+      }
+    },
+  )
+  if (pendingDelete != null) {
+    AlertDialog(
+      onDismissRequest = { pendingDelete = null },
+      title = { Text(stringResource(R.string.delete)) },
+      text = { Text(stringResource(R.string.annotation_hint)) },
+      confirmButton = {
+        TextButton(
+          modifier = Modifier.testTag("annotation_delete_confirm"),
+          onClick = {
+            val target = pendingDelete ?: return@TextButton
+            scope.launch {
+              try {
+                withContext(Dispatchers.IO) {
+                  val store = ProjectAnnotationStore(
+                    context.contentResolver, project.sourceDirectoryUri, project.annotationsUri,
+                  )
+                  val current = store.readPage("document", page).toMutableList()
+                  current.removeAt(target)
+                  store.writePage("document", page, kotlinx.serialization.json.JsonArray(current))
+                }
+                items = items.toMutableList().also { it.removeAt(target) }
+                onChanged(context.getString(R.string.annotation_deleted))
+              } catch (error: Exception) {
+                onChanged(context.getString(R.string.annotation_save_failed, error.message ?: ""))
+              } finally {
+                pendingDelete = null
+              }
+            }
+          },
+        ) { Text(stringResource(R.string.delete)) }
+      },
+      dismissButton = {
+        TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
+      },
+    )
+  }
+}
+
+private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullFallback(): String? =
+  try {
+    if (isString) content else null
+  } catch (_: Exception) {
+    null
+  }
+
+private fun Map<String, Any?>.toJsonElement(): kotlinx.serialization.json.JsonElement = when {
+  this == null -> kotlinx.serialization.json.JsonNull
+  else -> kotlinx.serialization.json.JsonObject(
+    entries.associate { (k, v) -> k to v.toJsonElementValue() },
+  )
+}
+
+private fun Any?.toJsonElementValue(): kotlinx.serialization.json.JsonElement = when (this) {
+  null -> kotlinx.serialization.json.JsonNull
+  is String -> kotlinx.serialization.json.JsonPrimitive(this as String)
+  is Number -> try {
+    kotlinx.serialization.json.JsonPrimitive(this as Number)
+  } catch (_: Exception) {
+    kotlinx.serialization.json.JsonPrimitive(toString())
+  }
+  is Boolean -> kotlinx.serialization.json.JsonPrimitive(this as Boolean)
+  is Map<*, *> -> (this as Map<String, Any?>).toJsonElement()
+  is Iterable<*> -> kotlinx.serialization.json.JsonArray(map { it.toJsonElementValue() })
+  else -> kotlinx.serialization.json.JsonPrimitive(toString())
+}
+
 private fun isReaderErrorStatus(status: String): Boolean =
   status.contains("冲突") || status.contains("失败") || status.contains("只读") ||
     status.contains("conflict", ignoreCase = true) || status.contains("fail", ignoreCase = true) ||
@@ -1399,11 +1671,14 @@ internal fun PdfPageViewport(
   gesturesEnabled: Boolean = true,
   selection: NormalizedOcrRegion? = null,
   onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
+  annotateTapEnabled: Boolean = false,
+  onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val latestTransform by rememberUpdatedState(transform)
   val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
+  val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds(),
@@ -1430,10 +1705,18 @@ internal fun PdfPageViewport(
       LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
 
       Box(
-        modifier = Modifier.fillMaxSize().pointerInput(page, bounds, selectionEnabled, gesturesEnabled) {
+        modifier = Modifier.fillMaxSize().pointerInput(page, bounds, selectionEnabled, gesturesEnabled, annotateTapEnabled) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            if (selectionEnabled && down.type != PointerType.Mouse) {
+            if (annotateTapEnabled && down.type != PointerType.Mouse) {
+              val tap = PdfSelectionPoint(down.position.x, down.position.y)
+              down.consume()
+              latestOnAnnotateTap(tap)
+              do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { if (it.pressed) it.consume() }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+            } else if (selectionEnabled && down.type != PointerType.Mouse) {
               val start = PdfSelectionPoint(down.position.x, down.position.y)
               down.consume()
               var deliveredValid = false
