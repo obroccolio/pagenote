@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -2488,7 +2489,7 @@ internal fun ReviewListDialog(
                 refresh()
                 onChanged(context.getString(R.string.review_saved))
               } catch (error: Exception) {
-                onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
+                onChanged(reviewCreateErrorMessage(context, error))
               }
             }
           },
@@ -2554,6 +2555,13 @@ internal fun ReviewListDialog(
     }
   }
 }
+
+internal fun reviewCreateErrorMessage(context: Context, error: Throwable): String =
+  if (error is IllegalArgumentException) {
+    context.getString(R.string.review_invalid_input)
+  } else {
+    context.getString(R.string.review_save_failed, error.message ?: "")
+  }
 
 @Composable
 internal fun HandoffDialog(

@@ -196,6 +196,7 @@
   <string name="review_empty">这一页还没有审阅。</string>
   <string name="review_saved">已保存审阅。</string>
   <string name="review_save_failed">无法保存审阅：%1$s</string>
+  <string name="review_invalid_input">审阅内容无效或超出支持的大小限制。</string>
   <string name="review_applied">已标为已处理。</string>
   <string name="review_dismissed">已忽略。</string>
   <string name="review_deleted">已删除审阅。</string>

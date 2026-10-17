@@ -196,6 +196,7 @@
   <string name="review_empty">No reviews on this page yet.</string>
   <string name="review_saved">Review saved.</string>
   <string name="review_save_failed">Unable to save review: %1$s</string>
+  <string name="review_invalid_input">The review content is invalid or exceeds the supported size limits.</string>
   <string name="review_applied">Review marked applied.</string>
   <string name="review_dismissed">Review dismissed.</string>
   <string name="review_deleted">Review deleted.</string>

@@ -32,3 +32,16 @@ After the small test-helper cleanup, the final focused invocation also returned 
 - Quote/context lengths use Kotlin UTF-16 code-unit length. Anchor size uses serialized JSON length, matching the desktop store limit.
 - No push or public binary release was performed.
 - API 34 and physical DocumentsUI/storage-provider behavior were not part of this focused run; the two available connected API 35 AVDs were used.
+
+## Review Fix Round: Localized Validation Feedback
+
+The review follow-up traced raw validation text to the review-create catch in `ReviewListDialog`, which previously passed every exception message into the save-failure string. The create boundary now maps `IllegalArgumentException` to a localized invalid-review message in English and Simplified Chinese; other exceptions retain the existing detailed `review_save_failed` formatting.
+
+TDD evidence:
+
+- Added `ReviewUiErrorMessageTest` first. The initial `:app:compileDebugAndroidTestKotlin --offline` run failed as expected because the new mapper and resource ID were absent.
+- The first implementation compile exposed a missing `android.content.Context` import in `MainActivity.kt`; after adding it, `:app:compileDebugAndroidTestKotlin --offline` passed.
+- `:app:connectedDebugAndroidTest --offline -Pandroid.testInstrumentationRunnerArguments.class=io.pagenote.android.ReviewUiErrorMessageTest` passed both tests on `Pixel_Tablet` (Android 15, 4 KB pages) and `Pixel_Tablet_16KB` (Android 15, 16 KB pages). The tests verify localized validation output does not expose the raw limit message and that provider/I/O details remain visible.
+- The connected run compiled the Kotlin/Java instrumentation sources and assembled both app and androidTest APKs.
+
+This is a separate local fix commit; no push or public binary release was performed.
