@@ -69,10 +69,10 @@
   - 密钥不落项目目录，未配置明确提示。
   - _Requirement: Agent 与模型_
 
-- [ ] 11. 设置、语言、主题（部分：DataStore 持久化已实现；设置界面与桌面语言键适配待续）
+- [ ] 11. 设置、语言、主题（部分：DataStore 与设置面板、运行时主题/语言/比例/动画已实现；真机验收待续）
   - 主题、语言、双栏比例、动画开关持久化。
   - 语言键语义复用桌面 `locales/catalog.json`。
-  - [ ] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
+  - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
 - [ ] 12. 自动化与真机验收

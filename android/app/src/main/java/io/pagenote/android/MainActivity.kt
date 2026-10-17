@@ -1,6 +1,8 @@
 package io.pagenote.android
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.text.Editable
@@ -14,6 +16,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -41,8 +48,10 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,12 +64,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -87,6 +100,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -99,14 +113,45 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
-      MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-          ReaderHome()
-        }
-      }
+      ReaderSettingsHost()
     }
   }
 
+}
+
+@Composable
+private fun ReaderSettingsHost() {
+  val context = LocalContext.current
+  val systemConfiguration = LocalConfiguration.current
+  val settingsStore = remember(context.applicationContext) {
+    readerSettingsStore(context.applicationContext)
+  }
+  val settings by settingsStore.settings.collectAsState(initial = ReaderSettings())
+  val systemLocale = systemConfiguration.locales.get(0) ?: Locale.getDefault()
+  val locale = resolveReaderLocale(settings.language, systemLocale)
+  val localizedConfiguration = remember(systemConfiguration, settings.language, locale) {
+    Configuration(systemConfiguration).apply {
+      if (settings.language != "system") {
+        setLocale(locale)
+        setLayoutDirection(locale)
+      }
+    }
+  }
+  val localizedContext = remember(context, localizedConfiguration) {
+    context.createConfigurationContext(localizedConfiguration)
+  }
+  val themeMode = resolveReaderTheme(settings.theme, isSystemInDarkTheme())
+
+  CompositionLocalProvider(
+    LocalConfiguration provides localizedConfiguration,
+    LocalContext provides localizedContext,
+  ) {
+    MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
+      Surface(modifier = Modifier.fillMaxSize()) {
+        ReaderHome(settings = settings, settingsStore = settingsStore)
+      }
+    }
+  }
 }
 
 private data class ReaderProjectData(
@@ -131,7 +176,7 @@ private data class PdfViewportBounds(
 }
 
 @Composable
-private fun ReaderHome() {
+private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsStore) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   var project by remember { mutableStateOf<OpenedProject?>(null) }
@@ -164,6 +209,7 @@ private fun ReaderHome() {
   var showOcrResult by remember { mutableStateOf(false) }
   var isOcrRunning by remember { mutableStateOf(false) }
   var isOpening by remember { mutableStateOf(false) }
+  var showSettings by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
   val isPenSaving = pendingPenSaves > 0
@@ -197,7 +243,7 @@ private fun ReaderHome() {
   suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
     val store = penStore ?: return
     if (!penWritable) {
-      penStatus = "只读项目：无法保存笔迹"
+      penStatus = context.getString(R.string.readonly_pen_cannot_save)
       return
     }
     val snapshot = strokes.toList()
@@ -209,11 +255,11 @@ private fun ReaderHome() {
         }
       }
       if (failedPenSave?.first == targetPage) failedPenSave = null
-      penStatus = "笔迹已保存"
+      penStatus = context.getString(R.string.pen_saved)
     } catch (error: Exception) {
       if (error is CancellationException) throw error
       failedPenSave = targetPage to snapshot
-      penStatus = "笔迹未保存：${error.message ?: "写入失败"}"
+      penStatus = context.getString(R.string.pen_not_saved, error.message ?: "")
     } finally {
       pendingPenSaves -= 1
     }
@@ -265,7 +311,7 @@ private fun ReaderHome() {
   suspend fun saveCurrentNote(): Boolean {
     val activeProject = project ?: return false
     if (!noteWritable) {
-      noteStatus = "此项目为只读，无法保存笔记"
+      noteStatus = context.getString(R.string.note_read_only)
       return false
     }
     if (!hasUnsavedChanges) return true
@@ -290,13 +336,13 @@ private fun ReaderHome() {
       }
       notesMarkdown = result.markdown
       noteBaseRevision = result.pageRevision
-      noteStatus = "已保存"
+      noteStatus = context.getString(R.string.note_saved)
       true
     } catch (conflict: PageNoteConflictException) {
       noteStatus = conflict.message
       false
     } catch (error: Exception) {
-      noteStatus = error.message ?: "笔记保存失败"
+      noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
       false
     } finally {
       isSaving = false
@@ -314,9 +360,9 @@ private fun ReaderHome() {
         val freshPage = NotePage.pageAt(latest, pageIndex + 1)
         noteDraft = freshPage
         noteBaseRevision = PageNotes.revision(freshPage)
-        noteStatus = "已重新载入"
+        noteStatus = context.getString(R.string.note_reloaded)
       } catch (error: Exception) {
-        noteStatus = error.message ?: "重新载入笔记失败"
+        noteStatus = context.getString(R.string.note_reload_failed, error.message ?: "")
       }
     }
   }
@@ -351,7 +397,7 @@ private fun ReaderHome() {
         ocrResult = OcrResult(
           engine = OcrResultMapper.ENGINE,
           status = "failed",
-          warnings = listOf("OCR 超时。原始页面未改变，请稍后重试。"),
+          warnings = listOf(context.getString(R.string.ocr_timeout)),
         )
         ocrResultPage = targetPage
         showOcrResult = true
@@ -361,7 +407,7 @@ private fun ReaderHome() {
         ocrResult = OcrResult(
           engine = OcrResultMapper.ENGINE,
           status = "failed",
-          warnings = listOf(error.message ?: "离线 OCR 初始化失败"),
+          warnings = listOf(error.message ?: context.getString(R.string.offline_ocr_failed)),
         )
         ocrResultPage = targetPage
         showOcrResult = true
@@ -395,7 +441,10 @@ private fun ReaderHome() {
           val loaded = withContext(Dispatchers.IO) {
             val opened = ProjectDocumentOpener(context.contentResolver).open(treeUri)
             require(opened.sourceExtension == "pdf") {
-              "当前版本暂不支持 ${opened.sourceExtension.ifBlank { "此" }} 格式阅读"
+              context.getString(
+                R.string.unsupported_format,
+                opened.sourceExtension.ifBlank { "" },
+              )
             }
             val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
             val noteText = noteStore.read()
@@ -430,17 +479,17 @@ private fun ReaderHome() {
           penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, 1)
           penWritable = loaded.penWritable
           failedPenSave = null
-          penStatus = if (loaded.penWritable) null else "只读项目：笔迹不可编辑"
+          penStatus = if (loaded.penWritable) null else context.getString(R.string.pen_read_only)
           val firstPage = NotePage.pageAt(loaded.noteText, 1)
           noteDraft = firstPage
           noteBaseRevision = PageNotes.revision(firstPage)
           noteWritable = loaded.noteWritable
-          noteStatus = if (noteWritable) null else "只读项目：存储位置未授予笔记写入权限"
+          noteStatus = if (noteWritable) null else context.getString(R.string.read_only_project)
           ocrResult = null
           showOcrResult = false
           pageIndex = 0
         } catch (error: Exception) {
-          errorMessage = error.message ?: "项目打开失败"
+          errorMessage = context.getString(R.string.select_project_error, error.message ?: "")
         } finally {
           isOpening = false
         }
@@ -491,7 +540,7 @@ private fun ReaderHome() {
         rendered.recycle()
       }
     } catch (error: Exception) {
-      errorMessage = error.message ?: "页面渲染失败"
+      errorMessage = error.message ?: context.getString(R.string.page_render_failed)
     } finally {
       isRendering = false
     }
@@ -519,7 +568,10 @@ private fun ReaderHome() {
         },
         enabled = !isOpening && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
       ) {
-        Text(if (isOpening) "正在打开" else "打开项目")
+        Text(stringResource(if (isOpening) R.string.opening_project else R.string.open_project))
+      }
+      TextButton(onClick = { showSettings = true }) {
+        Text(stringResource(R.string.settings_action))
       }
     }
 
@@ -545,14 +597,14 @@ private fun ReaderHome() {
           enabled = pageIndex > 0 && !isRendering && !isSaving && !isPenSaving &&
             failedPenSave == null && !isOcrRunning,
         ) {
-          Text("上一页")
+          Text(stringResource(R.string.previous_page))
         }
-        Text("${pageIndex + 1} / ${activeRenderer.pageCount}")
+        Text(stringResource(R.string.page_count, pageIndex + 1, activeRenderer.pageCount))
         Button(
           onClick = ::recognizeCurrentPage,
           enabled = !isRendering && !isOcrRunning,
         ) {
-          Text(if (isOcrRunning) "识别中" else "OCR")
+          Text(stringResource(if (isOcrRunning) R.string.recognizing else R.string.ocr))
         }
         Button(
           onClick = {
@@ -563,7 +615,7 @@ private fun ReaderHome() {
           enabled = pageIndex < activeRenderer.pageCount - 1 &&
             !isRendering && !isSaving && !isPenSaving && failedPenSave == null && !isOcrRunning,
         ) {
-          Text("下一页")
+          Text(stringResource(R.string.next_page))
         }
       }
 
@@ -576,39 +628,43 @@ private fun ReaderHome() {
         TextButton(
           onClick = { applyViewportZoom(0.8f) },
           enabled = viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
-        ) { Text("−") }
+        ) { Text(stringResource(R.string.zoom_out)) }
         Text("${(viewportTransform.scale * 100f).roundToInt()}%")
         TextButton(
           onClick = { applyViewportZoom(1.25f) },
           enabled = viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
-        ) { Text("+") }
-        TextButton(onClick = ::fitViewportWidth) { Text("适宽") }
+        ) { Text(stringResource(R.string.zoom_in)) }
+        TextButton(onClick = ::fitViewportWidth) { Text(stringResource(R.string.fit_width)) }
         TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }) {
-          Text("适页")
+          Text(stringResource(R.string.fit_page))
         }
         listOf(
-          PenCanvasTool.PEN to "笔",
-          PenCanvasTool.HIGHLIGHTER to "荧光笔",
-          PenCanvasTool.ERASER to "橡皮",
+          PenCanvasTool.PEN to R.string.pen,
+          PenCanvasTool.HIGHLIGHTER to R.string.highlighter,
+          PenCanvasTool.ERASER to R.string.eraser,
         ).forEach { (tool, label) ->
           if (penTool == tool) {
-            Button(onClick = { penTool = tool }, enabled = penWritable) { Text(label) }
+            Button(onClick = { penTool = tool }, enabled = penWritable) {
+              Text(stringResource(label))
+            }
           } else {
-            TextButton(onClick = { penTool = tool }, enabled = penWritable) { Text(label) }
+            TextButton(onClick = { penTool = tool }, enabled = penWritable) {
+              Text(stringResource(label))
+            }
           }
         }
         TextButton(
           onClick = ::undoPenPage,
           enabled = penWritable && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
-        ) { Text("撤销") }
+        ) { Text(stringResource(R.string.undo)) }
         TextButton(
           onClick = ::redoPenPage,
           enabled = penWritable && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
-        ) { Text("重做") }
+        ) { Text(stringResource(R.string.redo)) }
         TextButton(
           onClick = ::clearPenPage,
           enabled = penWritable && penStrokes.isNotEmpty(),
-        ) { Text("清空本页") }
+        ) { Text(stringResource(R.string.clear_page)) }
       }
       penStatus?.let { status ->
         Row(
@@ -618,7 +674,7 @@ private fun ReaderHome() {
           Text(
             text = status,
             modifier = Modifier.weight(1f),
-            color = if (status.contains("未保存") || status.contains("只读")) {
+            color = if (isReaderErrorStatus(status)) {
               MaterialTheme.colorScheme.error
             } else {
               MaterialTheme.colorScheme.onSurfaceVariant
@@ -629,7 +685,7 @@ private fun ReaderHome() {
             TextButton(
               onClick = { scope.launch { savePenPage(targetPage, strokes) } },
               enabled = !isPenSaving,
-            ) { Text("重试") }
+            ) { Text(stringResource(R.string.retry)) }
           }
         }
       }
@@ -640,6 +696,7 @@ private fun ReaderHome() {
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
         if (maxWidth >= 840.dp) {
+          val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(settings.leftPercent)
           Row(modifier = Modifier.fillMaxSize()) {
             PdfPageViewport(
               bitmap = pageBitmap,
@@ -654,7 +711,7 @@ private fun ReaderHome() {
               transform = viewportTransform,
               onTransformChanged = { viewportTransform = it },
               onBoundsChanged = { viewportBounds = it },
-              modifier = Modifier.weight(0.56f).fillMaxHeight(),
+              modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
             )
             Box(
               modifier = Modifier.fillMaxHeight().padding(horizontal = 5.dp)
@@ -670,7 +727,8 @@ private fun ReaderHome() {
               onMarkdownChange = { noteDraft = it },
               onSave = { scope.launch { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
-              modifier = Modifier.weight(0.44f).fillMaxHeight(),
+              animationEnabled = settings.noteAnimation,
+              modifier = Modifier.weight(notePaneWeight).fillMaxHeight(),
             )
           }
         } else {
@@ -704,6 +762,7 @@ private fun ReaderHome() {
               onMarkdownChange = { noteDraft = it },
               onSave = { scope.launch { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
+              animationEnabled = settings.noteAnimation,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
           }
@@ -715,9 +774,9 @@ private fun ReaderHome() {
         contentAlignment = Alignment.Center,
       ) {
         if (isOpening) {
-          Text("正在打开项目…", style = MaterialTheme.typography.bodyLarge)
+          Text(stringResource(R.string.opening_project_message), style = MaterialTheme.typography.bodyLarge)
         } else {
-          Text("选择一个 pagenote 项目文件夹", style = MaterialTheme.typography.bodyLarge)
+          Text(stringResource(R.string.choose_project_message), style = MaterialTheme.typography.bodyLarge)
         }
       }
     }
@@ -732,7 +791,19 @@ private fun ReaderHome() {
       )
     }
   }
+  if (showSettings) {
+    ReaderSettingsDialog(
+      settings = settings,
+      onDismiss = { showSettings = false },
+      onSave = settingsStore::save,
+    )
+  }
 }
+
+private fun isReaderErrorStatus(status: String): Boolean =
+  status.contains("冲突") || status.contains("失败") || status.contains("只读") ||
+    status.contains("conflict", ignoreCase = true) || status.contains("fail", ignoreCase = true) ||
+    status.contains("read-only", ignoreCase = true) || status.contains("not saved", ignoreCase = true)
 
 @Composable
 private fun PdfPageViewport(
@@ -833,7 +904,7 @@ private fun PdfPageViewport(
         ) {
           Image(
             bitmap = bitmap.asImageBitmap(),
-            contentDescription = "$sourceName 第 ${page + 1} 页",
+            contentDescription = stringResource(R.string.page_image_description, sourceName, page + 1),
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
           )
@@ -851,7 +922,7 @@ private fun PdfPageViewport(
         }
       }
     } else if (loading) {
-      Text("正在读取页面…", style = MaterialTheme.typography.bodyLarge)
+      Text(stringResource(R.string.loading_page), style = MaterialTheme.typography.bodyLarge)
     }
   }
 }
@@ -867,6 +938,7 @@ private fun NotePanel(
   onMarkdownChange: (String) -> Unit,
   onSave: () -> Unit,
   onReload: () -> Unit,
+  animationEnabled: Boolean,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -876,6 +948,9 @@ private fun NotePanel(
   val markwonEditor = remember(markwon) { MarkwonEditor.create(markwon) }
   val executor = remember { Executors.newSingleThreadExecutor() }
   var preview by remember { mutableStateOf(false) }
+  val contentColor = MaterialTheme.colorScheme.onSurface
+  val outlineColor = MaterialTheme.colorScheme.outline.toArgb()
+  val contentColorInt = contentColor.toArgb()
 
   DisposableEffect(executor) {
     onDispose { executor.shutdownNow() }
@@ -887,21 +962,21 @@ private fun NotePanel(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      Text("第 $page 页笔记", style = MaterialTheme.typography.titleSmall)
+      Text(stringResource(R.string.note_page_title, page), style = MaterialTheme.typography.titleSmall)
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onReload, enabled = !saving) { Text("重载") }
+        Button(onClick = onReload, enabled = !saving) { Text(stringResource(R.string.reload)) }
         Button(onClick = onSave, enabled = writable && dirty && !saving) {
-          Text(if (saving) "保存中" else "保存")
+          Text(stringResource(if (saving) R.string.saving else R.string.save))
         }
       }
     }
     TabRow(selectedTabIndex = if (preview) 1 else 0) {
-      Tab(selected = !preview, onClick = { preview = false }, text = { Text("编辑") })
-      Tab(selected = preview, onClick = { preview = true }, text = { Text("预览") })
+      Tab(selected = !preview, onClick = { preview = false }, text = { Text(stringResource(R.string.note_edit)) })
+      Tab(selected = preview, onClick = { preview = true }, text = { Text(stringResource(R.string.note_preview)) })
     }
     if (!writable) {
       Text(
-        "只读项目",
+        stringResource(R.string.read_only_project),
         modifier = Modifier.padding(top = 5.dp),
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.labelMedium,
@@ -911,7 +986,7 @@ private fun NotePanel(
       Text(
         it,
         modifier = Modifier.padding(top = 5.dp),
-        color = if (it.contains("冲突") || it.contains("失败")) {
+        color = if (isReaderErrorStatus(it)) {
           MaterialTheme.colorScheme.error
         } else {
           MaterialTheme.colorScheme.onSurfaceVariant
@@ -919,57 +994,78 @@ private fun NotePanel(
         style = MaterialTheme.typography.labelMedium,
       )
     }
-    key(page, preview) {
-      if (preview) {
-        AndroidView(
-          modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-          factory = { viewContext ->
-            TextView(viewContext).apply {
-              textSize = 16f
-              gravity = Gravity.TOP or Gravity.START
-              setPadding(12, 10, 12, 10)
-            }
-          },
-          update = { view -> markwon.setMarkdown(view, markdown) },
-        )
-      } else {
-        AndroidView(
-          modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-          factory = { viewContext ->
-            EditText(viewContext).apply {
-              gravity = Gravity.TOP or Gravity.START
-              inputType = InputType.TYPE_CLASS_TEXT or
-                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-              textSize = 16f
-              isEnabled = writable && !saving
-              setPadding(12, 10, 12, 10)
-              setText(markdown)
-              setSelection(text.length)
-              addTextChangedListener(
-                MarkwonEditorTextWatcher.withPreRender(markwonEditor, executor, this),
-              )
-              addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-                override fun afterTextChanged(editable: Editable?) {
-                  onMarkdownChange(editable?.toString().orEmpty())
-                }
-              })
-            }
-          },
-          update = { editText ->
-            editText.isEnabled = writable && !saving
-            if (editText.text.toString() != markdown) {
-              editText.setText(markdown)
-              editText.setSelection(editText.text.length)
-            }
-          },
-        )
+    AnimatedContent(
+      targetState = ReaderNoteContent(page, markdown, preview),
+      contentKey = { it.page },
+      transitionSpec = {
+        val duration = notePageTransitionDurationMillis(animationEnabled)
+        fadeIn(animationSpec = tween(duration)) togetherWith fadeOut(animationSpec = tween(duration))
+      },
+      modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+      label = "page-note-transition",
+    ) { content ->
+      key(content.page, content.preview) {
+        if (content.preview) {
+          AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { viewContext ->
+              TextView(viewContext).apply {
+                textSize = 16f
+                gravity = Gravity.TOP or Gravity.START
+                setTextColor(contentColorInt)
+                setPadding(12, 10, 12, 10)
+              }
+            },
+            update = { view ->
+              view.setTextColor(contentColorInt)
+              markwon.setMarkdown(view, content.markdown)
+            },
+          )
+        } else {
+          AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { viewContext ->
+              EditText(viewContext).apply {
+                gravity = Gravity.TOP or Gravity.START
+                inputType = InputType.TYPE_CLASS_TEXT or
+                  InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                  InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                textSize = 16f
+                setTextColor(contentColorInt)
+                backgroundTintList = ColorStateList.valueOf(outlineColor)
+                isEnabled = writable && !saving && content.page == page
+                setPadding(12, 10, 12, 10)
+                setText(content.markdown)
+                setSelection(text.length)
+                addTextChangedListener(
+                  MarkwonEditorTextWatcher.withPreRender(markwonEditor, executor, this),
+                )
+                addTextChangedListener(object : TextWatcher {
+                  override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                  override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                  override fun afterTextChanged(editable: Editable?) {
+                    if (content.page == page) onMarkdownChange(editable?.toString().orEmpty())
+                  }
+                })
+              }
+            },
+            update = { editText ->
+              editText.setTextColor(contentColorInt)
+              editText.backgroundTintList = ColorStateList.valueOf(outlineColor)
+              editText.isEnabled = writable && !saving && content.page == page
+              if (editText.text.toString() != content.markdown) {
+                editText.setText(content.markdown)
+                editText.setSelection(editText.text.length)
+              }
+            },
+          )
+        }
       }
     }
   }
 }
+
+private data class ReaderNoteContent(val page: Int, val markdown: String, val preview: Boolean)
 
 @Composable
 private fun OcrResultDialog(
@@ -980,34 +1076,39 @@ private fun OcrResultDialog(
   val needsReview = OcrResultPolicy.needsVisualReview(result)
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("第 $page 页 OCR") },
+    title = { Text(stringResource(R.string.ocr_page_title, page)) },
     text = {
       Column(
         modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        Text("状态：${result.status} · ${result.engine}")
+        Text(stringResource(R.string.ocr_status, result.status, result.engine))
         if (needsReview) {
-          Text("识别结果需要对照原图核实", color = MaterialTheme.colorScheme.error)
+          Text(stringResource(R.string.ocr_review), color = MaterialTheme.colorScheme.error)
         }
         result.warnings.forEach { warning ->
           Text(warning, color = MaterialTheme.colorScheme.error)
         }
         if (result.blocks.isEmpty()) {
-          Text("没有可显示的识别文字。")
+          Text(stringResource(R.string.ocr_empty))
         }
         result.blocks.forEachIndexed { index, block ->
           Text("${index + 1}. ${block.text}")
           Text(
-            "置信度 ${(block.confidence * 100).toInt()}% · " +
-              "位置 x=${block.x.toInt()}‰ y=${block.y.toInt()}‰ " +
-              "宽=${block.width.toInt()}‰ 高=${block.height.toInt()}‰",
+            stringResource(
+              R.string.ocr_block_confidence,
+              (block.confidence * 100).toInt(),
+              block.x.toInt(),
+              block.y.toInt(),
+              block.width.toInt(),
+              block.height.toInt(),
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
       }
     },
-    confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+    confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
   )
 }
