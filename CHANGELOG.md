@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Report missing Android project asset references on open while keeping direct SAF reads and writes. / 安卓打开项目时报告缺失资源引用，读写仍走 SAF 直写。
+
 - Create new Android pagenote projects from a SAF folder with validated names and direct open. / 安卓新增 SAF 项目创建：名称校验、目录选择、建完直接打开。
 
 - Preview Android rich note blocks with single-source mermaid/math quotes and local SAF asset images. / 安卓笔记预览新增富块透出：mermaid/math 源码单次引用展示，附件图加载本地 SAF 资源。

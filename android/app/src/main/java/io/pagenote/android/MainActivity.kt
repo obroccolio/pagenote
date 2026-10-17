@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -729,6 +730,22 @@ private fun ReaderHome(
     }
   }
 
+  fun assetChildExists(assetsUri: Uri, treeUri: Uri, name: String): Boolean {
+    val assetsId = DocumentsContract.getDocumentId(assetsUri)
+    val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, assetsId)
+    val cursor = context.contentResolver.query(
+      childrenUri,
+      arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null,
+    ) ?: return false
+    cursor.use {
+      val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+      while (it.moveToNext()) {
+        if (it.getString(nameColumn) == name) return true
+      }
+    }
+    return false
+  }
+
   suspend fun openProjectTree(treeUri: Uri, manageOpening: Boolean = true) {
     if (manageOpening) {
       isOpening = true
@@ -794,7 +811,25 @@ private fun ReaderHome(
       noteDraft = firstPage
       noteBaseRevision = PageNotes.revision(firstPage)
       noteWritable = loaded.noteWritable
-      noteStatus = if (noteWritable) null else context.getString(R.string.read_only_project)
+      val missingAssets = withContext(Dispatchers.IO) {
+        runCatching {
+          val refs = ProjectAssetRefs.scan(loaded.noteText)
+          if (refs.isEmpty()) return@runCatching emptyList<String>()
+          val srcDir = loaded.project.sourceDirectoryUri
+          val srcId = DocumentsContract.getDocumentId(srcDir)
+          val assetsUri = DocumentsContract.buildDocumentUriUsingTree(srcDir, srcId + "/assets")
+          ProjectAssetRefs.missing(refs) { name ->
+            runCatching { assetChildExists(assetsUri, srcDir, name) }.getOrDefault(false)
+          }
+        }.getOrDefault(emptyList())
+      }
+      noteStatus = when {
+        !noteWritable -> context.getString(R.string.read_only_project)
+        missingAssets.isNotEmpty() -> context.getString(
+          R.string.note_missing_assets, missingAssets.take(3).joinToString(", "),
+        )
+        else -> null
+      }
       ocrResult = null
       showOcrResult = false
       regionOcrResult = null

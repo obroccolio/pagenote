@@ -96,6 +96,7 @@
   <string name="new_project_create">创建</string>
   <string name="new_project_bad_name">请输入有效的项目名称。</string>
   <string name="new_project_failed">无法创建项目：%1$s</string>
+  <string name="note_missing_assets">项目资源缺失：%1$s</string>
   <string name="zoom_out">缩小</string>
   <string name="zoom_in">放大</string>
   <string name="fit_width">适宽</string>

@@ -96,6 +96,7 @@
   <string name="new_project_create">Create</string>
   <string name="new_project_bad_name">Enter a valid project name.</string>
   <string name="new_project_failed">Unable to create project: %1$s</string>
+  <string name="note_missing_assets">Missing project assets: %1$s</string>
   <string name="zoom_out">Zoom out</string>
   <string name="zoom_in">Zoom in</string>
   <string name="fit_width">Fit width</string>
