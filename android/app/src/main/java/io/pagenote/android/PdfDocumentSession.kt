@@ -4,8 +4,16 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.Build
 import android.os.ParcelFileDescriptor
+import androidx.annotation.RequiresApi
 import io.pagenote.core.reader.PdfPagePolicy
+import io.pagenote.core.reader.PdfTextContent
+import io.pagenote.core.reader.PdfTextExtractionPolicy
+import io.pagenote.core.reader.PdfTextExtractionResult
+import io.pagenote.core.reader.PdfTextExtractionStatus
+import io.pagenote.core.reader.PdfTextMapper
+import io.pagenote.core.reader.PdfTextRect
 import java.io.Closeable
 
 class PdfDocumentSession private constructor(
@@ -13,6 +21,25 @@ class PdfDocumentSession private constructor(
   private val renderer: PdfRenderer,
 ) : Closeable {
   val pageCount: Int get() = renderer.pageCount
+
+  @Synchronized
+  fun extractText(pageIndex: Int): PdfTextExtractionResult {
+    check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
+    val status = PdfTextExtractionPolicy.statusForApi(Build.VERSION.SDK_INT)
+    if (status != PdfTextExtractionStatus.AVAILABLE) {
+      return PdfTextExtractionResult.unavailableForOcr()
+    }
+
+    if (Build.VERSION.SDK_INT >= PdfTextExtractionPolicy.MIN_NATIVE_API) {
+      val page = renderer.openPage(pageIndex)
+      try {
+        return extractTextApi35(page)
+      } finally {
+        page.close()
+      }
+    }
+    return PdfTextExtractionResult.unavailableForOcr()
+  }
 
   @Synchronized
   fun render(pageIndex: Int): Bitmap {
@@ -37,6 +64,24 @@ class PdfDocumentSession private constructor(
   override fun close() {
     renderer.close()
     descriptor.close()
+  }
+
+  @RequiresApi(35)
+  private fun extractTextApi35(page: PdfRenderer.Page): PdfTextExtractionResult {
+    val contents = page.textContents.map { item ->
+      PdfTextContent(
+        text = item.text,
+        bounds = item.bounds.map { rect ->
+          PdfTextRect(
+            left = rect.left.toDouble(),
+            top = rect.top.toDouble(),
+            right = rect.right.toDouble(),
+            bottom = rect.bottom.toDouble(),
+          )
+        },
+      )
+    }
+    return PdfTextMapper.extract(page.width.toDouble(), page.height.toDouble(), contents)
   }
 
   companion object {

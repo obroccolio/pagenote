@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add API 35 native PDF text extraction with an explicit OCR fallback on Android 29–34, plus two-finger zoom/pan, fit-width, and reset controls in the Android reader. / 安卓阅读器新增 API 35 原生 PDF 文本抽取（Android 29–34 明确回退离线 OCR），并支持双指缩放/平移、适宽和重置视图。
+
 - Add Android port skeleton under `android/` (SPEC, Gradle modules, project/reader/notes/annotations/pen/OCR/agent) with unit tests; desktop builds ignore `android/`. / 新增安卓移植骨架（SPEC、Gradle 模块、项目/阅读/笔记/标注/笔迹/OCR/Agent）并附单测；桌面构建忽略 `android/`。
 
 - Match Android annotation validation to the desktop contract for shape points while preserving highlight rectangles. / 安卓标注校验对齐桌面契约，形状标注必须包含点坐标，同时保留荧光标注矩形格式。

@@ -15,6 +15,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -47,12 +49,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -79,6 +87,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
@@ -110,6 +119,17 @@ private data class ReaderProjectData(
   val penWritable: Boolean,
 )
 
+private data class PdfViewportBounds(
+  val viewportWidthPx: Float,
+  val viewportHeightPx: Float,
+  val pageWidthPx: Float,
+  val pageHeightPx: Float,
+) {
+  companion object {
+    val ZERO = PdfViewportBounds(0f, 0f, 0f, 0f)
+  }
+}
+
 @Composable
 private fun ReaderHome() {
   val context = LocalContext.current
@@ -118,6 +138,12 @@ private fun ReaderHome() {
   var renderer by remember { mutableStateOf<PdfDocumentSession?>(null) }
   var pageIndex by remember { mutableIntStateOf(0) }
   var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+  var viewportTransform by remember(project?.sourceUri, pageIndex) {
+    mutableStateOf(PdfViewportTransform.DEFAULT)
+  }
+  var viewportBounds by remember(project?.sourceUri, pageIndex) {
+    mutableStateOf(PdfViewportBounds.ZERO)
+  }
   var notesMarkdown by remember { mutableStateOf("") }
   var noteDraft by remember { mutableStateOf("") }
   var noteBaseRevision by remember { mutableStateOf(PageNotes.revision("")) }
@@ -144,6 +170,29 @@ private fun ReaderHome() {
   var errorMessage by remember { mutableStateOf<String?>(null) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
+
+  fun applyViewportZoom(zoomChange: Float) {
+    val bounds = viewportBounds
+    viewportTransform = PdfViewportTransform.applyGesture(
+      current = viewportTransform,
+      viewportWidthPx = bounds.viewportWidthPx,
+      viewportHeightPx = bounds.viewportHeightPx,
+      pageWidthPx = bounds.pageWidthPx,
+      pageHeightPx = bounds.pageHeightPx,
+      centroidX = bounds.viewportWidthPx / 2f,
+      centroidY = bounds.viewportHeightPx / 2f,
+      zoomChange = zoomChange,
+      panX = 0f,
+      panY = 0f,
+    )
+  }
+
+  fun fitViewportWidth() {
+    viewportTransform = PdfViewportTransform.fitWidth(
+      viewportWidthPx = viewportBounds.viewportWidthPx,
+      pageWidthPx = viewportBounds.pageWidthPx,
+    )
+  }
 
   suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
     val store = penStore ?: return
@@ -524,6 +573,19 @@ private fun ReaderHome() {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
+        TextButton(
+          onClick = { applyViewportZoom(0.8f) },
+          enabled = viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
+        ) { Text("−") }
+        Text("${(viewportTransform.scale * 100f).roundToInt()}%")
+        TextButton(
+          onClick = { applyViewportZoom(1.25f) },
+          enabled = viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
+        ) { Text("+") }
+        TextButton(onClick = ::fitViewportWidth) { Text("适宽") }
+        TextButton(onClick = { viewportTransform = PdfViewportTransform.DEFAULT }) {
+          Text("适页")
+        }
         listOf(
           PenCanvasTool.PEN to "笔",
           PenCanvasTool.HIGHLIGHTER to "荧光笔",
@@ -589,6 +651,9 @@ private fun ReaderHome() {
               inputEnabled = penWritable,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
+              transform = viewportTransform,
+              onTransformChanged = { viewportTransform = it },
+              onBoundsChanged = { viewportBounds = it },
               modifier = Modifier.weight(0.56f).fillMaxHeight(),
             )
             Box(
@@ -620,6 +685,9 @@ private fun ReaderHome() {
               inputEnabled = penWritable,
               onStrokeAdded = ::applyPenStroke,
               onStrokeErased = ::erasePenStroke,
+              transform = viewportTransform,
+              onTransformChanged = { viewportTransform = it },
+              onBoundsChanged = { viewportBounds = it },
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             Box(
@@ -677,9 +745,18 @@ private fun PdfPageViewport(
   inputEnabled: Boolean,
   onStrokeAdded: (PenStroke) -> Unit,
   onStrokeErased: (Int) -> Unit,
+  transform: PdfViewportTransform,
+  onTransformChanged: (PdfViewportTransform) -> Unit,
+  onBoundsChanged: (PdfViewportBounds) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+  val latestTransform by rememberUpdatedState(transform)
+  val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
+
+  BoxWithConstraints(
+    modifier = modifier.clipToBounds(),
+    contentAlignment = Alignment.Center,
+  ) {
     if (bitmap != null) {
       val pageAspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
       val viewportAspectRatio = maxWidth.value / maxHeight.value.coerceAtLeast(1f)
@@ -689,27 +766,89 @@ private fun PdfPageViewport(
         maxWidth
       }
       val contentHeight = contentWidth / pageAspectRatio
+      val density = LocalDensity.current
+      val bounds = with(density) {
+        PdfViewportBounds(
+          viewportWidthPx = maxWidth.toPx(),
+          viewportHeightPx = maxHeight.toPx(),
+          pageWidthPx = contentWidth.toPx(),
+          pageHeightPx = contentHeight.toPx(),
+        )
+      }
+      LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
+
       Box(
-        modifier = Modifier.width(contentWidth).height(contentHeight),
+        modifier = Modifier.fillMaxSize().pointerInput(page, bounds) {
+          awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            do {
+              val event = awaitPointerEvent()
+              val touchChanges = event.changes.filter {
+                it.type == PointerType.Touch && it.pressed && it.previousPressed
+              }
+              val pointers = touchChanges.map { change ->
+                PdfViewportPointer(change.id.value, change.position.x, change.position.y)
+              }
+              val previousPointers = touchChanges.map { change ->
+                PdfViewportPointer(
+                  change.id.value,
+                  change.previousPosition.x,
+                  change.previousPosition.y,
+                )
+              }
+              val gesture = PdfViewportTransform.calculateTwoPointerGesture(
+                previous = previousPointers,
+                current = pointers,
+              )
+              if (gesture != null) {
+                latestOnTransformChanged(
+                  PdfViewportTransform.applyGesture(
+                    current = latestTransform,
+                    viewportWidthPx = bounds.viewportWidthPx,
+                    viewportHeightPx = bounds.viewportHeightPx,
+                    pageWidthPx = bounds.pageWidthPx,
+                    pageHeightPx = bounds.pageHeightPx,
+                    centroidX = gesture.centroidX,
+                    centroidY = gesture.centroidY,
+                    zoomChange = gesture.zoomChange,
+                    panX = gesture.panX,
+                    panY = gesture.panY,
+                  ),
+                )
+                touchChanges.forEach { it.consume() }
+              }
+            } while (event.changes.any { it.pressed })
+          }
+        },
         contentAlignment = Alignment.Center,
       ) {
-        Image(
-          bitmap = bitmap.asImageBitmap(),
-          contentDescription = "$sourceName 第 ${page + 1} 页",
-          modifier = Modifier.fillMaxSize(),
-          contentScale = ContentScale.FillBounds,
-        )
-        AndroidView(
-          modifier = Modifier.fillMaxSize(),
-          factory = { viewContext -> PenCanvasView(viewContext) },
-          update = { view ->
-            view.strokes = strokes
-            view.selectedTool = tool
-            view.inputEnabled = inputEnabled
-            view.onStrokeAdded = onStrokeAdded
-            view.onStrokeErased = onStrokeErased
+        Box(
+          modifier = Modifier.width(contentWidth).height(contentHeight).graphicsLayer {
+            scaleX = transform.scale
+            scaleY = transform.scale
+            translationX = transform.translationX
+            translationY = transform.translationY
           },
-        )
+          contentAlignment = Alignment.Center,
+        ) {
+          Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "$sourceName 第 ${page + 1} 页",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds,
+          )
+          AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { viewContext -> PenCanvasView(viewContext) },
+            update = { view ->
+              view.strokes = strokes
+              view.selectedTool = tool
+              view.inputEnabled = inputEnabled
+              view.onStrokeAdded = onStrokeAdded
+              view.onStrokeErased = onStrokeErased
+            },
+          )
+        }
       }
     } else if (loading) {
       Text("正在读取页面…", style = MaterialTheme.typography.bodyLarge)
