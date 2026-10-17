@@ -48,7 +48,11 @@ object NotePreviewRewrite {
       val sourceStart = if (lineEnd < markdown.length) lineEnd + 1 else lineEnd
       val source = markdown.substring(sourceStart, close.lineStart).trimEnd('\r', '\n')
       when (language) {
-        "mermaid" -> appendMermaidQuote(out, source)
+        "mermaid" -> if (source.length <= MermaidSourceCodec.MAX_SOURCE_CHARS) {
+          appendMermaidImage(out, source)
+        } else {
+          appendCodeFence(out, markdown, cursor, close, info, marker)
+        }
         "math", "latex", "tex" -> appendLatexBlock(out, source)
         else -> appendCodeFence(out, markdown, cursor, close, info, marker)
       }
@@ -88,10 +92,14 @@ object NotePreviewRewrite {
     out.append(markdown, bodyStart, end)
   }
 
-  private fun appendMermaidQuote(out: StringBuilder, source: String) {
-    val state = if (source.isBlank()) "EMPTY" else "READY"
-    out.append("> Diagram source (").append(state).append(")\n>\n")
-    source.lines().forEach { out.append("> ").append(it).append('\n') }
+  private fun appendMermaidImage(out: StringBuilder, source: String) {
+    if (out.isNotEmpty() && !out.endsWith("\n\n")) {
+      if (!out.endsWith('\n')) out.append('\n')
+      out.append('\n')
+    }
+    out.append("![Mermaid diagram](")
+      .append(MermaidSourceCodec.encode(source))
+      .append(")\n\n")
   }
 
   private fun appendLatexBlock(out: StringBuilder, source: String) {

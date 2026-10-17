@@ -2545,8 +2545,12 @@ internal fun MarkdownSourcePane(
 ) {
   val context = LocalContext.current
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
-  val markwon = remember(context, sourceDirectoryUri, contentColorInt) {
-    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt)
+  val mermaidCoordinator = remember(context) { MermaidRenderCoordinator(context) }
+  DisposableEffect(mermaidCoordinator) {
+    onDispose { mermaidCoordinator.close() }
+  }
+  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator) {
+    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator)
   }
   val (previewText, truncated) = remember(markdown, page) {
     MarkdownSourcePages.previewPage(markdown, page)
@@ -2572,16 +2576,10 @@ internal fun MarkdownSourcePane(
       AndroidView(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp),
         factory = { viewContext ->
-          TextView(viewContext).apply {
-            textSize = 16f
-            gravity = Gravity.TOP or Gravity.START
-            setTextColor(contentColorInt)
-            setPadding(12, 10, 12, 10)
-          }
+          MermaidPreviewHost(viewContext, mermaidCoordinator, contentColorInt)
         },
-        update = { view ->
-          view.setTextColor(contentColorInt)
-          markwon.setMarkdown(view, rewritten)
+        update = { host ->
+          host.setMarkdown(markwon, rewritten, contentColorInt)
         },
       )
     }
@@ -2799,14 +2797,20 @@ private fun NotePanel(
 ) {
   val context = LocalContext.current
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
-  val markwon = remember(context, sourceDirectoryUri, contentColorInt) {
-    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt)
+  var preview by remember { mutableStateOf(false) }
+  val mermaidCoordinator = remember(context, preview) {
+    if (preview) MermaidRenderCoordinator(context) else null
+  }
+  DisposableEffect(mermaidCoordinator) {
+    onDispose { mermaidCoordinator?.close() }
+  }
+  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator) {
+    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator)
   }
   val markwonEditor = remember(context, sourceDirectoryUri, contentColorInt) {
     NoteMarkdownRenderer.createEditor(context, sourceDirectoryUri, contentColorInt)
   }
   val executor = remember { Executors.newSingleThreadExecutor() }
-  var preview by remember { mutableStateOf(false) }
   val outlineColor = MaterialTheme.colorScheme.outline.toArgb()
 
   DisposableEffect(executor) {
@@ -2870,16 +2874,14 @@ private fun NotePanel(
             AndroidView(
               modifier = Modifier.weight(1f).fillMaxWidth(),
               factory = { viewContext ->
-                TextView(viewContext).apply {
-                  textSize = 16f
-                  gravity = Gravity.TOP or Gravity.START
-                  setTextColor(contentColorInt)
-                  setPadding(12, 10, 12, 10)
-                }
+                MermaidPreviewHost(viewContext, requireNotNull(mermaidCoordinator), contentColorInt)
               },
-              update = { view ->
-                view.setTextColor(contentColorInt)
-                markwon.setMarkdown(view, NotePreviewRewrite.forPreview(previewMarkdown))
+              update = { host ->
+                host.setMarkdown(
+                  markwon,
+                  NotePreviewRewrite.forPreview(previewMarkdown),
+                  contentColorInt,
+                )
               },
             )
             if (isTruncated) {

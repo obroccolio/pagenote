@@ -7,16 +7,44 @@ import org.junit.Test
 
 class NotePreviewRewriteTest {
   @Test
-  fun mermaidFenceRewritesToQuoteWithoutDuplication() {
+  fun mermaidFenceRewritesToPrivateImageUriWithoutExposingSource() {
     val markdown = "# t\n\n```mermaid\ngraph A-->B\n```\n\nAfter\n"
 
     val rewritten = NotePreviewRewrite.forPreview(markdown)
 
     assertFalse(rewritten.contains("```mermaid"))
-    assertTrue(rewritten.contains("graph A-->B"))
-    assertTrue(rewritten.contains("Diagram source (READY)"))
-    // The source appears once: in the quote block, not as a second code fence.
-    assertEquals(1, rewritten.split("graph A-->B").size - 1)
+    assertFalse(rewritten.contains("graph A-->B"))
+    val uri = Regex("!\\[Mermaid diagram]\\((pagenote-mermaid:[^)]*)\\)")
+      .find(rewritten)?.groupValues?.get(1)
+    assertEquals("graph A-->B", MermaidSourceCodec.decode(uri ?: error("missing diagram URI")))
+    assertTrue(rewritten.startsWith("# t\n\n"))
+    assertTrue(rewritten.endsWith("\nAfter\n"))
+  }
+
+  @Test
+  fun adjacentAndEmptyMermaidFencesRemainDistinct() {
+    val rewritten = NotePreviewRewrite.forPreview("~~~mermaid\ngraph A-->B\n~~~\n\n```mermaid\n```\n")
+    val uris = Regex("!\\[Mermaid diagram]\\((pagenote-mermaid:[^)]*)\\)")
+      .findAll(rewritten).map { it.groupValues[1] }.toList()
+
+    assertEquals(listOf("graph A-->B", ""), uris.map(MermaidSourceCodec::decode))
+  }
+
+  @Test
+  fun mermaidLookingFenceInsideAnotherCodeBlockIsNotRewritten() {
+    val markdown = "```text\n```mermaid\ngraph A-->B\n```\n```\n"
+
+    assertEquals(markdown, NotePreviewRewrite.forPreview(markdown))
+  }
+
+  @Test
+  fun oversizedMermaidSourceStaysVisibleAsSourceInsteadOfBeingDropped() {
+    val source = "x".repeat(MermaidSourceCodec.MAX_SOURCE_CHARS + 1)
+    val markdown = "```mermaid\n$source\n```"
+
+    val rewritten = NotePreviewRewrite.forPreview(markdown)
+
+    assertEquals(markdown, rewritten)
   }
 
   @Test

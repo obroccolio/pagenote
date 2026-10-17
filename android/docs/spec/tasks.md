@@ -36,11 +36,11 @@
   - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
-- [ ] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；8 项 renderer 测试包含在 API 35 AVD 全套 42 项通过结果中；SAF 不可读流、公式/代码诊断、Mermaid 实际绘制仍待补，真机交互待 task 12）
+- [ ] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；Mermaid 已在 API 35 AVD 完成真实离线 SVG 绘制与源码/网络隔离测试；SAF 不可读流、公式/代码诊断仍待补，真机交互待 task 12）
   - [x] 富块透出与附件图已落地：Mermaid 源码单次出现并保留状态，附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`，未知语言与失败态不丢源码；契约见 `features/note-rich-render.md`。
   - [ ] 5.1 AVD 已验证 LaTeX drawable span 与 Prism 高亮 span；仍需验证实际公式绘制、无效公式/未闭合围栏诊断和多行代码跨度，且源码不丢。
   - [ ] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；AVD 已验证缺图、损坏内联图片警告及 HTTP/HTTPS 不连接。SAF 不可读流仍需可重复的仪器覆盖；所有外链阻断独立于 Agent 联网权限。
-  - [ ] 5.3 Mermaid 围栏由 APK 内离线 renderer 实际绘制；渲染错误显示状态并保留源码，专用 WebView 仅允许加载 APK 内资源且拦截外网。
+  - [x] 5.3 Mermaid 围栏由 APK 内固定 Mermaid/DOMPurify renderer 离线绘制；隐藏 WebView 仅加载白名单 APK 资源，SVG 转原生 Drawable；空/错误/超长源码、并发、JSON 安全传递与无网络由 Pixel Tablet API 35 AVD 验证。全量 JVM、56 项 AVD 仪器测试、四 ABI 构建和 16 KB ELF/ZIP 检查通过；真机交互待 task 12。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - _Requirement: 阅读与笔记_
 

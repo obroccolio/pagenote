@@ -158,6 +158,9 @@
   <string name="note_rich_code">代码（%1$s）</string>
   <string name="note_rich_code_plain">代码</string>
   <string name="note_rich_mermaid">图表源码（%1$s）</string>
+  <string name="note_rich_mermaid_empty">Mermaid 图表内容为空。</string>
+  <string name="note_rich_mermaid_loading">正在绘制 Mermaid 图表…</string>
+  <string name="note_rich_mermaid_error">Mermaid 图表无法渲染。源码：%1$s</string>
   <string name="note_rich_image_missing">图片缺失：%1$s</string>
   <string name="note_rich_image_decode_failed">图片无法解码：%1$s</string>
   <string name="note_rich_image_remote">外链图片（离线不加载）：%1$s</string>

@@ -158,6 +158,9 @@
   <string name="note_rich_code">Code (%1$s)</string>
   <string name="note_rich_code_plain">Code</string>
   <string name="note_rich_mermaid">Diagram source (%1$s)</string>
+  <string name="note_rich_mermaid_empty">Empty Mermaid diagram.</string>
+  <string name="note_rich_mermaid_loading">Rendering Mermaid diagram...</string>
+  <string name="note_rich_mermaid_error">Mermaid diagram could not render. Source: %1$s</string>
   <string name="note_rich_image_missing">Image unavailable: %1$s</string>
   <string name="note_rich_image_decode_failed">Image could not be decoded: %1$s</string>
   <string name="note_rich_image_remote">Remote image (not fetched offline): %1$s</string>

@@ -31,6 +31,7 @@ internal object NoteMarkdownRenderer {
     context: Context,
     sourceDirectoryUri: Uri?,
     textColor: Int,
+    mermaidCoordinator: MermaidRenderCoordinator? = null,
   ): Markwon {
     val displayMetrics = context.resources.displayMetrics
     val latexTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 16f, displayMetrics)
@@ -39,7 +40,7 @@ internal object NoteMarkdownRenderer {
     } else {
       Prism4jThemeDefault.create()
     }
-    return base(context, sourceDirectoryUri, textColor)
+    return base(context, sourceDirectoryUri, textColor, mermaidCoordinator)
       .usePlugin(MarkwonInlineParserPlugin.create())
       .usePlugin(
         JLatexMathPlugin.create(
@@ -55,7 +56,12 @@ internal object NoteMarkdownRenderer {
       .build()
   }
 
-  private fun base(context: Context, sourceDirectoryUri: Uri?, textColor: Int) =
+  private fun base(
+    context: Context,
+    sourceDirectoryUri: Uri?,
+    textColor: Int,
+    mermaidCoordinator: MermaidRenderCoordinator? = null,
+  ) =
     Markwon.builder(context)
       .usePlugin(TablePlugin.create(context))
       .usePlugin(
@@ -63,7 +69,24 @@ internal object NoteMarkdownRenderer {
           .addSchemeHandler(
             NoteAssetSchemeHandler(context, context.contentResolver, sourceDirectoryUri, textColor),
           )
+          .apply {
+            if (mermaidCoordinator != null) {
+              addSchemeHandler(MermaidImageSchemeHandler(context, mermaidCoordinator, textColor))
+              addMediaDecoder(MermaidSvgMediaDecoder(context) { mermaidCoordinator.renderWidthPx - 24 })
+            }
+          }
           .addSchemeHandler(OfflineRemoteImageSchemeHandler(context, textColor))
+          .placeholderProvider { drawable ->
+            if (Uri.parse(drawable.destination).scheme == MermaidSourceCodec.SCHEME) {
+              NoteImagePlaceholderDrawable(
+                context,
+                context.getString(R.string.note_rich_mermaid_loading),
+                textColor,
+              )
+            } else {
+              null
+            }
+          }
           .defaultMediaDecoder(NoteImageMediaDecoder(context, textColor))
           .errorHandler { destination, _ ->
             NoteImagePlaceholderDrawable(
