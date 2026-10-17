@@ -3,6 +3,8 @@ package io.pagenote.sharedtests
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.ProjectManifest
 import io.pagenote.core.project.ProjectValidation
+import io.pagenote.core.project.ProjectAssets
+import io.pagenote.core.project.ProjectStore
 import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PreparedCache
 import io.pagenote.core.reader.PreparedManifest
@@ -15,7 +17,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class ContractRegressionTest {
@@ -113,5 +117,57 @@ class ContractRegressionTest {
     PreparedManifestStore.validate(manifest)
     assertTrue(PreparedManifestStore.isHit(manifest, manifest.sourceRevision, manifest.cacheKey))
     PreparedCache.validateRegion(manifest.region)
+  }
+
+  @Test
+  fun assets_export_skips_missing_but_rewrites() {
+    val uploads = createTempDir("pagenote-assets-uploads")
+    val projectRoot = createTempDir("pagenote-assets-project")
+    val present = "123e4567-e89b-12d3-a456-426614174000.png"
+    File(uploads, present).writeBytes(byteArrayOf(1, 2, 3))
+    val text = fixture("asset-note.md").readText()
+
+    val exported = ProjectAssets.exportAttachments(text, uploads, projectRoot)
+
+    assertFalse(exported.contains("/attachments/"))
+    assertTrue(exported.contains("assets/$present"))
+    assertTrue(exported.contains("assets/123e4567-e89b-12d3-a456-426614174001.png"))
+    assertTrue(File(projectRoot, "src/assets/$present").exists())
+    assertFalse(File(projectRoot, "src/assets/123e4567-e89b-12d3-a456-426614174001.png").exists())
+  }
+
+  @Test
+  fun assets_import_skips_missing_but_rewrites() {
+    val uploads = createTempDir("pagenote-assets-uploads-in")
+    val projectRoot = createTempDir("pagenote-assets-project-in")
+    val present = "123e4567-e89b-12d3-a456-426614174000.png"
+    File(projectRoot, "src/assets").mkdirs()
+    File(projectRoot, "src/assets/$present").writeBytes(byteArrayOf(4, 5))
+    val text = "![a](assets/$present)\n\n![b](assets/123e4567-e89b-12d3-a456-426614174001.png)\n"
+
+    val imported = ProjectAssets.importAssets(text, projectRoot, uploads)
+
+    assertFalse(imported.contains("assets/$present"))
+    assertTrue(imported.contains("/attachments/$present"))
+    assertTrue(imported.contains("/attachments/123e4567-e89b-12d3-a456-426614174001.png"))
+    assertTrue(File(uploads, present).exists())
+    assertFalse(File(uploads, "123e4567-e89b-12d3-a456-426614174001.png").exists())
+  }
+
+  @Test
+  fun save_note_rejects_stale_expected_revision() {
+    val dir = createTempDir("pagenote-revision-conflict")
+    val right = File(dir, "right.md")
+    right.writeText(fixture("revision-conflict.md").readText(), Charsets.UTF_8)
+    val stale = PageNotes.revision(PageNotes.split(right.readText())[0])
+
+    ProjectStore.saveNote(right, 1, "# conflict p1 edited", stale)
+    assertEquals("# conflict p1 edited", ProjectStore.readNotes(right)[1])
+    try {
+      ProjectStore.saveNote(right, 1, "# stale overwrite", stale)
+      fail("expected conflict")
+    } catch (_: IllegalStateException) {
+    }
+    assertEquals("# conflict p1 edited", ProjectStore.readNotes(right)[1])
   }
 }

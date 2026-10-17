@@ -3,12 +3,12 @@
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
 
-# Implementation Plan
+-# Implementation Plan
 
-- [ ] 1. 跨端契约与测试夹具（部分：schemas 与分页/空页、标注、AI review、准备 manifest 契约回归已落地；shared-tests 尚缺 assets 和 `expectedRevision` 冲突用例）
+- [x] 1. 跨端契约与测试夹具（`ProjectAssets` 导出/导入往返与缺文件跳过、`saveNote` 过期 revision 冲突拒绝已由共享回归 pin 住，契约见 `features/shared-contract-assets-revision.md`）
   - [x] 在 `android/docs/spec/contracts/` 落 `project.schema.json`、`annotations.schema.json`、`ai-reviews.schema.json`、`prepared-manifest.schema.json` 与分页示例。
   - [x] 在 `android/shared-tests/` 覆盖分页、空页、标注和准备 manifest 的核心桌面语义。
-  - [ ] 补充 assets 与 `expectedRevision` 冲突的共享回归夹具和断言。
+  - [x] 补充 assets 与 `expectedRevision` 冲突的共享回归夹具和断言。
   - _Requirement: 项目与数据兼容，构建与测试_
 
 - [x] 2. 安卓工程骨架与构建隔离
