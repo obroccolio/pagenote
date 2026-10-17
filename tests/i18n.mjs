@@ -1,22 +1,30 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const root = path.resolve(import.meta.dirname, '..');
+const executable =
+  process.env.DESKTOP_EXE ||
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
+
 const profile = path.join(root, 'tests', 'i18n-data-' + Date.now());
 const launch = () =>
   electron.launch({
-    executablePath:
-      process.env.DESKTOP_EXE ||
-      path.join(root, 'node_modules/electron/dist/electron.exe'),
-    args: process.env.DESKTOP_EXE ? [] : [root],
+    executablePath: executable,
+    args: [root],
     env: { ...process.env, PAGE_NOTES_USER_DATA: profile },
   });
 let app = await launch();
 try {
   let w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLanguage('zh-CN'));
   await w
     .locator('#fileInput')
@@ -72,7 +80,7 @@ try {
   app = await launch();
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   assert.equal(await w.evaluate(() => window.pageNotes.getLanguage()), 'en-US');
   assert.equal(
     JSON.parse(

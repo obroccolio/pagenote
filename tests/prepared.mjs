@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -66,7 +67,12 @@ const hash = (value) => createHash('sha256').update(value).digest('hex');
 const app = await electron.launch({
   executablePath:
     process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
+    path.join(
+      root,
+      process.platform === 'darwin'
+        ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+        : 'node_modules/electron/dist/electron.exe',
+    ),
   args: process.env.DESKTOP_EXE ? [] : [root],
   env: {
     ...process.env,
@@ -81,7 +87,7 @@ try {
   const window = await app.firstWindow();
   window.setDefaultTimeout(40000);
   await window.waitForFunction(() => !!window.pageNotes);
-  await window.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(window);
   // Block all non-loopback renderer network requests during preparation.
   await app.context().route('**/*', (route) => {
     const u = new URL(route.request().url());

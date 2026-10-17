@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -10,11 +11,16 @@ const userData = path.join(root, 'tests', 'mcp-data-' + Date.now());
 await fs.mkdir(userData, { recursive: true });
 const executable =
   process.env.DESKTOP_EXE ||
-  path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
 const launch = () =>
   electron.launch({
     executablePath: executable,
-    args: process.env.DESKTOP_EXE ? [] : [root],
+    args: [root],
     env: { ...process.env, PAGE_NOTES_USER_DATA: userData },
     timeout: 40000,
   });
@@ -29,7 +35,7 @@ try {
   window.setDefaultTimeout(30000);
   await window.waitForSelector('#noteScroll');
   await window.waitForFunction(() => !!window.pageNotes);
-  await window.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(window);
   const descriptor = JSON.parse(
     await fs.readFile(path.join(userData, 'ai-connection.json'), 'utf8'),
   );
@@ -600,7 +606,7 @@ try {
   const restarted = await app.firstWindow();
   await restarted.waitForSelector('#noteScroll');
   await restarted.waitForFunction(() => !!window.pageNotes);
-  await restarted.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(restarted);
   const afterRestart = json(
     await client.callTool({
       name: 'page_notes_read_pages',

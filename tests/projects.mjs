@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -5,18 +6,24 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 const root = path.resolve(import.meta.dirname, '..'),
   profile = path.join(root, 'tests', 'project-' + Date.now()),
-  projectParent = path.join(profile, 'portable-projects');
-const app = await electron.launch({
-  executablePath:
+  projectParent = path.join(profile, 'portable-projects'),
+  executable =
     process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
-  args: process.env.DESKTOP_EXE ? [] : [root],
+    path.join(
+      root,
+      process.platform === 'darwin'
+        ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+        : 'node_modules/electron/dist/electron.exe',
+    );
+const app = await electron.launch({
+  executablePath: executable,
+  args: [root],
   env: { ...process.env, PAGE_NOTES_USER_DATA: profile },
 });
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLanguage('zh-CN'));
   await w.evaluate(() => window.pageNotes.menuAction('newProject'));
   await w.locator('#newName').fill('项目测试');

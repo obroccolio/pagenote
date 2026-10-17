@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -5,13 +6,19 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const root = path.resolve(import.meta.dirname, '..'),
-  folder = path.join(root, 'tests', `word-reviews-${Date.now()}`);
+  folder = path.join(root, 'tests', `word-reviews-${Date.now()}`),
+  executable =
+    process.env.DESKTOP_EXE ||
+    path.join(
+      root,
+      process.platform === 'darwin'
+        ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+        : 'node_modules/electron/dist/electron.exe',
+    );
 await fs.mkdir(folder, { recursive: true });
 const app = await electron.launch({
-  executablePath:
-    process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
-  args: process.env.DESKTOP_EXE ? [] : [root],
+  executablePath: executable,
+  args: [root],
   env: { ...process.env, PAGE_NOTES_USER_DATA: folder },
   timeout: 40000,
 });
@@ -19,7 +26,7 @@ try {
   const w = await app.firstWindow();
   w.on('pageerror', (e) => console.error('PAGE ERROR', e.message));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const chineseFile = path.join(folder, '中文编辑测试.docx');
   await fs.copyFile(path.join(root, 'tests/fixtures/sample.docx'), chineseFile);
   await w.locator('#fileInput').setInputFiles(chineseFile);
@@ -206,7 +213,7 @@ try {
   });
   assert.equal((await ai('read_ai_reviews')).records[1].status, 'applied');
   await w.reload();
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.locator('#aiReviewButton').click();
   assert.equal(await w.locator('.review-card').count(), 2);
   assert.ok((await w.locator('#preview').innerText()).includes('直观例子'));

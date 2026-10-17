@@ -1,3 +1,5 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
+import { useWebSettings } from './web-settings.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -10,7 +12,12 @@ const launch = () =>
   electron.launch({
     executablePath:
       process.env.DESKTOP_EXE ||
-      path.join(root, 'node_modules/electron/dist/electron.exe'),
+      path.join(
+        root,
+        process.platform === 'darwin'
+          ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+          : 'node_modules/electron/dist/electron.exe',
+      ),
     args: process.env.DESKTOP_EXE ? [] : [root],
     env: { ...process.env, PAGE_NOTES_USER_DATA: profile },
   });
@@ -19,7 +26,8 @@ let app = await launch(),
 try {
   let w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
+  await useWebSettings(app);
   await w.evaluate(() => window.pageNotes.openAISettings());
   const defaults = await w.locator('#aiSystemPrompt').inputValue();
   if (process.env.AI_SETTINGS_SCREENSHOT)
@@ -130,7 +138,8 @@ try {
   app = await launch();
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
+  await useWebSettings(app);
   await w.evaluate(() => window.pageNotes.openAISettings());
   assert.equal(await w.locator('#aiSystemPrompt').inputValue(), custom);
   await w.locator('#aiPromptReset').click();

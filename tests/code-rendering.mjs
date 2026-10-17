@@ -1,7 +1,17 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
+const executable =
+  process.env.DESKTOP_EXE ||
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
+
 const examples = [
   [
     'Java',
@@ -24,10 +34,8 @@ const markdown =
     .join('\n\n') +
   '\n\n```MERMAID\nflowchart LR\n A[Input] --> B[Output]\n```\n\nAfter all code blocks.';
 const app = await electron.launch({
-  executablePath:
-    process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
-  args: process.env.DESKTOP_EXE ? [] : [root],
+  executablePath: executable,
+  args: [root],
   env: {
     ...process.env,
     PAGE_NOTES_USER_DATA: path.join(
@@ -39,7 +47,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const remote = [];
   await w.context().route('**/*', (route) => {
     const u = new URL(route.request().url());
@@ -82,12 +90,10 @@ try {
       'After all code blocks.',
     ),
   );
-  const color = await blocks
-    .first()
-    .evaluate((el) => ({
-      plain: getComputedStyle(el).color,
-      keyword: getComputedStyle(el.querySelector('.hljs-keyword')).color,
-    }));
+  const color = await blocks.first().evaluate((el) => ({
+    plain: getComputedStyle(el).color,
+    keyword: getComputedStyle(el.querySelector('.hljs-keyword')).color,
+  }));
   assert.notEqual(color.plain, color.keyword);
   await w.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
   await w.locator('.note-pane .pane-heading').click();

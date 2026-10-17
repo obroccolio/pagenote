@@ -2,12 +2,36 @@
 
 ## Unreleased / 尚未发布
 
+- Fix both bottom status bars jumping upward while page notes render Mermaid diagrams. Keep temporary SVG measurements outside the window grid and clean them up after success or errors. Local arm64 builds advance to 1.0.1-dev.5; public downloads remain v1.0.0. / 修复翻页时笔记中的 Mermaid 图表导致页数、字数底部栏突然上移和下方闪出空白的问题；图表临时测量容器移出主布局，并在成功或失败后清理。本地 arm64 构建升级至 1.0.1-dev.5，公开下载仍为 v1.0.0。
+- Add continuous trackpad pinch zoom for complete document/note pages, pointer-anchored magnification, native two-axis inertial panning, and deferred sharp PDF rendering without rebuilding text or ink during a gesture. Fix zoom-related redundant layout rebuilds and keep Markdown line wrapping stable. Local arm64 builds advance to 1.0.1-dev.4; public downloads remain v1.0.0. / 新增触控板双指连续缩放整张文档与笔记页面，保持缩放中心，支持双向惯性平移；手势结束后补充清晰 PDF 渲染，保留文字与批注，修复缩放引发的重复布局重建，Markdown 缩放保持原有换行。本地 arm64 构建升级至 1.0.1-dev.4，公开下载仍为 v1.0.0。
+- Replace macOS settings with a native AppKit window, toolbar panes, system controls and native prompt editing; preserve existing settings, live updates and draft-aware quit. Ship an arm64 helper with local 1.0.1-dev.3 builds. / macOS 设置改为原生 AppKit 窗口，提供分类工具栏、系统控件与原生提示词编辑，沿用现有设置并即时生效，退出前处理未保存草稿；本地 1.0.1-dev.3 随包提供 arm64 原生组件。
+- Add an optional Paper / Serif Markdown reading theme with native Charter/Georgia and Chinese serif fonts, warm paper palettes for light/dark appearance, and matching hidden screenshots. Keep code/math fonts, original documents and stored Markdown intact. / 新增可选“纸页 · 衬线”Markdown 阅读主题，使用系统 Charter/Georgia 与中文宋体，提供深浅暖纸配色，截图同步主题；保留代码与公式字体、原文及 Markdown 内容。
+- Fix hidden screenshots of Markdown documents querying a missing PDF canvas. / 修复 Markdown 文档隐藏截图误读不存在的 PDF 画布而失败的问题。
+- Keep source Markdown ink attached to its text blocks across reading-theme changes, with legacy-ink recovery, saved anchors and stable move/undo behavior. / Markdown 原文批注随主题排版变化保持段落锚点，兼容旧批注，并保留拖动、撤销重做和重启后的位置。
+- Add system-following dark appearance with persistent System/Light/Dark choices; adapt native windows, reading/editing surfaces, controls and dialogs while preserving original PDF/image colors and light exports. / 新增跟随系统的深色模式，可记忆“跟随系统 / 浅色 / 深色”选择；适配原生窗口、阅读编辑区、工具与弹窗，PDF/图片保留原色，截图导出保持浅色。
+- Build and validate Apple Silicon (arm64) Mac application packages only by default; update packaging, CI and contributor guidance, using `release/mac-arm64/pagenote.app` as the local test entry. / 后续 Mac 应用默认仅构建和验证 Apple Silicon（arm64）版本，同步打包脚本、CI 与协作说明，以 `release/mac-arm64/pagenote.app` 作为本地固定测试入口。
+- Add a lightweight, colorful SVG handwriting welcome on first launch; dismiss once to remember, and replay from Help. Includes keyboard access, reduced-motion support and screenshot-window exclusion. / 首次启动新增轻量彩色 SVG 手写 Hello 欢迎页，关闭后记忆，可从帮助菜单或使用说明重放；支持键盘、减少动态效果，截图窗口不显示。
+- Begin local 1.0.1 development; public downloads remain on v1.0.0. / 开始本地 1.0.1 开发，公开下载仍为 v1.0.0。
+- Store welcome dismissal in the application profile so it survives server-port changes; hide upcoming stroke caps until writing starts. / 欢迎页关闭状态保存到应用数据目录，换端口后仍能记忆；修复尚未书写的笔画提前露出圆点。
+
+## 1.0.0 — 2026-10-16 (macOS)
+
+- First stable release for macOS (Apple Silicon and Intel): native Finder/Dock/menus, Word/PowerPoint integration with revision-checked edits, offline Chinese/English OCR, page-linked notes and MCP bridge. / macOS 首个正式版（Apple Silicon 与 Intel）：原生 Finder/Dock/菜单、Word/PPT 接入与版本校验编辑、离线中英文 OCR、逐页笔记与 MCP 接口。
+- Ships DMG and ZIP for arm64 and x64 with SHA256 checksums. / 提供 arm64 与 x64 的 DMG 和 ZIP，附 SHA256 校验值。
+
+- Adapt the beta.5 release tooling for macOS: route desktop packaging through a cache-aware wrapper, add version-consistency checks to both release jobs, and keep Mac menus/packaging coverage. / 适配 beta.5 发布流程：打包走缓存脚本、两条发布流水线接入版本检查，保留 Mac 菜单与打包覆盖。
+
 ## 2.0.0-beta.5 — 2026-10-16
 
 - Use a project-local packaging cache by default to avoid cross-device rename failures in redirected Windows profiles. / 打包默认使用项目内缓存，避免 Windows 用户目录被重定向时发生跨盘重命名失败。
 
 - Publish beta.5 installer, complete Windows ZIP, source archive and checksums together; align download links and enforce package/lock/tag/changelog consistency. / 统一发布 beta.5 安装包、完整 Windows ZIP、源码和校验值，同步下载入口，并增加版本、锁文件、标签与更新日志一致性检查。
 
+- Update the native-menu test to match the current page-tutor wording after the upstream prompt rewrite. / 菜单测试已跟随上游逐页精讲新文案更新。
+
+- Restore native macOS Finder/Dock/window/menu behavior, including save-before-hide, explicit quit, Command editing shortcuts and Backspace annotation deletion. / 恢复 macOS Finder、Dock、窗口与原生菜单操作，包括关闭前保存、退出、Command 快捷键和 Backspace 删除批注。
+- Connect macOS Word/PowerPoint conversion, project refresh and revision-checked Word edits; render Word screenshots from temporary PDFs without replacing committed previews. / 接入 macOS Word/PPT 转换、项目刷新和版本校验的 Word 编辑；Word 截图使用临时 PDF，不覆盖已保存预览。
+- Build universal MCP Node runtimes for Apple Silicon and Intel, and retain OCR native dependencies and licenses in both Mac and Windows packaging. / 为 Apple Silicon 与 Intel 构建通用 MCP 运行时，Mac 与 Windows 软件包均保留 OCR 原生依赖和许可。
 - Add a versioned prompt index with task routes for initial teaching, AI Tag edits and ordinary editing; customize individual modules in AI settings. Recommend resource-capped parallel page requests using adjacent source pages, without mandatory handoff waits. Add local Markdown/math/Mermaid/image preflight before saving. / 新增统一提示词索引及初始讲解、AI Tag 修改等任务路由；AI 设置可分别编辑模块，按版本增量读取。逐页采用受资源限制的并发建议与相邻源页上下文，不再等待上一页交接；新增保存前本地格式和附件预检。
 
 - Render multiline display formulas next to prose even when their delimiter lines have no surrounding blank paragraphs. / 修复独立公式虽已分行、但与正文之间缺少空行时仍显示为反斜杠文本的问题。

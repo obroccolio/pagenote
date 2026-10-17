@@ -1,14 +1,21 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const root = path.resolve(import.meta.dirname, '..'),
-  profile = path.join(root, 'tests', `rich-data-${Date.now()}`);
-const app = await electron.launch({
-  executablePath:
+  profile = path.join(root, 'tests', `rich-data-${Date.now()}`),
+  executable =
     process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
-  args: process.env.DESKTOP_EXE ? [] : [root],
+    path.join(
+      root,
+      process.platform === 'darwin'
+        ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+        : 'node_modules/electron/dist/electron.exe',
+    );
+const app = await electron.launch({
+  executablePath: executable,
+  args: [root],
   env: { ...process.env, PAGE_NOTES_USER_DATA: profile },
   timeout: 40000,
 });
@@ -23,7 +30,7 @@ try {
   };
   w.on('pageerror', (e) => console.error(e.message));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
@@ -154,7 +161,7 @@ try {
   assert.ok(state.markdown.includes('```mermaid'));
   assert.ok(state.markdown.includes('表格内容'));
   await w.reload();
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#preview .diagram-ready')
     .waitFor({ timeout: 10000 })

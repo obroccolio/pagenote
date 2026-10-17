@@ -5,6 +5,8 @@ const {
   dialog,
   shell,
   clipboard,
+  nativeTheme,
+  ipcMain,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -21,24 +23,43 @@ let server,
   win,
   controller,
   word,
+  macSettings,
   connectionFile,
-  closing = false;
+  closing = false,
+  quitting = false,
+  finishWindowClose;
+const isMac = process.platform === 'darwin';
+function showMainWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
 app.setName('pagenote');
 app.setAppUserModelId('io.pagenote.desktop');
 if (process.env.PAGE_NOTES_USER_DATA)
   app.setPath('userData', process.env.PAGE_NOTES_USER_DATA);
 const projectLauncher = createProjectLauncher({
-  open: (file) =>
-    win.webContents.executeJavaScript(
+  open: async (file) => {
+    showMainWindow();
+    await win.webContents.executeJavaScript(
       'window.pageNotes.ready.then(()=>window.pageNotes.openProject(' +
         JSON.stringify(file) +
         '))',
-    ),
+    );
+    showMainWindow();
+  },
   onError: (error, file) =>
     dialog.showErrorBox(
       'pagenote · Open project / 打开项目失败',
       file + '\n\n' + (error.message || String(error)),
     ),
+});
+// Finder can deliver a file before whenReady() and before a window exists.
+app.on('open-file', (event, file) => {
+  event.preventDefault();
+  projectLauncher.enqueue(file);
+  showMainWindow();
 });
 projectLauncher.enqueue(projectArgument(process.argv));
 if (!app.requestSingleInstanceLock()) {
@@ -46,12 +67,9 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_event, argv, workingDirectory) => {
     projectLauncher.enqueue(projectArgument(argv, workingDirectory));
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-    }
+    showMainWindow();
   });
+  app.on('activate', showMainWindow);
   app
     .whenReady()
     .then(async () => {
@@ -86,6 +104,16 @@ if (!app.requestSingleInstanceLock()) {
             .catch(() => {});
         }
       }
+      if (app.isPackaged && isMac) {
+        process.env.PAGE_NOTES_MAC_OFFICE_SCRIPT = path.join(
+          process.resourcesPath,
+          'mac-office.applescript',
+        );
+        process.env.PAGE_NOTES_MAC_POWERPOINT_SCRIPT = path.join(
+          process.resourcesPath,
+          'mac-powerpoint.applescript',
+        );
+      }
       const backend = await import(
         pathToFileURL(path.join(app.getAppPath(), 'server.mjs')).href
       );
@@ -96,6 +124,14 @@ if (!app.requestSingleInstanceLock()) {
         server = await backend.startServer(0);
       }
       const url = `http://127.0.0.1:${server.address().port}`;
+      const initialPreferences = await backend
+        .readPreferences()
+        .catch(() => ({}));
+      nativeTheme.themeSource = ['system', 'light', 'dark'].includes(
+        initialPreferences.theme,
+      )
+        ? initialPreferences.theme
+        : 'system';
       const mcpFolder = path.join(app.getPath('userData'), 'mcp');
       await fs.mkdir(mcpFolder, { recursive: true });
       const tutorFolder = path.join(
@@ -141,14 +177,16 @@ if (!app.requestSingleInstanceLock()) {
         { mode: 0o600 },
       );
       let nodeCommand = 'node';
-      try {
-        nodeCommand = execFileSync('where.exe', ['node.exe'], {
-          encoding: 'utf8',
-          windowsHide: true,
-        })
-          .trim()
-          .split(/\r?\n/)[0];
-      } catch {}
+      if (process.platform === 'win32') {
+        try {
+          nodeCommand = execFileSync('where.exe', ['node.exe'], {
+            encoding: 'utf8',
+            windowsHide: true,
+          })
+            .trim()
+            .split(/\r?\n/)[0];
+        } catch {}
+      }
       if (app.isPackaged) {
         const runtime = JSON.parse(
           await fs.readFile(
@@ -156,14 +194,36 @@ if (!app.requestSingleInstanceLock()) {
             'utf8',
           ),
         );
-        nodeCommand = path.join(mcpFolder, `node-${runtime.version}.exe`);
+        // Older bundles recorded a bare "node" that was never the resource
+        // name, so probe every name a runtime has shipped under.
+        const candidates = [
+          runtime.executable,
+          process.platform === 'win32' ? 'mcp-node.exe' : 'mcp-node',
+          process.platform === 'win32' ? 'node.exe' : 'node',
+        ].filter(Boolean);
+        let bundled;
+        for (const candidate of candidates) {
+          try {
+            await fs.access(path.join(process.resourcesPath, candidate));
+            bundled = candidate;
+            break;
+          } catch {}
+        }
+        if (!bundled)
+          throw Error('打包内缺少 MCP 运行时：' + candidates.join(' / '));
+        nodeCommand = path.join(
+          mcpFolder,
+          `node-${runtime.version}${isMac && runtime.architectures?.length > 1 ? '-universal' : ''}${path.extname(bundled)}`,
+        );
         try {
           await fs.access(nodeCommand);
         } catch {
           await fs.copyFile(
-            path.join(process.resourcesPath, 'mcp-node.exe'),
+            path.join(process.resourcesPath, bundled),
             nodeCommand,
           );
+          // macOS strips the execute bit when copying out of resources.
+          if (process.platform !== 'win32') await fs.chmod(nodeCommand, 0o755);
         }
         await fs.copyFile(
           path.join(process.resourcesPath, 'NODE-LICENSE.txt'),
@@ -186,9 +246,12 @@ if (!app.requestSingleInstanceLock()) {
         height: 960,
         minWidth: 900,
         minHeight: 620,
-        backgroundColor: '#f5f8fc',
+        backgroundColor: nativeTheme.shouldUseDarkColors
+          ? '#17191d'
+          : '#f5f8fc',
         show: false,
         webPreferences: {
+          preload: path.join(__dirname, 'preload.cjs'),
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
@@ -196,6 +259,12 @@ if (!app.requestSingleInstanceLock()) {
         },
       });
       win.webContents.setVisualZoomLevelLimits(1, 1);
+      nativeTheme.on('updated', () => {
+        if (!win.isDestroyed())
+          win.setBackgroundColor(
+            nativeTheme.shouldUseDarkColors ? '#17191d' : '#f5f8fc',
+          );
+      });
       word = require('./word.cjs').createWordHost({
         win,
         data,
@@ -226,6 +295,70 @@ if (!app.requestSingleInstanceLock()) {
         word,
       });
       backend.setAIHandler((body) => controller.call(body));
+      if (isMac) {
+        const api = async (route, options) => {
+          const response = await fetch(url + route, options);
+          const result = await response.json();
+          if (!response.ok)
+            throw Error(result.error || 'Settings request failed');
+          return result;
+        };
+        macSettings = require('./mac-settings.cjs').createMacSettings({
+          executable: path.join(
+            app.isPackaged
+              ? process.resourcesPath
+              : path.join(app.getAppPath(), 'build/mac-settings'),
+            'pagenote Settings.app/Contents/MacOS/pagenote-settings',
+          ),
+          paneFile: path.join(app.getPath('userData'), 'settings-window.json'),
+          readState: async () => ({
+            ...(await win.webContents.executeJavaScript(
+              'window.pageNotes.ready.then(()=>window.pageNotes.getSettingsState())',
+            )),
+            version: app.getVersion(),
+          }),
+          applySetting: (key, value) =>
+            win.webContents.executeJavaScript(
+              `window.pageNotes.applySetting(${JSON.stringify(key)},${JSON.stringify(value)})`,
+            ),
+          readPrompt: async (module) => {
+            if (module !== 'system') return api('/api/ai-prompts/' + module);
+            const result = await api('/api/ai-settings');
+            return {
+              text: result.systemPrompt,
+              defaultText: result.defaultSystemPrompt,
+            };
+          },
+          savePrompt: (module, text) =>
+            api(
+              module === 'system'
+                ? '/api/ai-settings'
+                : '/api/ai-prompts/' + module,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(
+                  module === 'system' ? { systemPrompt: text } : { text },
+                ),
+              },
+            ),
+          onQuit: () => app.quit(),
+          onClosed: () => {
+            if (!quitting && !closing) showMainWindow();
+          },
+          onError: (error) =>
+            dialog.showErrorBox('pagenote · Settings', error.message),
+        });
+      }
+      ipcMain.handle('pagenote:settings-open', (event, pane) => {
+        if (event.sender !== win.webContents)
+          throw Error('Invalid settings sender');
+        return macSettings ? macSettings.open(pane) : { native: false };
+      });
+      ipcMain.on('pagenote:settings-sync', (event) => {
+        if (event.sender === win?.webContents)
+          macSettings?.sync().catch(() => {});
+      });
       win.webContents.setWindowOpenHandler(({ url: target }) => {
         if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
         return { action: 'deny' };
@@ -236,15 +369,31 @@ if (!app.requestSingleInstanceLock()) {
           if (/^https?:/i.test(target)) shell.openExternal(target);
         }
       });
-      win.on('close', (event) => {
-        if (closing) return;
-        event.preventDefault();
-        win.webContents
-          .executeJavaScript('window.pageNotes.finishEditing()')
-          .then(() => {
-            closing = true;
-            win.close();
-          })
+      let closePending;
+      const completeClose = async () => {
+        // A normal close can become Quit while note flushing is pending.
+        // Consult native drafts at the last asynchronous boundary before exit.
+        if (quitting && macSettings && !(await macSettings.prepareQuit())) {
+          quitting = false;
+          return;
+        }
+        if (quitting) {
+          closing = true;
+          app.quit();
+        } else if (isMac) win.hide();
+        else {
+          closing = true;
+          win.close();
+        }
+      };
+      finishWindowClose = () => {
+        if (closePending) return closePending;
+        closePending = (async () => {
+          await win.webContents.executeJavaScript(
+            'window.pageNotes?.finishEditing?.()',
+          );
+          await completeClose();
+        })()
           .catch(async () => {
             const result = await dialog.showMessageBox(win, {
               type: 'warning',
@@ -254,12 +403,57 @@ if (!app.requestSingleInstanceLock()) {
               message: translate('笔记尚未保存成功'),
               detail: translate('建议继续编辑并重试保存。恢复副本仍会保留。'),
             });
-            if (result.response === 1) {
-              closing = true;
-              win.close();
-            }
+            if (result.response === 1) await completeClose();
+            else quitting = false;
+          })
+          .finally(() => {
+            closePending = null;
           });
+        return closePending;
+      };
+      win.on('close', (event) => {
+        if (closing) return;
+        event.preventDefault();
+        finishWindowClose();
       });
+      async function editCommand(command) {
+        const target = BrowserWindow.getFocusedWindow() || win;
+        if (!target || target.isDestroyed()) return;
+        const contents = target.webContents;
+        const handled =
+          target === win &&
+          (await contents
+            .executeJavaScript(
+              `(() => {
+          const active = document.activeElement;
+          const input = active?.closest('input,textarea');
+          if (input || (active?.isContentEditable && window.pageNotes?.getAnnotations?.().active)) return false;
+          return window.pageNotes?.editCommand?.(${JSON.stringify(command)}) || false;
+        })()`,
+            )
+            .catch(() => false));
+        if (!handled && !contents.isDestroyed()) contents[command]?.();
+      }
+      if (isMac)
+        win.webContents.on('before-input-event', (event, input) => {
+          if (
+            input.type !== 'keyDown' ||
+            !input.meta ||
+            input.alt ||
+            input.control
+          )
+            return;
+          const key = input.key.toLowerCase();
+          const command =
+            key === 'z'
+              ? input.shift
+                ? 'redo'
+                : 'undo'
+              : !input.shift && { x: 'cut', c: 'copy', v: 'paste' }[key];
+          if (!command) return;
+          event.preventDefault();
+          editCommand(command).catch(() => {});
+        });
       const catalog = require('../locales/catalog.json');
       let locale = app.getLocale().startsWith('zh') ? 'zh-CN' : 'en-US';
       try {
@@ -282,6 +476,34 @@ if (!app.requestSingleInstanceLock()) {
         Menu.setApplicationMenu(
           Menu.buildFromTemplate(
             localize([
+              ...(isMac
+                ? [
+                    {
+                      role: 'appMenu',
+                      label: app.name,
+                      submenu: [
+                        { role: 'about' },
+                        { type: 'separator' },
+                        {
+                          label: '设置',
+                          accelerator: 'CmdOrCtrl+,',
+                          click: () =>
+                            win.webContents.executeJavaScript(
+                              'window.pageNotes.openSettings()',
+                            ),
+                        },
+                        { type: 'separator' },
+                        { role: 'services' },
+                        { type: 'separator' },
+                        { role: 'hide' },
+                        { role: 'hideOthers' },
+                        { role: 'unhide' },
+                        { type: 'separator' },
+                        { role: 'quit' },
+                      ],
+                    },
+                  ]
+                : []),
               {
                 label: '文件',
                 submenu: [
@@ -349,12 +571,33 @@ if (!app.requestSingleInstanceLock()) {
                     click: () => shell.openPath(data),
                   },
                   { type: 'separator' },
-                  { role: 'quit', label: '退出' },
+                  ...(isMac
+                    ? [{ role: 'close' }]
+                    : [{ role: 'quit', label: '退出' }]),
                 ],
               },
               {
                 label: '编辑',
+                role: isMac ? 'editMenu' : undefined,
                 submenu: [
+                  ...(isMac
+                    ? [
+                        ...[
+                          ['undo', '撤销', 'Undo', 'CmdOrCtrl+Z'],
+                          ['redo', '重做', 'Redo', 'CmdOrCtrl+Shift+Z'],
+                          ['cut', '剪切', 'Cut', 'CmdOrCtrl+X'],
+                          ['copy', '复制', 'Copy', 'CmdOrCtrl+C'],
+                          ['paste', '粘贴', 'Paste', 'CmdOrCtrl+V'],
+                        ].map(([command, zh, en, accelerator]) => ({
+                          id: 'edit-' + command,
+                          label: locale === 'en-US' ? en : zh,
+                          accelerator,
+                          click: () => editCommand(command).catch(() => {}),
+                        })),
+                        { role: 'selectAll' },
+                        { type: 'separator' },
+                      ]
+                    : []),
                   {
                     label: '文件编辑',
                     click: () =>
@@ -535,7 +778,7 @@ if (!app.requestSingleInstanceLock()) {
                     label: '设置',
                     click: () =>
                       win.webContents.executeJavaScript(
-                        'document.getElementById("settings").showModal()',
+                        'window.pageNotes.openSettings()',
                       ),
                   },
                   {
@@ -547,9 +790,29 @@ if (!app.requestSingleInstanceLock()) {
                   },
                 ],
               },
+              ...(isMac
+                ? [
+                    {
+                      role: 'windowMenu',
+                      submenu: [
+                        { role: 'minimize' },
+                        { role: 'zoom' },
+                        { type: 'separator' },
+                        { role: 'front' },
+                      ],
+                    },
+                  ]
+                : []),
               {
                 label: '帮助',
                 submenu: [
+                  {
+                    label: '欢迎页',
+                    click: () =>
+                      win.webContents.executeJavaScript(
+                        'window.pageNotes?.showWelcome()',
+                      ),
+                  },
                   {
                     label: '使用说明',
                     click: () =>
@@ -576,27 +839,40 @@ if (!app.requestSingleInstanceLock()) {
       }
       buildMenu();
       backend.setPreferenceHandler(async (preferences) => {
-        locale = preferences.language;
+        if (['zh-CN', 'en-US'].includes(preferences.language))
+          locale = preferences.language;
+        nativeTheme.themeSource = ['system', 'light', 'dark'].includes(
+          preferences.theme,
+        )
+          ? preferences.theme
+          : 'system';
         buildMenu();
       });
       await win.loadURL(url);
       win.show();
       await projectLauncher.ready();
       win.on('closed', () => {
-        controller?.dispose();
-        server?.close();
-        app.quit();
+        win = null;
+        if (!isMac || quitting || closing) app.quit();
       });
     })
     .catch((e) => {
       dialog.showErrorBox('pagenote启动失败', e.stack || e.message);
+      closing = true;
       app.quit();
     });
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (closing || !win || win.isDestroyed() || !finishWindowClose) return;
+    event.preventDefault();
+    quitting = true;
+    finishWindowClose();
+  });
+  app.on('will-quit', () => {
+    macSettings?.dispose();
     controller?.dispose();
+    server?.close();
   });
   app.on('window-all-closed', () => {
-    server?.close();
-    app.quit();
+    if (!isMac) app.quit();
   });
 }

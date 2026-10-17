@@ -1,12 +1,20 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 const root = path.resolve(import.meta.dirname, '..');
+const executable =
+  process.env.DESKTOP_EXE ||
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
+
 const app = await electron.launch({
-  executablePath:
-    process.env.DESKTOP_EXE ||
-    path.join(root, 'node_modules/electron/dist/electron.exe'),
-  args: process.env.DESKTOP_EXE ? [] : [root],
+  executablePath: executable,
+  args: [root],
   env: {
     ...process.env,
     PAGE_NOTES_USER_DATA: path.join(root, 'tests', 'box-tag-' + Date.now()),
@@ -15,7 +23,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));

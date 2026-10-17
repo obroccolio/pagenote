@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,14 +19,21 @@ async function fixture(name) {
 }
 const first = await fixture('first project 中文');
 const second = await fixture('second project 中文');
-const executablePath = process.env.DESKTOP_EXE || path.join(root, 'node_modules/electron/dist/electron.exe');
-const prefix = process.env.DESKTOP_EXE ? [] : [root];
+const executablePath =
+  process.env.DESKTOP_EXE ||
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
+const prefix = [root];
 const env = { ...process.env, PAGE_NOTES_USER_DATA: profile };
 const app = await electron.launch({ executablePath, args: [...prefix, first], env });
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   async function waitProject(file) {
     const deadline=Date.now()+20000;
     while(Date.now()<deadline) {
@@ -36,12 +44,17 @@ try {
     throw Error('Project did not open: '+file);
   }
   await waitProject(first);
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].hide());
+  await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    win.minimize();
+    win.hide();
+  });
   const child = spawn(executablePath, [...prefix, second], { env, windowsHide: true, stdio: 'ignore' });
   await new Promise((resolve, reject) => { child.once('error', reject); child.once('exit', resolve); });
   const state = await waitProject(second);
   assert.equal(state.document.projectFile, second);
   assert.ok(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), 'file activation shows a hidden window');
+  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMinimized()), false, 'file activation restores a minimized window');
   assert.equal((await app.windows()).length, 1);
   console.log('PASS actual command-line cold open and second-instance project open (spaces and Chinese paths)');
 } finally { await app.close(); }
