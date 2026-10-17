@@ -175,6 +175,13 @@
   <string name="ocr_block_confidence">Confidence %1$d%% · position x=%2$d‰ y=%3$d‰ width=%4$d‰ height=%5$d‰</string>
   <string name="close">Close</string>
   <string name="note_edit">Edit</string>
+  <string name="agent_task_title">Agent task: page %1$d</string>
+  <string name="agent_task_instruction">Task instruction</string>
+  <string name="agent_task_run">Run task</string>
+  <string name="agent_task_running">Running the agent task…</string>
+  <string name="agent_task_done">Completed: %1$s; updated: %2$s.</string>
+  <string name="agent_task_failed">Task incomplete: %1$s</string>
+  <string name="agent_task_action">Agent task</string>
   <string name="note_preview">Preview</string>
   <string name="markdown_source_empty">This source page is empty. Notes on this page can still be edited and saved.</string>
   <string name="markdown_source_truncated">This source page was truncated for preview. The original file is unchanged.</string>

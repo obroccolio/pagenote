@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Run single-page Android agent tasks from the reader with live project tools and true completion scope. / 安卓阅读器可执行单页 Agent 任务：接真实项目工具并报告真实完成范围。
+
 - Read Markdown-source pagenote projects on Android with paged Markwon preview aligned to note pages and PDF-only actions disabled. / 安卓支持 Markdown 源项目阅读：按页 Markwon 预览与笔记页对齐，PDF 专属入口禁用。
 
 - Wire Android agent write tools with mandatory revision guards and updated-page reporting. / 安卓 Agent 接入写工具：强制 revision 保护并报告实际修改页。

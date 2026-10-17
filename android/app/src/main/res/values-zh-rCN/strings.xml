@@ -175,6 +175,13 @@
   <string name="ocr_block_confidence">置信度 %1$d%% · 位置 x=%2$d‰ y=%3$d‰ 宽=%4$d‰ 高=%5$d‰</string>
   <string name="close">关闭</string>
   <string name="note_edit">编辑</string>
+  <string name="agent_task_title">Agent 任务：第 %1$d 页</string>
+  <string name="agent_task_instruction">任务指令</string>
+  <string name="agent_task_run">执行任务</string>
+  <string name="agent_task_running">正在执行 Agent 任务…</string>
+  <string name="agent_task_done">完成页：%1$s；修改页：%2$s。</string>
+  <string name="agent_task_failed">任务未完成：%1$s</string>
+  <string name="agent_task_action">Agent 任务</string>
   <string name="note_preview">预览</string>
   <string name="markdown_source_empty">这一源页面为空，本页笔记仍可编辑保存。</string>
   <string name="markdown_source_truncated">该源页面过长，仅预览前部内容，源文件未改动。</string>

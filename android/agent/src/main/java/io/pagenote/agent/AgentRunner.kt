@@ -22,6 +22,7 @@ class AgentRunner(
     task: AgentTask,
     endpoint: ModelEndpoint,
     messages: List<Map<String, String>>,
+    dispatcher: ToolDispatcher? = null,
   ): AgentEvent {
     AgentLoop.validate(task)
     // 缺 key / 缺模型 / 缺地址：直接抛 MissingModelConfigException，不 fallback。
@@ -63,7 +64,7 @@ class AgentRunner(
           history.add(mapOf("role" to "user", "content" to "continue"))
         }
         is StepDecision.UseTool -> {
-          val result = tools.dispatch(decision.request)
+          val result = (dispatcher ?: tools).dispatch(decision.request)
           val touched = decision.touchedPage ?: result.touchedPage
           if (touched != null) completedPages.add(touched)
           if (result.updatedPage != null) updatedPages.add(result.updatedPage)

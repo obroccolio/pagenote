@@ -92,6 +92,9 @@ import io.pagenote.agent.PageRequest
 import io.pagenote.agent.PageTutor
 import io.pagenote.agent.PageTutorRequest
 import io.pagenote.agent.PageTutorResult
+import io.pagenote.agent.AgentEvent
+import io.pagenote.agent.AgentRunner
+import io.pagenote.agent.LocalToolDispatcher
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
 import io.pagenote.feature.notes.NotePage
@@ -257,6 +260,12 @@ private fun ReaderHome(
   var pageTutorResultInstruction by remember { mutableStateOf<String?>(null) }
   var pageTutorError by remember { mutableStateOf<String?>(null) }
   var isPageTutorRunning by remember { mutableStateOf(false) }
+  val agentRunner = remember { AgentRunner(OkHttpChatClient()) }
+  var showAgentTask by remember { mutableStateOf(false) }
+  var agentInstruction by remember { mutableStateOf("") }
+  var agentEvent by remember { mutableStateOf<AgentEvent?>(null) }
+  var agentError by remember { mutableStateOf<String?>(null) }
+  var isAgentRunning by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
   val isPenSaving = pendingPenSaves > 0
@@ -750,6 +759,104 @@ private fun ReaderHome(
     }
   }
 
+  fun runAgentTask(instruction: String) {
+    val activeProject = project ?: return
+    val targetPageIndex = pageIndex
+    val activeMarkdown = markdownSource
+    val activeRenderer = renderer
+    if (activeRenderer == null && activeMarkdown == null) return
+    scope.launch {
+      agentInstruction = instruction
+      isAgentRunning = true
+      agentError = null
+      agentEvent = null
+      try {
+        val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
+        if (hasUnsavedChanges && !saveCurrentNote()) {
+          agentError = noteStatus ?: context.getString(R.string.note_save_failed, "")
+          return@launch
+        }
+        val currentNote = noteDraft
+        val expectedRevision = noteBaseRevision
+        val totalPages = if (activeMarkdown != null) {
+          MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
+        } else {
+          activeRenderer!!.pageCount
+        }
+        val sourceText = if (activeMarkdown != null) {
+          MarkdownSourcePages.pageAt(activeMarkdown, targetPageIndex + 1)
+        } else {
+          val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(targetPageIndex) }
+          native.fullText
+        }
+        if (sourceText.isBlank()) {
+          throw PageTutorSourceException(context.getString(R.string.page_tutor_source_failed))
+        }
+        val neighbors = if (activeMarkdown != null) {
+          listOf(targetPageIndex - 1, targetPageIndex + 1)
+            .filter { it in 0 until totalPages }
+            .mapNotNull { neighborIndex ->
+              val text = MarkdownSourcePages.pageAt(activeMarkdown, neighborIndex + 1)
+              if (text.isBlank()) null else text to (neighborIndex + 1)
+            }
+        } else {
+          listOf(targetPageIndex - 1, targetPageIndex + 1)
+            .filter { it in 0 until activeRenderer!!.pageCount }
+            .mapNotNull { neighborIndex ->
+              val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(neighborIndex) }
+              if (native.fullText.isBlank()) null else native.fullText to (neighborIndex + 1)
+            }
+        }
+        val input = AgentTaskInput.build(
+          documentId = activeProject.manifest.id,
+          page = targetPageIndex + 1,
+          totalPages = totalPages,
+          instruction = instruction,
+          noteMarkdown = currentNote,
+          noteRevision = expectedRevision,
+          sourceText = sourceText,
+          neighbors = neighbors,
+        )
+        val handlers = ProjectAgentTools.handlers(
+          context.contentResolver,
+          activeProject,
+          activeRenderer,
+          targetPageIndex + 1,
+        )
+        val event = agentRunner.run(input.task, endpoint, input.messages, LocalToolDispatcher(handlers))
+        if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex) {
+          agentError = context.getString(R.string.page_tutor_conflict)
+        } else {
+          agentEvent = event
+          val updated = (event as? AgentEvent.Done)?.updated.orEmpty()
+          if (targetPageIndex + 1 in updated) {
+            val latest = withContext(Dispatchers.IO) {
+              ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
+            }
+            notesMarkdown = latest
+            val freshPage = NotePage.pageAt(latest, targetPageIndex + 1)
+            noteDraft = freshPage
+            noteBaseRevision = PageNotes.revision(freshPage)
+            noteStatus = context.getString(R.string.note_reloaded)
+          }
+        }
+      } catch (missing: MissingModelConfigException) {
+        agentError = context.getString(R.string.page_tutor_model_missing)
+        showAgentModelSettings = true
+      } catch (timeout: TimeoutCancellationException) {
+        agentError = context.getString(R.string.page_tutor_timeout)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: PageTutorSourceException) {
+        agentError = "${context.getString(R.string.page_tutor_source_failed)} ${error.message.orEmpty()}"
+      } catch (error: Exception) {
+        agentError = "${context.getString(R.string.page_tutor_request_failed)} ${error.message.orEmpty()}"
+      } finally {
+        isAgentRunning = false
+      }
+    }
+  }
+
   var showNewProject by remember { mutableStateOf(false) }
   var newProjectName by remember { mutableStateOf("") }
   var newProjectDir by remember { mutableStateOf<Uri?>(null) }
@@ -1104,6 +1211,16 @@ private fun ReaderHome(
           enabled = !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning &&
             !readerOcrState.inputLocked,
         ) { Text(stringResource(R.string.page_tutor_action)) }
+      TextButton(
+        modifier = Modifier.testTag("agent_task_action"),
+        onClick = {
+          agentEvent = null
+          agentError = null
+          showAgentTask = true
+        },
+        enabled = !isRendering && !isSaving && !isAgentRunning && !isOcrRunning &&
+          !readerOcrState.inputLocked,
+      ) { Text(stringResource(R.string.agent_task_action)) }
         ReaderOcrActions(
           state = readerOcrState,
           currentPage = pageIndex,
@@ -1387,6 +1504,22 @@ private fun ReaderHome(
         pageTutorResult = null
         pageTutorResultInstruction = null
         pageTutorError = null
+      },
+    )
+  }
+  if (showAgentTask && project != null && (renderer != null || markdownSource != null)) {
+    AgentTaskDialog(
+      page = pageIndex + 1,
+      instruction = agentInstruction,
+      isRunning = isAgentRunning,
+      errorMessage = agentError,
+      event = agentEvent,
+      onInstructionChange = { agentInstruction = it },
+      onRun = ::runAgentTask,
+      onDismiss = {
+        showAgentTask = false
+        agentEvent = null
+        agentError = null
       },
     )
   }

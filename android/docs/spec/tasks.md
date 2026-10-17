@@ -72,6 +72,7 @@
   - [x] 单页讲解预览和显式追加，按页 OCR 回退、相邻页上下文、20,000 字符截断、旧提示词预览禁用及 SAF 写入恢复/revision 冲突保护；SAF 父目录/能力查询异常或备份准备失败时 fail closed，明确不支持备份才使用回滚兜底，清理失败报告残留名称；契约见 `features/page-tutor-preview-and-append.md`，单测、APK 构建及 16 KB 检查通过，仪器测试仅编译未在设备执行。
   - [x] 只读项目工具已接入（read_page/read_review/read_handoff：笔记+原生文字+revision/记录摘要/stale，异常转 ok=false 不中断循环；契约见 `features/agent-project-tools.md`）。
   - [x] 写工具已接入（write_note/patch_note/write_review_status/write_handoff：revision 必填，冲突转 ok=false 不覆盖并报告 updatedPage；契约见 `features/agent-write-tools.md`）。
+  - [x] 单页任务 UI 闭环已接入（工具栏 Agent 任务入口、当前页上下文组装、工具循环、Done/Failed 范围报告、缺配置开模型设置、当前页被改刷新；契约见 `features/agent-task-run.md`）。
   - 任务循环、本地工具收敛集、多步上限、revision 冲突处理、实际完成范围报告。
   - 提示词索引与按 revision 分批读，逐页独立请求加相邻源页。
   - 单页串行汇总只报告真实完成/修改的请求页；限流停止，普通失败继续。
