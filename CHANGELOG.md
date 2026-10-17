@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Add a reusable Android APK checker for 16 KB ELF and ZIP alignment. / 新增可复用的安卓 APK 16 KB ELF 与 ZIP 对齐检查脚本。
+
+- Replace the legacy OpenCV AAR with official OpenCV 4.14.0, whose 64-bit OpenCV and C++ runtime libraries are 16 KB ELF-aligned. / 将旧版 OpenCV AAR 替换为官方 4.14.0，其 64 位 OpenCV 与 C++ 运行库均采用 16 KB ELF 对齐。
+
 - Specify a repeatable Android APK check for 16 KB ELF and ZIP alignment. / 规定安卓 APK 的 16 KB ELF 与 ZIP 对齐可重复检查流程。
 
 - Preserve the Android activity-result owner through localized reader contexts so the SAF launcher cannot crash startup. / 在安卓本地化阅读上下文中保留 Activity Result owner，避免 SAF 启动器导致应用闪退。

@@ -25,7 +25,7 @@ dependencies {
   androidTestImplementation("androidx.test:monitor:1.7.2")
   implementation(project(":core-reader"))
   implementation("com.microsoft.onnxruntime:onnxruntime-android:1.21.1")
-  implementation("com.quickbirdstudios:opencv:4.5.3.0")
+  implementation("org.opencv:opencv:4.14.0")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }

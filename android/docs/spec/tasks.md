@@ -80,6 +80,9 @@
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
   - [ ] 安卓启动与 16 KB 页面兼容性修复，契约见 `features/startup-and-16kb-compatibility.md`，实施拆分见 `startup-and-16kb-compatibility-plan.md`。
+    - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过，设备启动复测待完成。
+    - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
+    - [ ] 连接设备拒绝 APK 与测试 runner 安装（`INSTALL_FAILED_USER_RESTRICTED`）；重新安装、启动和 SAF 选择器仍待真机验收。
   - _Requirement: 构建与测试，全部 EARS_
 
 - [ ] 13. 分支、变更日志、PR 准备
