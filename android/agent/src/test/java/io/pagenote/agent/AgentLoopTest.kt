@@ -1,14 +1,23 @@
 package io.pagenote.agent
 
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AgentLoopTest {
   @Test
   fun toolsStayConverged() {
-    val tools = AgentLoop.LOCAL_TOOLS
-    assert(tools.contains("prepare_page"))
-    assert(tools.contains("write_note"))
-    assert(tools.size in 8..12)
+    assertEquals(
+      setOf(
+        "read_page",
+        "write_note",
+        "patch_note",
+        "read_review",
+        "write_review_status",
+        "read_handoff",
+        "write_handoff",
+      ),
+      AgentLoop.LOCAL_TOOLS.toSet(),
+    )
   }
 
   @Test(expected = IllegalArgumentException::class)

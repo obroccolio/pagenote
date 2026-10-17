@@ -16,13 +16,9 @@ sealed interface AgentEvent {
 
 object AgentLoop {
   val LOCAL_TOOLS = listOf(
-    "read_state",
     "read_page",
-    "prepare_page",
     "write_note",
     "patch_note",
-    "attach_image",
-    "navigate",
     "read_review",
     "write_review_status",
     "read_handoff",

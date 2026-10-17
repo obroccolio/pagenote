@@ -15,7 +15,7 @@ data class ToolResult(
 )
 
 /**
- * 本地工具分发接口。11 个 LOCAL_TOOLS 先做分发接口，具体实现由各模块后续接入；
+ * 本地工具分发接口。7 个已接线 LOCAL_TOOLS 由各模块接入实现；
  * 未知工具名必须拒绝，不能静默通过。
  */
 interface ToolDispatcher {

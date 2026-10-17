@@ -37,4 +37,23 @@ class ToolSchemasTest {
     val check = ToolSchemas.check(ToolRequest("rm_rf_all", emptyMap()))
     assertTrue(check is ToolSchemas.Check.Rejected)
   }
+
+
+  @Test
+  fun writeReviewStatusUsesIdParam() {
+    val ok = ToolSchemas.check(ToolRequest("write_review_status", mapOf("id" to "r1", "status" to "applied")))
+    assertTrue(ok is ToolSchemas.Check.Ok)
+    val bad = ToolSchemas.check(ToolRequest("write_review_status", mapOf("reviewId" to "r1", "status" to "applied")))
+    assertTrue(bad is ToolSchemas.Check.Rejected)
+  }
+
+  @Test
+  fun writeHandoffRequiresPageSummaryAndRevision() {
+    val ok = ToolSchemas.check(
+      ToolRequest("write_handoff", mapOf("page" to "2", "summary" to "s", "expectedRevision" to "r", "sourceRevision" to "src")),
+    )
+    assertTrue(ok is ToolSchemas.Check.Ok)
+    val bad = ToolSchemas.check(ToolRequest("write_handoff", mapOf("page" to "2", "summary" to "s")))
+    assertTrue(bad is ToolSchemas.Check.Rejected)
+  }
 }

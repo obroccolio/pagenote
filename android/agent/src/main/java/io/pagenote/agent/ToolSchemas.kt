@@ -4,7 +4,7 @@ package io.pagenote.agent
  * 本地工具参数校验（任务 10 / 本地工具收敛集）。
  *
  * 约定：
- * - 11 个 LOCAL_TOOLS 每个声明必填参数；缺参/空参/非法页码在分发前拒绝，
+ * - 7 个已接线 LOCAL_TOOLS 每个声明必填参数；缺参/空参/非法页码在分发前拒绝，
  *   不打进各模块实现；
  * - 写类工具（write_note/patch_note/write_review_status/write_handoff）要求
  *   携带 revision 语义参数，缺失即拒绝，不静默覆盖；
@@ -19,17 +19,13 @@ object ToolSchemas {
   )
 
   val SCHEMAS: Map<String, Schema> = mapOf(
-    "read_state" to Schema(),
     "read_page" to Schema(requirePage = true),
-    "prepare_page" to Schema(requirePage = true),
     "write_note" to Schema(requirePage = true, revisionParam = "expectedRevision"),
     "patch_note" to Schema(requirePage = true, revisionParam = "expectedRevision"),
-    "attach_image" to Schema(requirePage = true, required = listOf("image")),
-    "navigate" to Schema(requirePage = true),
     "read_review" to Schema(),
-    "write_review_status" to Schema(required = listOf("reviewId", "status"), revisionParam = "expectedRevision"),
+    "write_review_status" to Schema(required = listOf("id", "status")),
     "read_handoff" to Schema(),
-    "write_handoff" to Schema(required = listOf("content"), revisionParam = "expectedRevision"),
+    "write_handoff" to Schema(requirePage = true, required = listOf("summary", "sourceRevision"), revisionParam = "expectedRevision"),
   )
 
   sealed interface Check {

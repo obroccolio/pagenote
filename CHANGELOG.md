@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Converge Android agent tools to the seven wired handlers with matching schemas and scope docs. / 安卓 Agent 工具收敛到 7 个已接线实现，声明与范围文档对齐。
+
 - Complete Android automation gates with full builds, 16 KB checks, and relay verification; device acceptance pending. / 安卓自动化门禁收尾：全量构建、16 KB 检查与中转验证通过，真机待续。
 
 - Mark Android pen input complete with pressure, page-scoped editing, and SAF persistence; device validation pending. / 安卓手写笔迹收尾：压感、按页编辑与 SAF 保存已落地，真机验证待续。
