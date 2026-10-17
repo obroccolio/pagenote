@@ -32,7 +32,16 @@ This slice covers basic Markdown and GFM tables. Mermaid rendering, LaTeX, code 
 
 - JVM tests cover empty-page preservation, missing-page extension, target-page revision conflicts, and merging against the latest document.
 - Android app compilation verifies the Markwon and Compose AndroidView integration.
-- SAF write behavior and adaptive layout require later device acceptance because no Android device/emulator is available in this environment.
+- Real SAF write/reload and adaptive layout are also verified on tablet AVDs as recorded below; physical-device writing remains unverified.
+
+## Real SAF Save/Reload AVD Acceptance (Verified)
+
+- Use only the generated private copy of the user's 69-page project under Downloads; never write to the desktop document or its attachment store.
+- Through the app's real DocumentsUI grant, edit page 31 with a unique ASCII marker, tap Save, and use the app's Reload action to read it back from the SAF provider.
+- API 35 4 KB tablet AVD (`getconf PAGESIZE=4096`): marker `PAGENOTE_SAVE_ROUNDTRIP_20261018` survived Save and Reload; pages 30 and 32 were unchanged; the app reported 69 pages.
+- API 35 16 KB tablet AVD (`getconf PAGESIZE=16384`): marker `PAGENOTE_SAVE_16KB_20261018` survived Save and Reload; section hashes for pages 30 and 32 were unchanged; the app reported 69 pages. The first toolbar tap dismissed the visible keyboard; a second tap invoked Save and the app reported `Saved`.
+- The original host-side `src/right.md` and both emulator copies have the same restored SHA-256 `bb2d44b78646144d8851caec07a58b57852d0a98386a3982415d02a828cbd0e9`; the app then reported `Reloaded` with the test markers absent. The desktop project was never written.
+- This verifies one page's real-provider save/reload on tablet AVDs only. Physical-device writing, phone-width behavior, and the complete handwriting/OCR/Agent interaction matrix remain unverified.
 
 ## References
 
