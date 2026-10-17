@@ -16,8 +16,11 @@ import kotlinx.coroutines.withContext
 class OfflineOcrException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 class OfflineOcrEngine private constructor(
-  private val pipeline: PaddleOCR,
+  private val inference: suspend (Bitmap) -> OcrResult,
+  private val releaseInference: suspend () -> Unit,
 ) {
+  internal constructor(inference: suspend (Bitmap) -> OcrResult) : this(inference, {})
+
   private val mutex = Mutex()
   private var released = false
 
@@ -77,7 +80,7 @@ class OfflineOcrEngine private constructor(
 
   suspend fun close() = mutex.withLock {
     if (!released) {
-      pipeline.release()
+      releaseInference()
       released = true
     }
   }
@@ -88,20 +91,7 @@ class OfflineOcrEngine private constructor(
     warnings = listOf(message),
   )
 
-  private suspend fun recognizeBitmap(bitmap: Bitmap): OcrResult {
-    val output = pipeline.recognize(bitmap)
-    return OcrResultMapper.map(
-      imageWidth = bitmap.width,
-      imageHeight = bitmap.height,
-      recognized = output.results.map { result ->
-        RecognizedTextBlock(
-          text = result.text,
-          confidence = result.confidence.toDouble(),
-          points = result.box.points.map { OcrPoint(it.x, it.y) },
-        )
-      },
-    )
-  }
+  private suspend fun recognizeBitmap(bitmap: Bitmap): OcrResult = inference(bitmap)
 
   companion object {
     private const val DETECTION_MODEL = "models/det/inference.onnx"
@@ -131,7 +121,10 @@ class OfflineOcrEngine private constructor(
           recModelAssetPath = RECOGNITION_MODEL,
           recConfigAssetPath = RECOGNITION_CONFIG,
         )
-        OfflineOcrEngine(pipeline)
+        OfflineOcrEngine(
+          inference = { bitmap -> recognizeWithPipeline(pipeline, bitmap) },
+          releaseInference = pipeline::release,
+        )
       } catch (error: OCRError.ModelNotFound) {
         throw OfflineOcrException("A bundled OCR model is missing: ${error.message}", error)
       } catch (error: OCRError.ConfigParseFailed) {
@@ -141,6 +134,21 @@ class OfflineOcrEngine private constructor(
       } catch (error: Throwable) {
         throw OfflineOcrException("Offline OCR models could not be initialized: ${error.message}", error)
       }
+    }
+
+    private suspend fun recognizeWithPipeline(pipeline: PaddleOCR, bitmap: Bitmap): OcrResult {
+      val output = pipeline.recognize(bitmap)
+      return OcrResultMapper.map(
+        imageWidth = bitmap.width,
+        imageHeight = bitmap.height,
+        recognized = output.results.map { result ->
+          RecognizedTextBlock(
+            text = result.text,
+            confidence = result.confidence.toDouble(),
+            points = result.box.points.map { OcrPoint(it.x, it.y) },
+          )
+        },
+      )
     }
   }
 }
