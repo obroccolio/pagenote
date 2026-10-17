@@ -38,3 +38,7 @@ tests/*.log
 .env*
 !.env.example
 tests/typora-*.txt
+android/.idea/
+tests/webdriver-probe-*/
+tests/word-prototype-*/
+tests/word-reviews-*/
