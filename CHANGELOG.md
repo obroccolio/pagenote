@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Mark Android pen input complete with pressure, page-scoped editing, and SAF persistence; device validation pending. / 安卓手写笔迹收尾：压感、按页编辑与 SAF 保存已落地，真机验证待续。
+
 - Mark Android reader settings complete with persisted theme, language, split ratio, and animation. / 安卓阅读设置收尾：主题、语言、分栏比例与动画均已持久化生效。
 
 - Run batched Android agent page tasks with serial execution and honest scope reports. / 安卓 Agent 支持批量页任务：串行执行并如实报告完成范围。

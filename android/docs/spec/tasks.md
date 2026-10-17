@@ -48,10 +48,10 @@
   - [x] 交接读写 UI 与 stale 处理已落地（本页交接预览、stale 警告、过期 revision 拒绝覆盖；契约见 `features/review-handoff-ui.md`）。
   - _Requirement: 标注_
 
-- [ ] 7. 手写笔迹（部分：原生 View、压感、分页编辑和 SAF 项目保存已实现；真机验收待做）
+- [x] 7. 手写笔迹（原生 View、压感、分页编辑、SAF 保存、撤销/重做/清除均已落地，真机延迟/误触待 task 12）
   - [x] 原生 View 笔/荧光笔/橡皮、stylus 侧键与硬件橡皮输入、撤销、重做、按页清除。
   - [x] 笔迹按页存取并保留 annotations.json 中的其他批注、页面和未知字段。
-  - [ ] 主动笔与被动笔、边缘、断触、误触抑制真机验证。
+  - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
   - _Requirement: 笔迹，布局与适配_
 
 - [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通，Mermaid PNG 按 Non-goals 不移植）
