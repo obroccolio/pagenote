@@ -165,6 +165,7 @@
   <string name="note_rich_image_decode_failed">Image could not be decoded: %1$s</string>
   <string name="note_rich_image_remote">Remote image (not fetched offline): %1$s</string>
   <string name="note_rich_unclosed">Unclosed code fence; showing as plain text.</string>
+  <string name="note_rich_formula_unclosed">Unclosed formula delimiter; source is preserved.</string>
   <string name="new_project">New project</string>
   <string name="new_project_title">New project</string>
   <string name="new_project_name">Project name</string>

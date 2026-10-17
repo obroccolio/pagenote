@@ -28,6 +28,40 @@ class NoteRichContentTest {
     assertEquals(1, content.errors.size)
     assertEquals(1, content.codeBlocks.size)
     assertEquals(false, content.codeBlocks[0].closed)
+    assertEquals(listOf(NoteDiagnostic.UNCLOSED_CODE_FENCE), content.diagnostics)
+  }
+
+  @Test
+  fun unterminatedFormulaHasStableDiagnostic() {
+    val content = NoteRichContent.extract("formula: \$privateSource")
+
+    assertEquals(listOf(NoteDiagnostic.UNTERMINATED_FORMULA), content.diagnostics)
+    assertTrue(content.warnings.isNotEmpty())
+    assertTrue(content.diagnostics.toString().contains("privateSource").not())
+  }
+
+  @Test
+  fun multilineAndMultiTickCodeSpansDoNotDiagnoseFormulaMarkers() {
+    val markdown = "``first line\n\$not closed\n` still code\nlast``\n\n`another\n\$\$also code`"
+
+    val content = NoteRichContent.extract(markdown)
+
+    assertTrue(content.diagnostics.isEmpty())
+    assertTrue(content.warnings.isEmpty())
+  }
+
+  @Test
+  fun formulaCloserInsideCodeSpanDoesNotCloseFormula() {
+    val content = NoteRichContent.extract("\$outside `\$inside`")
+
+    assertEquals(listOf(NoteDiagnostic.UNTERMINATED_FORMULA), content.diagnostics)
+  }
+
+  @Test
+  fun repeatedFormulaWarningsAreDeduplicatedByDiagnosticType() {
+    val content = NoteRichContent.extract("first \$ and second \$\$")
+
+    assertEquals(listOf(NoteDiagnostic.UNTERMINATED_FORMULA), content.diagnostics)
   }
 
   @Test

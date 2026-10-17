@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add stable Android Markdown preview diagnostics for unclosed code fences and formula delimiters in page notes and Markdown-source views; correctly ignore formula markers inside multiline/multi-backtick code spans and keep diagnostic text free of source excerpts and URLs. JVM tests and Pixel Tablet API 35 preview tests pass; this is a local source change, not a public Android binary release. / 安卓页笔记与 Markdown 源预览新增未闭合代码围栏/公式分隔符的稳定诊断；跨行、多反引号代码跨度内的公式符号不再误报，诊断文案不回显源码片段或 URL。JVM 与 Pixel Tablet API 35 预览测试通过；本次仅为本地源码变更，未发布 Android 二进制。
 - Confirm the Android desktop-menu navigation design: a compact-window drawer and a collapsible permanent sidebar at wider window sizes, with desktop command groups preserved and wired incrementally. Office editing remains a separate feasibility-gated implementation. / 确认安卓桌面菜单导航设计：窄窗口使用抽屉，宽窗口使用可折叠常驻侧栏，保留桌面命令分组并逐步接线；Office 编辑仍需单独进行可行性验证。
 - Define the Android adaptive-menu window breakpoint and canonical desktop command-group ordering. / 明确安卓自适应菜单的窗口断点和桌面命令分组顺序。
 - Move existing Android reader actions into the desktop-aligned menu groups, with a collapsible tablet sidebar, compact-window drawer, desktop light/dark menu tokens, and explicit disabled reasons for commands not yet ported. Pixel Tablet API 35 AVD layout verification is local; no public Android binary is released. / 将安卓现有阅读命令迁入桌面对齐的菜单分组，支持平板可折叠侧栏、窄窗口抽屉、桌面浅/深色菜单配色，未移植命令明确显示禁用原因。Pixel Tablet API 35 AVD 布局验证仅为本地验证，本次不发布安卓安装包。

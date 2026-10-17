@@ -7,6 +7,7 @@ enum class MermaidState { READY, EMPTY, SUSPECT }
 data class MermaidBlock(val source: String, val state: MermaidState)
 enum class ImageKind { ATTACHMENT, REMOTE, OTHER }
 data class ImageRef(val url: String, val kind: ImageKind)
+enum class NoteDiagnostic { UNCLOSED_CODE_FENCE, UNTERMINATED_FORMULA }
 data class NoteRichContent(
   val formulas: List<FormulaSpan>,
   val codeBlocks: List<CodeBlock>,
@@ -14,6 +15,7 @@ data class NoteRichContent(
   val images: List<ImageRef>,
   val errors: List<String>,
   val warnings: List<String>,
+  val diagnostics: List<NoteDiagnostic>,
 ) {
   companion object {
     fun extract(markdown: String): NoteRichContent = NoteRichContentParser.parse(markdown)
@@ -23,7 +25,6 @@ data class NoteRichContent(
 internal object NoteRichContentParser {
   private val ATTACHMENT = Regex("^/attachments/[a-f0-9-]+\\.[a-z0-9]+$", RegexOption.IGNORE_CASE)
   private val IMAGE_MD = Regex("!\\[[^\\]]*\\]\\(([^)]+)\\)")
-  private val INLINE_CODE = Regex("`[^`\\n]+`")
 
   private val aliases = mapOf(
     "python3" to "python",
@@ -44,8 +45,9 @@ internal object NoteRichContentParser {
     val images = mutableListOf<ImageRef>()
     val errors = mutableListOf<String>()
     val warnings = mutableListOf<String>()
+    val diagnostics = linkedSetOf<NoteDiagnostic>()
     if (markdown.isEmpty()) {
-      return NoteRichContent(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+      return NoteRichContent(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
     }
 
     val fenceRanges = mutableListOf<IntRange>()
@@ -77,6 +79,7 @@ internal object NoteRichContentParser {
     if (openFence != null) {
       val open = openFence
       errors += "代码围栏未闭合"
+      diagnostics += NoteDiagnostic.UNCLOSED_CODE_FENCE
       fenceRanges += lineStart(markdown, lines, open.start)..markdown.length
       val lang = open.info.trim().lowercase()
       val source = lines.subList(open.start + 1, lines.size).joinToString("\n")
@@ -85,7 +88,22 @@ internal object NoteRichContentParser {
     }
 
     fun inFence(offset: Int) = fenceRanges.any { offset in it }
-    val codeSpans = codeSpanRanges(markdown).filter { !inFence(it.first) }
+    val codeSpans = codeSpanRanges(markdown, fenceRanges)
+    val excludedMarkupRanges = fenceRanges + codeSpans
+    fun findOutsideMarkup(marker: String, start: Int): Int {
+      var search = start
+      while (search + marker.length <= markdown.length) {
+        val excluded = excludedMarkupRanges.firstOrNull { search in it }
+        if (excluded != null) {
+          search = excluded.last + 1
+        } else if (markdown.startsWith(marker, search)) {
+          return search
+        } else {
+          search += 1
+        }
+      }
+      return -1
+    }
 
     var cursor = 0
     while (cursor < markdown.length) {
@@ -94,9 +112,10 @@ internal object NoteRichContentParser {
         continue
       }
       if (markdown.startsWith("$$", cursor)) {
-        val close = markdown.indexOf("$$", cursor + 2)
+        val close = findOutsideMarkup("$$", cursor + 2)
         if (close < 0) {
           warnings += "正文仍含未渲染的公式分隔符或LaTeX命令"
+          diagnostics += NoteDiagnostic.UNTERMINATED_FORMULA
           break
         }
         formulas += FormulaSpan(cursor, close + 2, true, markdown.substring(cursor + 2, close))
@@ -104,9 +123,12 @@ internal object NoteRichContentParser {
         continue
       }
       if (markdown[cursor] == '$') {
-        val close = markdown.indexOf('$', cursor + 1)
+        val close = findOutsideMarkup("$", cursor + 1)
         if (close < 0 || close == cursor + 1 || markdown.getOrNull(close + 1) == '$') {
-          if (close < 0) warnings += "正文仍含未渲染的公式分隔符或LaTeX命令"
+          if (close < 0) {
+            warnings += "正文仍含未渲染的公式分隔符或LaTeX命令"
+            diagnostics += NoteDiagnostic.UNTERMINATED_FORMULA
+          }
           cursor += 1
           continue
         }
@@ -130,7 +152,7 @@ internal object NoteRichContentParser {
       images += ImageRef(url, kind)
     }
 
-    return NoteRichContent(formulas, codeBlocks, diagrams, images, errors, warnings)
+    return NoteRichContent(formulas, codeBlocks, diagrams, images, errors, warnings, diagnostics.toList())
   }
 
   fun codeLanguage(value: String): String {
@@ -168,9 +190,43 @@ internal object NoteRichContentParser {
     return (start + lines[lineIndex].length).coerceIn(0, markdown.length)
   }
 
-  private fun codeSpanRanges(markdown: String): List<IntRange> {
+  private fun codeSpanRanges(markdown: String, excludedRanges: List<IntRange>): List<IntRange> {
     val ranges = mutableListOf<IntRange>()
-    INLINE_CODE.findAll(markdown).forEach { ranges += it.range }
+    var cursor = 0
+    while (cursor < markdown.length) {
+      val excluded = excludedRanges.firstOrNull { cursor in it }
+      if (excluded != null) {
+        cursor = excluded.last + 1
+        continue
+      }
+      if (markdown[cursor] != '`') {
+        cursor += 1
+        continue
+      }
+
+      val openingStart = cursor
+      while (cursor < markdown.length && markdown[cursor] == '`') cursor += 1
+      val delimiterLength = cursor - openingStart
+      var search = cursor
+      var closingEnd: Int? = null
+      while (search < markdown.length) {
+        if (excludedRanges.any { search in it }) break
+        if (markdown[search] != '`') {
+          search += 1
+          continue
+        }
+        val runStart = search
+        while (search < markdown.length && markdown[search] == '`') search += 1
+        if (search - runStart == delimiterLength) {
+          closingEnd = search
+          break
+        }
+      }
+      if (closingEnd != null) {
+        ranges += openingStart until closingEnd
+        cursor = closingEnd
+      }
+    }
     return ranges
   }
 }

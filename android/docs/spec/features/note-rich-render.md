@@ -16,8 +16,16 @@
 ## Data Contract
 
 - 新增 `NoteRichContent`：`extract(markdown)` 返回 `formulas: List<FormulaSpan>`、`codeBlocks: List<CodeBlock>`、`diagrams: List<MermaidBlock>`、`images: List<ImageRef>`、`errors: List<String>`、`warnings: List<String>`。
+- 结构化语法诊断使用稳定枚举标识，不从错误文案反推类型：至少包含 `UNCLOSED_CODE_FENCE` 和 `UNTERMINATED_FORMULA`。现有 `errors`/`warnings` 继续满足兼容契约。
 - `FormulaSpan(start, end, display)`、`CodeBlock(lang, source, closed)`、`MermaidBlock(source, state)`（state: READY/EMPTY/SUSPECT）、`ImageRef(url, kind)`（kind: LOCAL/MISSING/REMOTE）。
 - 校验语义对齐桌面 `validateNote`：围栏未闭合→error；公式疑似未渲染分隔符→warning；mermaid 空源→warning。
+
+## Preview Diagnostics
+
+- 页笔记预览与 Markdown 源预览均在渲染内容上方显示本地化的轻量语法诊断；仅显示稳定诊断对应的固定文案，不在诊断区域展示 Markdown 片段、公式源码或图片 URL。
+- 诊断只读原文并产生旁路状态，不改写、清洗或截断编辑数据；现有预览截断规则保持不变。
+- 行内代码跨度按 CommonMark 的反引号运行长度配对，允许跨行以及多反引号分隔符。跨度内的 `$`/`$$` 不触发公式分隔符诊断；未配对的反引号不吞掉后续正文。
+- `UNCLOSED_CODE_FENCE` 提示代码围栏未闭合；`UNTERMINATED_FORMULA` 提示公式分隔符未闭合。相同诊断在一页内只显示一次。
 
 ## Non-goals
 
@@ -34,9 +42,12 @@
 - When Markdown 包含 HTTP(S) 图片且应用拥有 Agent 网络权限时，shall 显示阻断占位 + warning，且不得连接该 URL。
 - When 图片加载失败时，shall 只显示安全来源摘要，不回显 URL 查询参数、片段、data URI 负载或本地绝对路径。
 - When 围栏未闭合时，shall 按纯文本显示并记 error。
+- When 页笔记预览或 Markdown 源预览含未闭合围栏/公式时，shall 在预览内容上方显示本地化诊断，且不回显原文片段或 URL。
+- When `$`/`$$` 出现在有效的跨行或多反引号代码跨度中时，shall 不生成未闭合公式诊断，且诊断过程不得修改原 Markdown。
 
 ## Verification
 
-- JVM：公式预处理、别名归一、未闭合围栏、缺失/外链图片判定。
+- JVM：公式预处理、别名归一、结构化围栏/公式诊断、跨行和多反引号代码跨度、缺失/外链图片判定。
+- Android instrumentation：两种 Markdown 预览均显示本地化诊断；确认诊断文案不包含输入中的 URL/公式/片段且预览内容仍保留原始 Markdown 语义。
 - Android instrumentation：LaTeX drawable/span、已知代码语言高亮、未知语言源码回退、缺图与损坏内联图占位、抛出 I/O 异常的本地图片 `InputStream` 占位、HTTP(S) handler 不发起请求、敏感来源脱敏，以及 Mermaid WebView 的真实 SVG 绘制、源码安全传递、错误回退、离线资源白名单和无外部网络请求。
 - `cd android && ./gradlew :feature-notes:testDebugUnitTest :app:assembleDebug` 通过；四 ABI APK 继续执行 16 KB 检查。

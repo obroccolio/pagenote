@@ -165,6 +165,7 @@
   <string name="note_rich_image_decode_failed">图片无法解码：%1$s</string>
   <string name="note_rich_image_remote">外链图片（离线不加载）：%1$s</string>
   <string name="note_rich_unclosed">代码围栏未闭合，已按纯文本显示。</string>
+  <string name="note_rich_formula_unclosed">公式分隔符未闭合，公式内容按原文保留。</string>
   <string name="new_project">新建项目</string>
   <string name="new_project_title">新建项目</string>
   <string name="new_project_name">项目名称</string>

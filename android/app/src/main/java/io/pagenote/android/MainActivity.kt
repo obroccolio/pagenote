@@ -99,6 +99,8 @@ import io.pagenote.core.project.NoteVersion
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
+import io.pagenote.feature.notes.NoteDiagnostic
+import io.pagenote.feature.notes.NoteRichContent
 import io.pagenote.feature.ocr.OfflineOcrEngine
 import io.pagenote.feature.ocr.OcrPolicy
 import io.pagenote.feature.ocr.OcrResult
@@ -2565,6 +2567,12 @@ internal fun MarkdownSourcePane(
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
     )
+    if (previewText.isNotBlank()) {
+      NoteRichDiagnosticSummary(
+        markdown = fullPageText,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+      )
+    }
     if (previewText.isBlank()) {
       Text(
         text = stringResource(R.string.markdown_source_empty),
@@ -2594,6 +2602,30 @@ internal fun MarkdownSourcePane(
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+    }
+  }
+}
+
+@Composable
+internal fun NoteRichDiagnosticSummary(markdown: String, modifier: Modifier = Modifier) {
+  val diagnostics = remember(markdown) { NoteRichContent.extract(markdown).diagnostics }
+  if (diagnostics.isNotEmpty()) {
+    Column(
+      modifier = modifier.testTag("note_rich_diagnostics"),
+      verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+      diagnostics.forEach { diagnostic ->
+        val message = when (diagnostic) {
+          NoteDiagnostic.UNCLOSED_CODE_FENCE -> R.string.note_rich_unclosed
+          NoteDiagnostic.UNTERMINATED_FORMULA -> R.string.note_rich_formula_unclosed
+        }
+        Text(
+          text = stringResource(message),
+          modifier = Modifier.testTag("note_rich_diagnostic_${diagnostic.name}"),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.error,
+        )
+      }
     }
   }
 }
@@ -2779,7 +2811,7 @@ internal fun PdfPageViewport(
 }
 
 @Composable
-private fun NotePanel(
+internal fun NotePanel(
   page: Int,
   markdown: String,
   dirty: Boolean,
@@ -2871,6 +2903,10 @@ private fun NotePanel(
             NotePage.preview(content.markdown)
           }
           Column(modifier = Modifier.fillMaxSize()) {
+            NoteRichDiagnosticSummary(
+              markdown = content.markdown,
+              modifier = Modifier.fillMaxWidth(),
+            )
             AndroidView(
               modifier = Modifier.weight(1f).fillMaxWidth(),
               factory = { viewContext ->
