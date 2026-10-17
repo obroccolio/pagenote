@@ -2,6 +2,7 @@ package io.pagenote.core.project
 
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -53,6 +54,31 @@ class ProjectStoreTest {
       fail("expected conflict")
     } catch (e: IllegalStateException) {
       // expected
+    }
+  }
+
+  @Test
+  fun newProjectManifestMatchesDesktopContract() {
+    val manifest = ProjectStore.newManifest("demo")
+
+    ProjectValidation.validate(manifest)
+    assertEquals("pagenote-project", manifest.format)
+    assertEquals(1, manifest.version)
+    assertEquals(64, manifest.id.length)
+    assertTrue(manifest.id.all { it in '0'..'9' || it in 'a'..'f' })
+    assertEquals("demo", manifest.name)
+    assertEquals("src/left.md", manifest.left)
+    assertEquals("src/right.md", manifest.right)
+  }
+
+  @Test
+  fun rejectsBadProjectName() {
+    listOf("", "a/b", "a:b", "a*").forEach { name ->
+      try {
+        ProjectStore.newManifest(name)
+        fail("expected bad name: $name")
+      } catch (_: IllegalArgumentException) {
+      }
     }
   }
 }

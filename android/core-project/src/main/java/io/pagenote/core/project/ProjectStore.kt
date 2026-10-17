@@ -4,26 +4,28 @@ import java.io.File
 import java.util.UUID
 
 object ProjectStore {
-  fun create(root: File, name: String): File {
+  fun newManifest(name: String): ProjectManifest {
     require(name.isNotBlank() && !Regex("[<>:\"/\\\\|?*]").containsMatchIn(name)) { "bad project name" }
+    return ProjectManifest(
+      format = "pagenote-project",
+      version = 1,
+      id = sha256(UUID.randomUUID().toString()),
+      name = name,
+      created = java.time.Instant.now().toString(),
+      left = "src/left.md",
+      right = "src/right.md",
+    )
+  }
+
+  fun create(root: File, name: String): File {
+    val manifest = newManifest(name)
     val dir = File(root, name)
     require(!dir.exists()) { "project already exists" }
     val src = File(dir, "src")
     val assets = File(src, "assets")
     assets.mkdirs()
-    val id = sha256(UUID.randomUUID().toString())
-    val now = java.time.Instant.now().toString()
-    File(src, "left.md").writeText("# $name\n", Charsets.UTF_8)
+    File(src, "left.md").writeText("# ${manifest.name}\n", Charsets.UTF_8)
     File(src, "right.md").writeText("", Charsets.UTF_8)
-    val manifest = ProjectManifest(
-      format = "pagenote-project",
-      version = 1,
-      id = id,
-      name = name,
-      created = now,
-      left = "src/left.md",
-      right = "src/right.md",
-    )
     ProjectValidation.validate(manifest)
     File(dir, "project.pagenote").writeText(manifestJson(manifest), Charsets.UTF_8)
     return dir
