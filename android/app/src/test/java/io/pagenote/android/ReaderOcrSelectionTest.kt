@@ -48,6 +48,20 @@ class ReaderOcrSelectionTest {
     assertEquals(ReaderOcrState(), resultState.dismissResult())
   }
 
+  @Test fun invalidDragShowsRecoverableMessageWithoutInvokingOcr() {
+    val fresh = ReaderOcrState().enterSelection(0)
+    assertFalse(fresh.selectionInvalid)
+
+    val invalid = fresh.withSelection(null)
+    assertNull(invalid.selection)
+    assertTrue(invalid.selectionInvalid)
+    assertNull(invalid.beginRecognition())
+
+    val recovered = invalid.withSelection(selection)
+    assertEquals(selection, recovered.selection)
+    assertFalse(recovered.selectionInvalid)
+  }
+
   @Test fun cacheHitBypassesInferenceAndImageEncoding() = runBlocking {
     val cached = cacheEntry()
     val cache = FakePreparedRegionCacheStore(cached)

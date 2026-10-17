@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Harden Android region OCR selection with a recoverable invalid-drag message, inference-only timeout, logged snapshot fallback, and IO-bound PDF open. / 安卓区域 OCR 选区加固：无效拖动可恢复提示、超时仅限推理、快照回退打日志、PDF 打开走 IO 线程。
+
 - Add transformed-page region OCR selection with offline recognition, project-backed cache reuse, and explicit persistence warnings; render PDFs from the exact hashed snapshot used for cache identity, with uncached SAF fallback. / 安卓阅读器新增变换页面区域 OCR 选择、离线识别、项目缓存复用和持久化告警；PDF 从用于缓存身份校验的精确哈希快照渲染，并在快照不可用时回退为不缓存的 SAF 阅读。
 
 - Treat failed SAF child queries as cache-write failures and retain both caller and OCR warnings in Android prepared manifests. / 将 SAF 子项查询失败视为缓存写入失败，并在安卓预处理清单中同时保留调用方与 OCR 警告。

@@ -69,6 +69,7 @@
   <string name="region_ocr_action">Region OCR</string>
   <string name="recognize_region_action">Recognize</string>
   <string name="ocr_selection_hint">Drag over the page to select a region.</string>
+  <string name="ocr_selection_invalid">That drag is outside the page or has no area. Drag over the page, then Recognize.</string>
   <string name="recognizing_region">Recognizing selection…</string>
   <string name="ocr_not_cached">Recognized, but the result could not be saved to the project cache.</string>
   <string name="zoom_out">Zoom out</string>

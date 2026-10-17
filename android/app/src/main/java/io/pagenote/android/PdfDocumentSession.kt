@@ -6,6 +6,7 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.annotation.RequiresApi
 import io.pagenote.core.reader.PdfPagePolicy
 import io.pagenote.core.reader.PdfTextContent
@@ -14,6 +15,8 @@ import io.pagenote.core.reader.PdfTextExtractionResult
 import io.pagenote.core.reader.PdfTextExtractionStatus
 import io.pagenote.core.reader.PdfTextMapper
 import io.pagenote.core.reader.PdfTextRect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.io.File
 
@@ -95,18 +98,25 @@ class PdfDocumentSession private constructor(
   }
 
   companion object {
-    fun open(resolver: ContentResolver, uri: Uri, cacheDir: File): PdfDocumentSession {
+    private const val TAG = "PdfDocumentSession"
+
+    suspend fun open(resolver: ContentResolver, uri: Uri, cacheDir: File): PdfDocumentSession {
       var snapshot: File? = null
       try {
-        val input = resolver.openInputStream(uri)
-          ?: throw IllegalStateException("无法读取 PDF 文件")
-        val snapshotFile = File.createTempFile("pagenote-pdf-", ".pdf", cacheDir)
-        snapshot = snapshotFile
-        val revision = input.use { copyPdfSourceSnapshot(it, snapshotFile) }
-        val descriptor = ParcelFileDescriptor.open(snapshotFile, ParcelFileDescriptor.MODE_READ_ONLY)
+        val (descriptor, revision, snapshotFile) = withContext(Dispatchers.IO) {
+          val input = resolver.openInputStream(uri)
+            ?: throw IllegalStateException("无法读取 PDF 文件")
+          val created = File.createTempFile("pagenote-pdf-", ".pdf", cacheDir)
+          snapshot = created
+          val copiedRevision = input.use { copyPdfSourceSnapshot(it, created) }
+          val createdDescriptor =
+            ParcelFileDescriptor.open(created, ParcelFileDescriptor.MODE_READ_ONLY)
+          Triple(createdDescriptor, copiedRevision, created)
+        }
         return createSession(descriptor, revision, snapshotFile)
-      } catch (_: Exception) {
+      } catch (error: Exception) {
         snapshot?.delete()
+        Log.w(TAG, "PDF snapshot copy failed; using direct-SAF fallback", error)
         val descriptor = resolver.openFileDescriptor(uri, "r")
           ?: throw IllegalStateException("无法打开 PDF 文件")
         return createSession(descriptor, sourceRevision = null, snapshotFile = null)

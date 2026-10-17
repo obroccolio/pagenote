@@ -30,6 +30,7 @@ data class ReaderOcrState(
   val mode: ReaderOcrMode = ReaderOcrMode.IDLE,
   val pageIndex: Int? = null,
   val selection: NormalizedOcrRegion? = null,
+  val selectionInvalid: Boolean = false,
 ) {
   val inputLocked: Boolean get() = mode != ReaderOcrMode.IDLE
 
@@ -39,7 +40,7 @@ data class ReaderOcrState(
   )
 
   fun withSelection(region: NormalizedOcrRegion?) =
-    if (mode == ReaderOcrMode.SELECTING) copy(selection = region) else this
+    if (mode == ReaderOcrMode.SELECTING) copy(selection = region, selectionInvalid = region == null) else this
 
   fun beginRecognition(): ReaderOcrState? =
     if (mode == ReaderOcrMode.SELECTING && selection != null) {
@@ -71,6 +72,12 @@ internal fun ReaderOcrActions(
 
       ReaderOcrMode.SELECTING -> {
         Text(stringResource(R.string.ocr_selection_hint))
+        if (state.selectionInvalid) {
+          Text(
+            modifier = Modifier.testTag("ocr_selection_invalid"),
+            text = stringResource(R.string.ocr_selection_invalid),
+          )
+        }
         Button(
           modifier = Modifier.testTag("recognize_region_action"),
           enabled = state.selection != null,

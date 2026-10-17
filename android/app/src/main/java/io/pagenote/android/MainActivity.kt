@@ -494,40 +494,42 @@ private fun ReaderHome(
         }
       }
       try {
-        val outcome = withTimeout(OcrPolicy.TIMEOUT_MS) {
-          val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-          input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
-          val pageImage = input ?: error("OCR page image is unavailable")
-          val regionEngine = selection.toEngineRegion()
-          val processor = RegionOcrProcessor(
-            ProjectPreparedCache(SafPreparedDocumentAccess(context.contentResolver)),
-          )
-          processor.recognize(
-            srcDirectoryUri = activeProject.sourceDirectoryUri.toString(),
-            documentId = documentId,
-            page = targetPage + 1,
-            sourceRevision = activeRenderer.sourceRevision,
-            selection = selection,
-            imageWidth = pageImage.width,
-            imageHeight = pageImage.height,
-            engine = OcrResultMapper.ENGINE,
-            notCachedWarning = context.getString(R.string.ocr_not_cached),
-            recognize = {
+        val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+        input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
+        val pageImage = input ?: error("OCR page image is unavailable")
+        val regionEngine = selection.toEngineRegion()
+        val processor = RegionOcrProcessor(
+          ProjectPreparedCache(SafPreparedDocumentAccess(context.contentResolver)),
+        )
+        val outcome = processor.recognize(
+          srcDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+          documentId = documentId,
+          page = targetPage + 1,
+          sourceRevision = activeRenderer.sourceRevision,
+          selection = selection,
+          imageWidth = pageImage.width,
+          imageHeight = pageImage.height,
+          engine = OcrResultMapper.ENGINE,
+          notCachedWarning = context.getString(R.string.ocr_not_cached),
+          recognize = {
+            // Scope the recognition timeout to inference only so a slow SAF
+            // write cannot discard a completed OCR result.
+            withTimeout(OcrPolicy.TIMEOUT_MS) {
               withContext(Dispatchers.Default) { engine.recognize(pageImage, regionEngine) }
-            },
-            encodeImages = {
-              val pixels = regionEngine.toPixelRect(pageImage.width, pageImage.height)
-              val regionImage = Bitmap.createBitmap(
-                pageImage, pixels.left, pixels.top, pixels.width, pixels.height,
-              )
-              try {
-                PreparedOcrImages(pageImage.toPngBytes(), regionImage.toPngBytes())
-              } finally {
-                regionImage.recycle()
-              }
-            },
-          )
-        }
+            }
+          },
+          encodeImages = {
+            val pixels = regionEngine.toPixelRect(pageImage.width, pageImage.height)
+            val regionImage = Bitmap.createBitmap(
+              pageImage, pixels.left, pixels.top, pixels.width, pixels.height,
+            )
+            try {
+              PreparedOcrImages(pageImage.toPngBytes(), regionImage.toPngBytes())
+            } finally {
+              regionImage.recycle()
+            }
+          },
+        )
         finish(outcome.result)
       } catch (timeout: TimeoutCancellationException) {
         finish(OcrResult(
@@ -1211,21 +1213,47 @@ internal fun PdfPageViewport(
             val down = awaitFirstDown(requireUnconsumed = false)
             if (selectionEnabled && down.type != PointerType.Mouse) {
               val start = PdfSelectionPoint(down.position.x, down.position.y)
-              latestOnSelectionChanged(null)
               down.consume()
+              var deliveredValid = false
+              var lastEnd: PdfSelectionPoint? = null
               do {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id }
                 if (change != null) {
-                  latestOnSelectionChanged(mapPdfSelectionToOcrRegion(
-                    start = start,
-                    end = PdfSelectionPoint(change.position.x, change.position.y),
-                    bounds = bounds,
-                    transform = latestTransform,
-                  ))
+                  val endPoint = PdfSelectionPoint(change.position.x, change.position.y)
+                  lastEnd = endPoint
+                  // Deliver valid regions live; defer invalid to drag end so a
+                  // tap does not flash a message before it is confirmed and a
+                  // failed re-drag keeps the previous valid selection.
+                  if (endPoint.x != start.x || endPoint.y != start.y) {
+                    val region = mapPdfSelectionToOcrRegion(
+                      start = start,
+                      end = endPoint,
+                      bounds = bounds,
+                      transform = latestTransform,
+                    )
+                    if (region != null) {
+                      deliveredValid = true
+                      latestOnSelectionChanged(region)
+                    }
+                  }
                   if (change.pressed) change.consume()
                 }
               } while (event.changes.any { it.id == down.id && it.pressed })
+              // Report a tap or fully invalid drag once at drag end so
+              // ReaderOcrActions can show the recoverable message.
+              val end = lastEnd
+              if (!deliveredValid && (end == null ||
+                ((end.x == start.x && end.y == start.y) ||
+                mapPdfSelectionToOcrRegion(
+                  start = start,
+                  end = end,
+                  bounds = bounds,
+                  transform = latestTransform,
+                ) == null))
+              ) {
+                latestOnSelectionChanged(null)
+              }
             } else if (gesturesEnabled) {
               do {
                 val event = awaitPointerEvent()

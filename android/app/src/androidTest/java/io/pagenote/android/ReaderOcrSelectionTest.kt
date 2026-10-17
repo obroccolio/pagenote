@@ -57,6 +57,29 @@ class ReaderOcrSelectionTest {
     composeRule.onNodeWithTag("region_ocr_action").assertIsDisplayed()
   }
 
+  @Test fun invalidSelectionShowsRecoverableMessage() {
+    composeRule.setContent {
+      MaterialTheme {
+        var state by remember {
+          mutableStateOf(ReaderOcrState().enterSelection(1).withSelection(null))
+        }
+        Column {
+          ReaderOcrActions(
+            state = state,
+            currentPage = 1,
+            onStateChange = { state = it },
+            onRecognize = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag("ocr_selection_invalid").assertIsDisplayed()
+    // Recognize stays disabled until a valid drag replaces the invalid one.
+    composeRule.onNodeWithTag("recognize_region_action").assertIsDisplayed()
+    composeRule.onNodeWithTag("cancel_region_selection").assertIsDisplayed()
+  }
+
   @Test fun dragSelectsRegionWithoutAddingPenStrokeOrZoom() {
     val bitmap = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
     var selectedRegion: NormalizedOcrRegion? = null
