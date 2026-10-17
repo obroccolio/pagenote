@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Wire Android agent write tools with mandatory revision guards and updated-page reporting. / 安卓 Agent 接入写工具：强制 revision 保护并报告实际修改页。
+
 - Wire read-only Android agent project tools for page text, reviews, and handoffs. / 安卓 Agent 接入只读项目工具：页面文本、审阅与交接。
 
 - Add Android AI review and handoff dialogs with SAF persistence, status transitions, and stale guards. / 安卓新增 AI 审阅与交接弹窗：SAF 落盘、状态流转与过期保护。
