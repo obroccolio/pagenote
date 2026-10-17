@@ -72,6 +72,15 @@
   <string name="ocr_selection_invalid">That drag is outside the page or has no area. Drag over the page, then Recognize.</string>
   <string name="recognizing_region">Recognizing selection…</string>
   <string name="ocr_not_cached">Recognized, but the result could not be saved to the project cache.</string>
+  <string name="note_history">History</string>
+  <string name="note_history_title">Page %1$d history</string>
+  <string name="note_history_empty">No saved versions for this page yet.</string>
+  <string name="note_history_restore">Restore</string>
+  <string name="note_history_confirm_title">Restore this version?</string>
+  <string name="note_history_confirm_detail">The current draft is backed up first, then replaced with the selected version.</string>
+  <string name="note_history_restored">History version restored.</string>
+  <string name="note_history_conflict">The note changed while restoring. Reload before trying again.</string>
+  <string name="note_history_failed">Unable to load history: %1$s</string>
   <string name="zoom_out">Zoom out</string>
   <string name="zoom_in">Zoom in</string>
   <string name="fit_width">Fit width</string>

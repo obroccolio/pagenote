@@ -72,6 +72,15 @@
   <string name="ocr_selection_invalid">这次拖动在页面外或没有面积。请在页面内拖动后再点识别。</string>
   <string name="recognizing_region">正在识别所选区域…</string>
   <string name="ocr_not_cached">识别已完成，但结果未能保存到项目缓存。</string>
+  <string name="note_history">历史</string>
+  <string name="note_history_title">第 %1$d 页历史</string>
+  <string name="note_history_empty">这一页还没有保存过的版本。</string>
+  <string name="note_history_restore">恢复</string>
+  <string name="note_history_confirm_title">恢复这个版本？</string>
+  <string name="note_history_confirm_detail">会先备份当前草稿，再替换为所选版本。</string>
+  <string name="note_history_restored">已恢复历史版本。</string>
+  <string name="note_history_conflict">恢复时笔记发生变化，请重新加载后重试。</string>
+  <string name="note_history_failed">无法加载历史：%1$s</string>
   <string name="zoom_out">缩小</string>
   <string name="zoom_in">放大</string>
   <string name="fit_width">适宽</string>

@@ -91,6 +91,7 @@ import io.pagenote.agent.PageTutor
 import io.pagenote.agent.PageTutorRequest
 import io.pagenote.agent.PageTutorResult
 import io.pagenote.core.project.PageNotes
+import io.pagenote.core.project.NoteVersion
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
@@ -253,6 +254,7 @@ private fun ReaderHome(
   var isSaving by remember { mutableStateOf(false) }
   val isPenSaving = pendingPenSaves > 0
   var errorMessage by remember { mutableStateOf<String?>(null) }
+  var showNoteHistory by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
 
@@ -378,6 +380,14 @@ private fun ReaderHome(
       noteStatus = recoveryCopyName?.let { name ->
         context.getString(R.string.note_saved_recovery_copy, name)
       } ?: context.getString(R.string.note_saved)
+      withContext(Dispatchers.IO) {
+        runCatching {
+          NoteHistoryMirror.snapshotPage(
+            context.filesDir, activeProject.manifest.id, targetPage,
+            NotePage.pageAt(result.markdown, targetPage),
+          )
+        }
+      }
       true
     } catch (conflict: PageNoteConflictException) {
       noteStatus = conflict.message
@@ -1037,6 +1047,9 @@ private fun ReaderHome(
               onMarkdownChange = { noteDraft = it },
               onSave = { scope.launch { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
+              historyEnabled = noteWritable &&
+                NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
+              onHistory = { showNoteHistory = true },
               animationEnabled = settings.noteAnimation,
               modifier = Modifier.weight(notePaneWeight).fillMaxHeight(),
             )
@@ -1076,6 +1089,9 @@ private fun ReaderHome(
               onMarkdownChange = { noteDraft = it },
               onSave = { scope.launch { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
+              historyEnabled = noteWritable &&
+                NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
+              onHistory = { showNoteHistory = true },
               animationEnabled = settings.noteAnimation,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
@@ -1150,6 +1166,21 @@ private fun ReaderHome(
     AgentModelSettingsDialog(
       store = modelSettingsStore,
       onDismiss = { showAgentModelSettings = false },
+    )
+  }
+  if (showNoteHistory && project != null) {
+    NoteHistoryDialog(
+      page = pageIndex + 1,
+      projectId = project!!.manifest.id,
+      currentDraft = noteDraft,
+      baseRevision = noteBaseRevision,
+      onDismiss = { showNoteHistory = false },
+      onRestore = { restored ->
+        noteDraft = restored
+        noteBaseRevision = PageNotes.revision(restored)
+        noteStatus = context.getString(R.string.note_history_restored)
+        showNoteHistory = false
+      },
     )
   }
 }
@@ -1339,6 +1370,8 @@ private fun NotePanel(
   onMarkdownChange: (String) -> Unit,
   onSave: () -> Unit,
   onReload: () -> Unit,
+  historyEnabled: Boolean = false,
+  onHistory: () -> Unit = {},
   animationEnabled: Boolean,
   modifier: Modifier = Modifier,
 ) {
@@ -1367,6 +1400,8 @@ private fun NotePanel(
         dirty = dirty,
         onReload = onReload,
         onSave = onSave,
+        historyEnabled = historyEnabled,
+        onHistory = onHistory,
       )
     }
     TabRow(selectedTabIndex = if (preview) 1 else 0) {
@@ -1475,6 +1510,8 @@ private fun NotePanelHeader(
   dirty: Boolean,
   onReload: () -> Unit,
   onSave: () -> Unit,
+  historyEnabled: Boolean = false,
+  onHistory: () -> Unit = {},
 ) {
   val actions: @Composable (Boolean, Modifier) -> Unit = { vertical, modifier ->
     NotePanelHeaderActions(
@@ -1484,6 +1521,8 @@ private fun NotePanelHeader(
       vertical = vertical,
       onReload = onReload,
       onSave = onSave,
+      historyEnabled = historyEnabled,
+      onHistory = onHistory,
       modifier = modifier,
     )
   }
@@ -1530,11 +1569,18 @@ private fun NotePanelHeaderActions(
   vertical: Boolean,
   onReload: () -> Unit,
   onSave: () -> Unit,
+  historyEnabled: Boolean = false,
+  onHistory: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val reloadButton: @Composable (Modifier) -> Unit = { buttonModifier ->
     Button(onClick = onReload, enabled = !saving, modifier = buttonModifier) {
       Text(stringResource(R.string.reload))
+    }
+  }
+  val historyButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+    TextButton(onClick = onHistory, enabled = !saving && historyEnabled, modifier = buttonModifier) {
+      Text(stringResource(R.string.note_history))
     }
   }
   val saveButton: @Composable (Modifier) -> Unit = { buttonModifier ->
@@ -1550,13 +1596,138 @@ private fun NotePanelHeaderActions(
   if (vertical) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
       reloadButton(Modifier.fillMaxWidth())
+      historyButton(Modifier.fillMaxWidth())
       saveButton(Modifier.fillMaxWidth())
     }
   } else {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       reloadButton(Modifier)
+      historyButton(Modifier)
       saveButton(Modifier)
     }
+  }
+}
+
+@Composable
+internal fun NoteHistoryDialog(
+  page: Int,
+  projectId: String,
+  currentDraft: String,
+  baseRevision: String,
+  onDismiss: () -> Unit,
+  onRestore: (String) -> Unit,
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var entries by remember(projectId, page) { mutableStateOf<List<NoteVersion>>(emptyList()) }
+  var loadError by remember(projectId, page) { mutableStateOf<String?>(null) }
+  var selected by remember(projectId, page) { mutableStateOf<NoteVersion?>(null) }
+  var preview by remember(projectId, page) { mutableStateOf("") }
+  var confirming by remember { mutableStateOf(false) }
+  var restoreError by remember { mutableStateOf<String?>(null) }
+
+  LaunchedEffect(projectId, page) {
+    loadError = null
+    entries = withContext(Dispatchers.IO) {
+      runCatching { NoteHistoryMirror.entries(context.filesDir, projectId, page) }.getOrElse {
+        loadError = context.getString(R.string.note_history_failed, it.message ?: "")
+        emptyList()
+      }
+    }
+    selected = entries.firstOrNull()
+  }
+  LaunchedEffect(selected) {
+    preview = selected?.let {
+      withContext(Dispatchers.IO) {
+        runCatching { NoteHistoryMirror.readVersion(context.filesDir, projectId, it.id) }
+          .getOrElse { "" }
+      }
+    }.orEmpty()
+  }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.note_history_title, page)) },
+    text = {
+      Column(
+        modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (loadError == null && entries.isEmpty()) {
+          Text(stringResource(R.string.note_history_empty))
+        }
+        entries.forEach { entry ->
+          val label = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(entry.created)) +
+            " · ${entry.bytes}B"
+          TextButton(
+            modifier = Modifier.testTag("note_history_entry_${entry.id}"),
+            onClick = { selected = entry },
+          ) {
+            Text(
+              label,
+              color = if (entry.id == selected?.id) MaterialTheme.colorScheme.primary
+              else MaterialTheme.colorScheme.onSurface,
+            )
+          }
+        }
+        if (selected != null) {
+          Text(preview.ifBlank { stringResource(R.string.note_history_empty) })
+        }
+        restoreError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+      }
+    },
+    confirmButton = {
+      TextButton(
+        modifier = Modifier.testTag("note_history_restore"),
+        enabled = selected != null,
+        onClick = { confirming = true },
+      ) { Text(stringResource(R.string.note_history_restore)) }
+    },
+    dismissButton = {
+      TextButton(modifier = Modifier.testTag("note_history_close"), onClick = onDismiss) {
+        Text(stringResource(R.string.close))
+      }
+    },
+  )
+  if (confirming && selected != null) {
+    AlertDialog(
+      onDismissRequest = { confirming = false },
+      title = { Text(stringResource(R.string.note_history_confirm_title)) },
+      text = { Text(stringResource(R.string.note_history_confirm_detail)) },
+      confirmButton = {
+        TextButton(
+          modifier = Modifier.testTag("note_history_confirm"),
+          onClick = {
+            val version = selected ?: return@TextButton
+            scope.launch {
+              try {
+                val restored = withContext(Dispatchers.IO) {
+                  NoteHistoryMirror.snapshotPage(
+                    context.filesDir, projectId, page, currentDraft,
+                  )
+                  NoteHistoryMirror.restore(
+                    context.filesDir, projectId, version.id, page, baseRevision, currentDraft,
+                  )
+                }
+                onRestore(restored)
+              } catch (_: IllegalStateException) {
+                restoreError = context.getString(R.string.note_history_conflict)
+                confirming = false
+              } catch (error: Exception) {
+                restoreError = context.getString(
+                  R.string.note_history_failed, error.message ?: "",
+                )
+                confirming = false
+              }
+            }
+          },
+        ) { Text(stringResource(R.string.note_history_restore)) }
+      },
+      dismissButton = {
+        TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) }
+      },
+    )
   }
 }
 
