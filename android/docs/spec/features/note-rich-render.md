@@ -52,5 +52,5 @@
 - JVM：公式预处理、别名归一、结构化围栏/公式诊断、跨行和多反引号代码跨度、缺失/外链图片判定。
 - Android instrumentation：有效行内/块级公式绘制的真实 Drawable 像素，以及无效 TeX 经 renderer error handler 的源码保留、可见 fallback 和后续文本保留。
 - Android instrumentation：两种 Markdown 预览均显示本地化诊断；确认诊断文案不包含输入中的 URL/公式/片段且预览内容仍保留原始 Markdown 语义。
-- Android instrumentation：LaTeX drawable/span、已知代码语言高亮、未知语言源码回退、缺图与损坏内联图占位、抛出 I/O 异常的本地图片 `InputStream` 占位、HTTP(S) handler 不发起请求、敏感来源脱敏，以及 Mermaid WebView 的真实 SVG 绘制、源码安全传递、错误回退、离线资源白名单和无外部网络请求。
+- Android instrumentation：LaTeX drawable/span、已知代码语言高亮、未知语言源码回退、缺图与损坏内联图占位、抛出 I/O 异常的本地图片 `InputStream` 占位；另通过提供 `DocumentsContract` 形状 URI 的 instrumentation `ContentProvider` 和目标应用真实 `ContentResolver` 集成验证查询/打开成功，以及查询拒绝或打开流失败时显示安全占位（不等同于系统 URI 持久授权验收）；HTTP(S) handler 不发起请求、敏感来源脱敏，以及 Mermaid WebView 的真实 SVG 绘制、源码安全传递、错误回退、离线资源白名单和无外部网络请求。
 - `cd android && ./gradlew :feature-notes:testDebugUnitTest :app:assembleDebug` 通过；四 ABI APK 继续执行 16 KB 检查。
