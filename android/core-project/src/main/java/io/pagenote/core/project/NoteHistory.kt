@@ -21,6 +21,19 @@ object NoteHistory {
     return file
   }
 
+  /**
+   * Snapshot unless the latest entry for [page] already holds identical content.
+   * Returns the new file, or null when skipped as a duplicate.
+   */
+  fun snapshotOnce(historyDir: File, page: Int, markdown: String): File? {
+    require(page >= 1)
+    val latest = entries(historyDir, page).firstOrNull()
+    if (latest != null && File(historyDir, latest.id).readText(Charsets.UTF_8) == markdown) {
+      return null
+    }
+    return snapshot(historyDir, page, markdown)
+  }
+
   fun entries(historyDir: File, page: Int): List<NoteVersion> {
     require(page >= 1)
     val files = historyDir.listFiles() ?: return emptyList()
