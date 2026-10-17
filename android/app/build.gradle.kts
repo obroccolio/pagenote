@@ -9,7 +9,7 @@ android {
   compileSdk = 35
   defaultConfig {
     applicationId = "io.pagenote.android"
-    minSdk = 29
+    minSdk = 34
     targetSdk = 35
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     versionCode = 1

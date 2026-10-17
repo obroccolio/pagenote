@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Require Android 14 (API 34) or newer across all Android modules; align PDF text extraction fallback and support documentation with that floor. / 安卓所有模块最低运行版本统一为 Android 14（API 34），并同步 PDF 原生文字提取回退规则与支持说明。
+
 - Fix Android SAF project creation to retain the selected parent grant, preserve the `project.pagenote` filename, and keep the creation dialog state across folder selection. / 修复安卓 SAF 项目创建：沿用已选父目录授权、保留 `project.pagenote` 文件名，并在选择目录返回后保持弹窗及输入状态。
 
 - Clarify Android OCR cache metadata and crop contracts, Agent tool validation requirements, and the limits of current device smoke evidence. / 明确安卓 OCR 缓存元数据与裁剪契约、Agent 工具校验要求及当前真机烟测证据边界。

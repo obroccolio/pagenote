@@ -7,7 +7,7 @@ android {
   namespace = "io.pagenote.feature.ocr"
   compileSdk = 35
   defaultConfig {
-    minSdk = 29
+    minSdk = 34
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
