@@ -5,12 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
@@ -31,11 +33,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.roundToInt
 
 internal enum class ReaderThemeMode { LIGHT, DARK, PAPER }
+
+internal sealed interface ReaderSettingsLoadState {
+  data object Loading : ReaderSettingsLoadState
+  data class Loaded(val settings: ReaderSettings) : ReaderSettingsLoadState
+  data class Error(val message: String, val cause: Throwable) : ReaderSettingsLoadState
+}
+
+internal fun Flow<ReaderSettings>.asReaderSettingsLoadStates(): Flow<ReaderSettingsLoadState> =
+  map<ReaderSettings, ReaderSettingsLoadState> { ReaderSettingsLoadState.Loaded(it) }
+    .catch { cause ->
+      emit(
+        ReaderSettingsLoadState.Error(
+          message = cause.message?.takeIf(String::isNotBlank) ?: cause.javaClass.simpleName,
+          cause = cause,
+        ),
+      )
+    }
+
+internal enum class NotePanelHeaderLayout { INLINE, STACKED_ACTIONS, STACKED_CONTROLS }
+
+internal fun notePanelHeaderLayout(availableWidthDp: Float): NotePanelHeaderLayout = when {
+  availableWidthDp < 220f -> NotePanelHeaderLayout.STACKED_CONTROLS
+  availableWidthDp < 420f -> NotePanelHeaderLayout.STACKED_ACTIONS
+  else -> NotePanelHeaderLayout.INLINE
+}
 
 internal fun resolveReaderTheme(theme: String, systemIsDark: Boolean): ReaderThemeMode = when (theme) {
   "system" -> if (systemIsDark) ReaderThemeMode.DARK else ReaderThemeMode.LIGHT
@@ -87,6 +117,37 @@ internal fun readerPaneWeights(leftPercent: Int): Pair<Float, Float> {
 }
 
 internal fun notePageTransitionDurationMillis(enabled: Boolean): Int = if (enabled) 220 else 0
+
+@Composable
+internal fun ReaderSettingsLoadScreen(
+  state: ReaderSettingsLoadState,
+  onRetry: () -> Unit,
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(24.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
+  ) {
+    when (state) {
+      ReaderSettingsLoadState.Loading -> {
+        CircularProgressIndicator()
+        Text(stringResource(R.string.reader_settings_loading))
+      }
+      is ReaderSettingsLoadState.Error -> {
+        Text(stringResource(R.string.reader_settings_load_error_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+          stringResource(R.string.reader_settings_load_error_detail, state.message),
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+      }
+      is ReaderSettingsLoadState.Loaded -> Unit
+    }
+  }
+}
 
 @Composable
 internal fun ReaderSettingsDialog(

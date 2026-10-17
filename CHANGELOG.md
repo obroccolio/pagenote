@@ -6,6 +6,8 @@
 
 - Add Android reader settings for theme, language, pane ratio, and note transitions, with runtime application and localized controls. / 安卓阅读器新增主题、语言、分栏比例和笔记过渡动画设置，并支持运行时生效与中英文界面。
 
+- Keep the Android reader recoverable when saved settings cannot be read, and adapt note controls to narrow split panes. / 安卓阅读设置读取失败时显示可重试状态，并让笔记栏控件适配窄分栏。
+
 - Recognize selected page regions with the bundled offline OCR engine and map detections back to full-page coordinates while preserving caller-owned images. / 新增端侧离线 OCR 选区识别，将检测框映射回整页坐标并保留调用方原图所有权。
 
 - Define Android-only SPECs for reader settings and OCR region recognition under `android/docs/spec/`. / 在 `android/docs/spec/` 中定义安卓阅读器设置与选区 OCR 的独立 SPEC。

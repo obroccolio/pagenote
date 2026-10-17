@@ -51,7 +51,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -126,7 +126,27 @@ private fun ReaderSettingsHost() {
   val settingsStore = remember(context.applicationContext) {
     readerSettingsStore(context.applicationContext)
   }
-  val settings by settingsStore.settings.collectAsState(initial = ReaderSettings())
+  var retryAttempt by remember { mutableIntStateOf(0) }
+  val loadState by produceState<ReaderSettingsLoadState>(
+    initialValue = ReaderSettingsLoadState.Loading,
+    settingsStore,
+    retryAttempt,
+  ) {
+    value = ReaderSettingsLoadState.Loading
+    settingsStore.settings.asReaderSettingsLoadStates().collect { value = it }
+  }
+  val systemThemeMode = resolveReaderTheme("system", isSystemInDarkTheme())
+  val settings = (loadState as? ReaderSettingsLoadState.Loaded)?.settings
+
+  if (settings == null) {
+    MaterialTheme(colorScheme = readerColorScheme(systemThemeMode)) {
+      Surface(modifier = Modifier.fillMaxSize()) {
+        ReaderSettingsLoadScreen(loadState) { retryAttempt += 1 }
+      }
+    }
+    return
+  }
+
   val systemLocale = systemConfiguration.locales.get(0) ?: Locale.getDefault()
   val locale = resolveReaderLocale(settings.language, systemLocale)
   val localizedConfiguration = remember(systemConfiguration, settings.language, locale) {
@@ -957,18 +977,16 @@ private fun NotePanel(
   }
 
   Column(modifier = modifier.padding(8.dp)) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(stringResource(R.string.note_page_title, page), style = MaterialTheme.typography.titleSmall)
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onReload, enabled = !saving) { Text(stringResource(R.string.reload)) }
-        Button(onClick = onSave, enabled = writable && dirty && !saving) {
-          Text(stringResource(if (saving) R.string.saving else R.string.save))
-        }
-      }
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+      NotePanelHeader(
+        page = page,
+        layout = notePanelHeaderLayout(maxWidth.value),
+        saving = saving,
+        writable = writable,
+        dirty = dirty,
+        onReload = onReload,
+        onSave = onSave,
+      )
     }
     TabRow(selectedTabIndex = if (preview) 1 else 0) {
       Tab(selected = !preview, onClick = { preview = false }, text = { Text(stringResource(R.string.note_edit)) })
@@ -1066,6 +1084,100 @@ private fun NotePanel(
 }
 
 private data class ReaderNoteContent(val page: Int, val markdown: String, val preview: Boolean)
+
+@Composable
+private fun NotePanelHeader(
+  page: Int,
+  layout: NotePanelHeaderLayout,
+  saving: Boolean,
+  writable: Boolean,
+  dirty: Boolean,
+  onReload: () -> Unit,
+  onSave: () -> Unit,
+) {
+  val actions: @Composable (Boolean, Modifier) -> Unit = { vertical, modifier ->
+    NotePanelHeaderActions(
+      saving = saving,
+      writable = writable,
+      dirty = dirty,
+      vertical = vertical,
+      onReload = onReload,
+      onSave = onSave,
+      modifier = modifier,
+    )
+  }
+
+  when (layout) {
+    NotePanelHeaderLayout.INLINE -> Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        stringResource(R.string.note_page_title, page),
+        modifier = Modifier.weight(1f),
+        style = MaterialTheme.typography.titleSmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      actions(false, Modifier)
+    }
+    NotePanelHeaderLayout.STACKED_ACTIONS -> Column(
+      modifier = Modifier.fillMaxWidth(),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(stringResource(R.string.note_page_title, page), style = MaterialTheme.typography.titleSmall)
+      Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+        actions(false, Modifier)
+      }
+    }
+    NotePanelHeaderLayout.STACKED_CONTROLS -> Column(
+      modifier = Modifier.fillMaxWidth(),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(stringResource(R.string.note_page_title, page), style = MaterialTheme.typography.titleSmall)
+      actions(true, Modifier.fillMaxWidth())
+    }
+  }
+}
+
+@Composable
+private fun NotePanelHeaderActions(
+  saving: Boolean,
+  writable: Boolean,
+  dirty: Boolean,
+  vertical: Boolean,
+  onReload: () -> Unit,
+  onSave: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val reloadButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+    Button(onClick = onReload, enabled = !saving, modifier = buttonModifier) {
+      Text(stringResource(R.string.reload))
+    }
+  }
+  val saveButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+    Button(
+      onClick = onSave,
+      enabled = writable && dirty && !saving,
+      modifier = buttonModifier,
+    ) {
+      Text(stringResource(if (saving) R.string.saving else R.string.save))
+    }
+  }
+
+  if (vertical) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      reloadButton(Modifier.fillMaxWidth())
+      saveButton(Modifier.fillMaxWidth())
+    }
+  } else {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      reloadButton(Modifier)
+      saveButton(Modifier)
+    }
+  }
+}
 
 @Composable
 private fun OcrResultDialog(
