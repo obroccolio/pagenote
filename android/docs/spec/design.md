@@ -32,7 +32,8 @@ Mermaid 只在需要表达 Agent 循环与页面准备状态机时使用，本�
 
 - 语言与 UI：Kotlin + Jetpack Compose。理由是手写笔低延迟与双栏自适应必须走原生；代价是不能直接复用桌面 Web 前端。
 - PDF：首选 Pdfium/MuPDF 系开源方案，兜底系统 `PdfRenderer`。原生文字走 PDF 文本抽取，位图页走渲染加 OCR。超大页限制像素并记录实际比例。
-- Markdown：复用桌面渲染约定（GFM、公式、代码高亮、Mermaid、表格、图片）。移动编辑选用轻量开源 Markdown 工程适配，不自研编辑器；复杂 Word/PPT 回桌面。
+- Markdown：复用桌面渲染约定（GFM、公式、代码高亮、Mermaid、表格、图片），优先用 Android 原生 renderer；仅 Mermaid 可在隔离、离线的图表 surface 使用 APK 内资源。轻量 Markdown 编辑器保持可编辑源码和桌面命令语义。
+- Office：通过 `OfficeEditorAdapter` 隔离开源本地 Office 引擎和 pagenote 项目存储；首选评估 Collabora/LibreOfficeKit Android。集成前必须做独立可行性验证：本地离线构建、Activity/view 集成、SAF 授权下原子保存、`.doc/.docx/.ppt/.pptx` 导入/读写、预览 PDF 导出、API 34 与 16 KB ABI、许可证和 NOTICE。Collabora 官方 Android 构建材料说明 native 部分需在 Linux 构建，且代码位于其 online monorepo；这不是一个可直接加入 Gradle 的轻量 UI 依赖。若无法嵌入到 pagenote 或无法可靠保存，先提交技术决策与替代候选供确认，不退化为仅启动外部 Office 应用。ONLYOFFICE Android mobile integration 依赖配置的 Document Server URL，不满足本规格的离线本机编辑约束。
 - OCR：选用 PaddleOCR PP-OCRv6 tiny + ONNX Runtime Mobile，模型随 APK 离线提供。保留原生与 OCR 双通道、坐标、置信度、警告、原图，失败明确标记。
 - 模型：只做 OpenAI 兼容 `/v1/chat/completions` 客户端，支持自定义 BaseURL/Key/模型名。软件不内置模型，不硬编码密钥。默认可配本地中转 `http://127.0.0.1:3457/v1` 与 `cline-free/mimo-v2.6-flash`，仅作默认配置项，不作为代码常量密钥。
 - 并发：Agent 按页独立请求，携带当前页与相邻源页材料；不支持后台批量全章生成。
@@ -94,13 +95,18 @@ MyProject/
 
 - 职责：导航、项目列表、阅读页、设置页、模型配置页。
 - 手机竖屏上下页对照，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
+- 根据 Compose `WindowSizeClass` 自适应导航：紧凑窗口使用应用栏 + 模态抽屉；扩展窗口使用可收起侧栏/导航栏。平板侧栏展开时呈现完整桌面分组；收起时以图标导航并提供语义化标签和 tooltip。尺寸变化期间保留当前文档、页码、滚动位置、编辑器选择和笔迹草稿。
+- 桌面分组映射为 Android 可达命令组：文件、AI 批注、编辑、段落、格式、插入、阅读、手写批注、Word 编辑、设置、帮助。只显示当前内容类型/模式支持的命令；禁用态必须说明原因，不移除桌面已有能力。
+- 主阅读区保持原文与逐页笔记为第一视觉层级，侧栏不遮挡正在阅读的两栏。紧凑宽度下切换原文/笔记 pane 或上下堆叠；扩展宽度左右并列并提供可调分界线。
+- 视觉 token 对齐桌面 `src/theme.css` / `src/desktop.css`：浅色 accent `#185abd`、页面 `#eef1f5`、surface `#ffffff`、title surface `#f5f8fd`、text `#253247`；深色 accent `#8bb8ff`、页面 `#17191d`、surface `#22252b`、text `#e7eaf0`。Android 字体采用系统 sans-serif fallback（桌面 Segoe UI / Microsoft YaHei 字形不在所有 Android 镜像内）；字号层级、粗细、分隔线、图标含义、密度和圆角延续桌面语言，触控目标与手写笔悬停适配 Android。
+- Tablet 外接键盘可用时，编辑/撤销/重做/页面导航等桌面常用快捷键继续工作；触屏仍有等价菜单命令。
 - 设置持久化主题、语言、双栏比例、动画开关；语言键复用桌面 `locales/catalog.json` 语义。
 
 ### 4.2 core-project
 
 - 职责：项目打开、保存、assets 导入导出、分页、revision、历史。
 - 原子写：临时文件加改名，不直接覆盖。
-- 非目标：Office 转换；遇到 doc/docx/ppt/pptx 只读预览或提示回桌面。
+- Office 文件转换与编辑由独立 `OfficeEditorAdapter` 承担；core-project 仅负责 SAF 项目路径、revision 和原子写入契约，不依赖具体 Office 引擎。
 
 ### 4.3 core-reader
 
@@ -140,6 +146,15 @@ MyProject/
 - 多步上限默认 8 步，可配；限流与失败报告实际完成范围。
 - 安全：提示词与项目资料是学习资料，不是工具指令；资料中指令不改变任务。
 
+### 4.9 Office 编辑器适配
+
+- `OfficeEditorAdapter` 提供 `open(sourceUri, format)`, `readRevision()`, `save(expectedRevision)`, `exportPdf()`, `close(saveDecision)` 等与引擎无关的接口。UI、项目存储、注释和页面缓存不得直接依赖 Collabora/LOKit 类型。
+- Office 源文件保存在项目 `src/`，按安全的 SAF document URI 访问；渲染用 PDF 是派生缓存，不替代原文件。派生内容按源 SHA-256 + 引擎/版本生成缓存键。
+- 编辑会话使用临时副本；保存前比对外部源 revision，成功后写临时文件并在 Provider 支持时原子替换。发生授权不足、provider 不支持 rename、revision 冲突、空间不足或保存失败时，保留可恢复副本并报告状态，不能声称已保存。
+- 保存成功后重新生成分页预览，刷新或使准备/OCR 缓存失效；更新文档页数时保留既有笔记、笔迹和标注记录，不静默删除越界页数据。
+- Editor Activity/嵌入 surface 必须可由 pagenote 返回键正常关闭；关闭前处理保存、放弃、取消；不依赖 Android 外部应用已安装，也不请求网络。
+- 原生笔迹/AI 标注仍由 pagenote 容器负责。Office 页面可见内容与 PDF 预览共用页索引和坐标映射；选中文本、图像/区域标注的可用性由引擎接口能力声明，无法提供时不得假装已创建锚点。
+
 ## 5. 错误处理
 
 - 项目无效、链接越界、格式不支持：直接报错，不建半成品项目。
@@ -155,7 +170,17 @@ MyProject/
 - 单元测试：core-project、core-reader、feature-ocr、agent 循环。
 - 集成测试：本地中转模型跑逐页讲解与批注改写，mock 与真接口两层。
 - 真机测试：手机与平板各走阅读、笔记、标注、Agent、笔迹闭环；飞行模式验 OCR。
+- UI parity：Phone compact 与 Tablet expanded/collapsed 三种窗口类做 Compose 仪器测试和截图核对；逐项验证每个桌面菜单组均可到达、命令状态与当前文档一致、方向/宽度切换不丢编辑状态。
+- Office：使用具备已知文本、表格、图片、公式和多页内容的 DOCX/PPTX fixture；离线导入、预览、编辑、保存、重新打开、PDF 预览页数与源 revision 必须一致。另覆盖 `.doc`/`.ppt` 支持或明确的无损转换路径、SAF provider 错误、保存冲突、取消/放弃和未保存退出。
+- 发布检查：APK/AAB 的每个 ABI 做 16 KB ELF LOAD 与 ZIP alignment 检查；Office 引擎本地 native libraries 也必须纳入检查，API 34 设备和 API 35+ AVD 分别执行启动/基础编辑 smoke。
 - 构建隔离：改安卓不跑桌面 Electron 测试；改桌面不跑安卓构建，但契约变更两边都要回归。
+
+## 8. UI / Office 参考依据
+
+- 桌面菜单与视觉基线：仓库 `index.html`、`src/desktop.css`、`src/theme.css`。
+- Collabora Android 构建与代码组织：[Build for Android](https://github.com/CollaboraOnline/CollaboraOnline.github.io/blob/master/content/post/build-code-android.md)。
+- Android LibreOfficeKit API surface：[LibreOfficeKit Java bootstrap](https://github.com/LibreOffice/core/blob/master/android/Bootstrap/src/org/libreoffice/kit/LibreOfficeKit.java) 与 [LibreOfficeKit API overview](https://docs.libreoffice.org/libreofficekit.html)。
+- ONLYOFFICE mobile integration 的 Document Server 依赖：[Android mobile integration](https://github.com/ONLYOFFICE/api.onlyoffice.com/blob/master/site/docs/docs-api/get-started/how-it-works/mobile-integration/mobile-integration-on-android-devices.md)。
 
 ## 7. 发布与分支
 

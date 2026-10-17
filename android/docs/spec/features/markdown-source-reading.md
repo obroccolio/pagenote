@@ -2,7 +2,7 @@
 
 ## Scope
 
-Task 4.3 切片：左源为 md/markdown 的项目，左窗格显示源 Markdown 的分页阅读（复用 `PageNotes.split` 分页 + Markwon 预览），右窗格笔记不变。PDF 路径不动；Office 格式仍拒绝。
+Task 4.3 切片：左源为 md/markdown 的项目，左窗格显示源 Markdown 的分页阅读（复用 `PageNotes.split` 分页 + Markwon 预览），右窗格笔记不变。PDF 路径不动；本切片暂不处理 Office，完整 Office 目标见 `desktop-ui-and-office-parity.md`。
 
 ## Behavior
 

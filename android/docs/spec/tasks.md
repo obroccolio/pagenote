@@ -2,6 +2,7 @@
 
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
+> `features/desktop-ui-and-office-parity.md` 正在等待发起人审阅；当前复选框仅记录既有 Android 实现，不代表桌面菜单/Office 终态已完成。获批后再据此扩展任务与验收矩阵。
 
 ## Implementation Plan
 

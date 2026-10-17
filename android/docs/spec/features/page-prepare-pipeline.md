@@ -36,7 +36,7 @@
 ## Non-goals
 
 - Mermaid PNG/SVG 渲染不移植：移动端无 headless 浏览器管线，源码透出 + warning 已满足 Agent 可读需求。
-- Word/PPT 原生转换不移植：超出移动端轻量编辑定位，回桌面处理。
+- 此页面准备切片不承担 Office 文件转换；Office 原文件到可分页预览的流程由 `desktop-ui-and-office-parity.md` 定义的独立 `OfficeEditorAdapter` 负责，本模块只消费其派生页图/文字并维护自己的缓存语义。
 
 ## Acceptance (EARS)
 

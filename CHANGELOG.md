@@ -4,6 +4,7 @@
 
 - Require Android 14 (API 34) or newer across all Android modules; align PDF text extraction fallback and support documentation with that floor. / 安卓所有模块最低运行版本统一为 Android 14（API 34），并同步 PDF 原生文字提取回退规则与支持说明。
 - Add native LaTeX math and Prism code rendering to Android Markdown previews, show warnings for missing or undecodable images, block remote HTTP(S) requests, and redact sensitive image source details from warnings. Keep the long-page hint visible and repair Compose instrumentation hosts; all 42 Android instrumentation tests pass on a Pixel Tablet API 35 AVD. The separate API 36 device smoke check remains local (not a public release). / 安卓 Markdown 预览新增原生 LaTeX 公式和 Prism 代码高亮，缺失或无法解码的图片显示警告，阻断 HTTP(S) 外链请求并脱敏图片来源提示；修复长页提示被预览区挤出的布局问题和 Compose 仪器测试宿主。Pixel Tablet API 35 AVD 上 42 项 Android 仪器测试全部通过。API 36 设备烟测仍为本地验证（非公开发布）。
+- Expand the Android SPEC to require desktop menu-group parity, an adaptive tablet sidebar/phone drawer, and in-app offline editing for the Office formats already supported by desktop; the proposed Collabora/LibreOfficeKit integration remains an approval-gated feasibility spike. / 扩展 Android SPEC：要求对齐桌面菜单分组、采用平板自适应侧栏/手机抽屉，并在应用内离线编辑桌面已支持的 Office 格式；Collabora/LibreOfficeKit 仍是需审阅批准的可行性验证候选。
 
 - Fix Android SAF project creation to retain the selected parent grant, preserve the `project.pagenote` filename, and keep the creation dialog state across folder selection. / 修复安卓 SAF 项目创建：沿用已选父目录授权、保留 `project.pagenote` 文件名，并在选择目录返回后保持弹窗及输入状态。
 
