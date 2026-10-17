@@ -12,6 +12,18 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+data class ReviewCreate(
+  val side: String,
+  val kind: String,
+  val page: Int,
+  val instruction: String,
+  val scope: String? = null,
+  val quote: String? = null,
+  val context: String? = null,
+  val revision: String? = null,
+  val anchor: kotlinx.serialization.json.JsonElement? = null,
+)
+
 /**
  * Mirror of desktop ai-reviews.json semantics (server.mjs POST/DELETE/PATCH).
  * Records are kept as JsonObjects so unknown fields (quote/context/revision/anchor/...) survive round-trips.
@@ -35,23 +47,58 @@ object ReviewStore {
     page: Int,
     instruction: String,
     scope: String? = null,
-  ): JsonObject {
-    require(SIDES.contains(side)) { "bad side" }
-    require(KINDS.contains(kind)) { "bad kind" }
-    require(page >= 1) { "bad page" }
-    val trimmed = instruction.trim()
+    quote: String? = null,
+    context: String? = null,
+    revision: String? = null,
+    anchor: kotlinx.serialization.json.JsonElement? = null,
+  ): JsonObject = createDetails(
+    srcDir, ReviewCreate(
+      side = side,
+      kind = kind,
+      page = page,
+      instruction = instruction,
+      scope = scope,
+      quote = quote,
+      context = context,
+      revision = revision,
+      anchor = anchor,
+    ),
+  )
+
+  /**
+   * Desktop POST limits: quote<=100000, context<=1000000, anchor JSON<=500000 chars.
+   * revision is a passthrough string (desktop may store a note revision or null).
+   */
+  fun createDetails(srcDir: File, input: ReviewCreate): JsonObject {
+    require(SIDES.contains(input.side)) { "bad side" }
+    require(KINDS.contains(input.kind)) { "bad kind" }
+    require(input.page >= 1) { "bad page" }
+    val trimmed = input.instruction.trim()
     require(trimmed.isNotEmpty() && trimmed.length <= 20000) { "bad instruction" }
+    val quote = (input.quote ?: "").take(100000)
+    val context = (input.context ?: "").take(1000000)
+    input.anchor?.let {
+      require(Json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), it).length <= 500000) {
+        "anchor too large"
+      }
+    }
     val file = File(srcDir, "ai-reviews.json")
     val records = read(file).toMutableList()
     val number = (records.mapNotNull { (it as? JsonObject)?.get("number")?.jsonPrimitive?.content?.toIntOrNull() }.maxOrNull() ?: 0) + 1
     val record = buildJsonObject {
       put("id", JsonPrimitive(UUID.randomUUID().toString()))
       put("number", JsonPrimitive(number))
-      put("side", JsonPrimitive(side))
-      put("kind", JsonPrimitive(kind))
-      put("page", JsonPrimitive(page))
-      put("scope", JsonPrimitive(if (scope == "document") "document" else "page"))
+      put("side", JsonPrimitive(input.side))
+      put("kind", JsonPrimitive(input.kind))
+      put("page", JsonPrimitive(input.page))
+      put("scope", JsonPrimitive(if (input.scope == "document") "document" else "page"))
       put("instruction", JsonPrimitive(trimmed))
+      put("quote", JsonPrimitive(quote))
+      put("context", JsonPrimitive(context))
+      if (input.revision != null) put("revision", JsonPrimitive(input.revision))
+      else put("revision", JsonNull)
+      if (input.anchor != null) put("anchor", input.anchor)
+      else put("anchor", JsonNull)
       put("status", JsonPrimitive("open"))
       put("created", JsonPrimitive(java.time.Instant.now().toString()))
     }
