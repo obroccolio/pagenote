@@ -69,12 +69,13 @@ fun mapPdfSelectionToOcrRegion(
   val right = maxOf(pageStart.x, endX) / bounds.pageWidthPx * 1000f
   val bottom = maxOf(pageStart.y, endY) / bounds.pageHeightPx * 1000f
 
-  return NormalizedOcrRegion(
+  val region = NormalizedOcrRegion(
     left = kotlin.math.floor(left).toInt().coerceIn(0, 1000),
     top = kotlin.math.floor(top).toInt().coerceIn(0, 1000),
     right = kotlin.math.ceil(right).toInt().coerceIn(0, 1000),
     bottom = kotlin.math.ceil(bottom).toInt().coerceIn(0, 1000),
   )
+  return region.takeIf { it.right > it.left && it.bottom > it.top }
 }
 
 data class PdfViewportPointer(val id: Long, val x: Float, val y: Float)

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Reject Android OCR selections whose normalized integer bounds have zero width or height. / 拒绝归一化整数边界中宽度或高度为零的安卓 OCR 选区。
+
 - Add explicit version-2 prepared-manifest and OCR-result JSON codecs with validation and exact cache identity matching. / 新增带校验的 v2 预处理清单与 OCR 结果 JSON 编解码，并按完整缓存身份精确匹配。
 
 - Map Android reader selections through the centered page transform into clipped, normalized OCR coordinates. / 将安卓阅读器选区按页面居中变换映射为裁剪后的归一化 OCR 坐标。

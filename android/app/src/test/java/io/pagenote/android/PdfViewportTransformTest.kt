@@ -79,6 +79,42 @@ class PdfViewportTransformTest {
   }
 
   @Test
+  fun tapSelection_isRejectedWhenQuantizedToZeroArea() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(500f, 400f),
+      end = PdfSelectionPoint(500f, 400f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(region)
+  }
+
+  @Test
+  fun horizontalSelection_isRejectedWhenQuantizedToZeroHeight() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(500f, 400f),
+      end = PdfSelectionPoint(700f, 400f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(region)
+  }
+
+  @Test
+  fun verticalSelection_isRejectedWhenQuantizedToZeroWidth() {
+    val region = mapPdfSelectionToOcrRegion(
+      start = PdfSelectionPoint(500f, 400f),
+      end = PdfSelectionPoint(500f, 600f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(region)
+  }
+
+  @Test
   fun zoomKeepsGestureCentroidAnchoredAndClampsToMaximumScale() {
     val zoomed = PdfViewportTransform.applyGesture(
       current = PdfViewportTransform.DEFAULT,
