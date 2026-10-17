@@ -12,9 +12,11 @@ import android.text.InputType
 import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.compose.foundation.Image
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -122,6 +124,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ReaderSettingsHost() {
   val context = LocalContext.current
+  val activityResultRegistryOwner = context as ActivityResultRegistryOwner
   val systemConfiguration = LocalConfiguration.current
   val settingsStore = remember(context.applicationContext) {
     readerSettingsStore(context.applicationContext)
@@ -165,6 +168,7 @@ private fun ReaderSettingsHost() {
   CompositionLocalProvider(
     LocalConfiguration provides localizedConfiguration,
     LocalContext provides localizedContext,
+    LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
   ) {
     MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
       Surface(modifier = Modifier.fillMaxSize()) {
