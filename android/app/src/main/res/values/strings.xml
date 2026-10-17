@@ -88,6 +88,14 @@
   <string name="note_rich_image_missing">Image unavailable: %1$s</string>
   <string name="note_rich_image_remote">Remote image (not fetched offline): %1$s</string>
   <string name="note_rich_unclosed">Unclosed code fence; showing as plain text.</string>
+  <string name="new_project">New project</string>
+  <string name="new_project_title">New project</string>
+  <string name="new_project_name">Project name</string>
+  <string name="new_project_choose_dir">Choose folder</string>
+  <string name="new_project_creating">Creating…</string>
+  <string name="new_project_create">Create</string>
+  <string name="new_project_bad_name">Enter a valid project name.</string>
+  <string name="new_project_failed">Unable to create project: %1$s</string>
   <string name="zoom_out">Zoom out</string>
   <string name="zoom_in">Zoom in</string>
   <string name="fit_width">Fit width</string>

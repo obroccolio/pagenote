@@ -708,85 +708,142 @@ private fun ReaderHome(
     }
   }
 
+  var showNewProject by remember { mutableStateOf(false) }
+  var newProjectName by remember { mutableStateOf("") }
+  var newProjectDir by remember { mutableStateOf<Uri?>(null) }
+  var isCreatingProject by remember { mutableStateOf(false) }
+  var newProjectError by remember { mutableStateOf<String?>(null) }
+
+  val newProjectDirPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocumentTree(),
+  ) { treeUri: Uri? ->
+    if (treeUri != null) {
+      try {
+        context.contentResolver.takePersistableUriPermission(
+          treeUri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+      } catch (_: SecurityException) {
+      }
+      newProjectDir = treeUri
+    }
+  }
+
+  suspend fun openProjectTree(treeUri: Uri, manageOpening: Boolean = true) {
+    if (manageOpening) {
+      isOpening = true
+      errorMessage = null
+    }
+    try {
+      var writable = true
+      try {
+        context.contentResolver.takePersistableUriPermission(
+          treeUri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+      } catch (_: SecurityException) {
+        writable = false
+        context.contentResolver.takePersistableUriPermission(
+          treeUri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+      }
+      val loaded = withContext(Dispatchers.IO) {
+        val opened = ProjectDocumentOpener(context.contentResolver).open(treeUri)
+        require(opened.sourceExtension == "pdf") {
+          context.getString(
+            R.string.unsupported_format,
+            opened.sourceExtension.ifBlank { "" },
+          )
+        }
+        val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
+        val noteText = noteStore.read()
+        val supportsNoteWrite = noteStore.supportsWrite()
+        val projectPenStore = ProjectPenStore(
+          context.contentResolver,
+          opened.sourceDirectoryUri,
+          opened.annotationsUri,
+        )
+        val loadedPenPages = PenPageStore().apply {
+          loadAnnotationsMap(
+            mapOf(PenSide.DOCUMENT.key to projectPenStore.readPages(PenSide.DOCUMENT)),
+          )
+        }
+        val supportsPenWrite = projectPenStore.supportsWrite()
+        val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
+        ReaderProjectData(
+          project = opened,
+          noteText = noteText,
+          renderer = pdf,
+          noteWritable = writable && supportsNoteWrite,
+          penStore = projectPenStore,
+          penPageStore = loadedPenPages,
+          penWritable = writable && supportsPenWrite,
+        )
+      }
+      renderer = loaded.renderer
+      project = loaded.project
+      notesMarkdown = loaded.noteText
+      penStore = loaded.penStore
+      penPageStore = loaded.penPageStore
+      penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, 1)
+      penWritable = loaded.penWritable
+      failedPenSave = null
+      penStatus = if (loaded.penWritable) null else context.getString(R.string.pen_read_only)
+      val firstPage = NotePage.pageAt(loaded.noteText, 1)
+      noteDraft = firstPage
+      noteBaseRevision = PageNotes.revision(firstPage)
+      noteWritable = loaded.noteWritable
+      noteStatus = if (noteWritable) null else context.getString(R.string.read_only_project)
+      ocrResult = null
+      showOcrResult = false
+      regionOcrResult = null
+      readerOcrState = ReaderOcrState()
+      pageIndex = 0
+    } catch (error: Exception) {
+      errorMessage = context.getString(R.string.select_project_error, error.message ?: "")
+    } finally {
+      if (manageOpening) isOpening = false
+    }
+  }
+
+  fun createNewProject(scope: CoroutineScope) {
+    val name = newProjectName.trim()
+    val dir = newProjectDir
+    if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
+      newProjectError = context.getString(R.string.new_project_bad_name)
+      return
+    }
+    if (dir == null) {
+      newProjectDirPicker.launch(null)
+      return
+    }
+    scope.launch {
+      isCreatingProject = true
+      newProjectError = null
+      try {
+        val projectTree = withContext(Dispatchers.IO) {
+          ProjectCreator(context.contentResolver).create(dir, name)
+        }
+        showNewProject = false
+        newProjectName = ""
+        newProjectDir = null
+        if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+        openProjectTree(projectTree, manageOpening = true)
+      } catch (error: Exception) {
+        newProjectError = context.getString(R.string.new_project_failed, error.message ?: "")
+      } finally {
+        isCreatingProject = false
+      }
+    }
+  }
+
+
   val projectPicker = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.OpenDocumentTree(),
   ) { treeUri: Uri? ->
     if (treeUri != null) {
-      scope.launch {
-        isOpening = true
-        errorMessage = null
-        try {
-          var writable = true
-          try {
-            context.contentResolver.takePersistableUriPermission(
-              treeUri,
-              Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            )
-          } catch (_: SecurityException) {
-            writable = false
-            context.contentResolver.takePersistableUriPermission(
-              treeUri,
-              Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-          }
-          val loaded = withContext(Dispatchers.IO) {
-            val opened = ProjectDocumentOpener(context.contentResolver).open(treeUri)
-            require(opened.sourceExtension == "pdf") {
-              context.getString(
-                R.string.unsupported_format,
-                opened.sourceExtension.ifBlank { "" },
-              )
-            }
-            val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
-            val noteText = noteStore.read()
-            val supportsNoteWrite = noteStore.supportsWrite()
-            val projectPenStore = ProjectPenStore(
-              context.contentResolver,
-              opened.sourceDirectoryUri,
-              opened.annotationsUri,
-            )
-            val loadedPenPages = PenPageStore().apply {
-              loadAnnotationsMap(
-                mapOf(PenSide.DOCUMENT.key to projectPenStore.readPages(PenSide.DOCUMENT)),
-              )
-            }
-            val supportsPenWrite = projectPenStore.supportsWrite()
-            val pdf = PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
-            ReaderProjectData(
-              project = opened,
-              noteText = noteText,
-              renderer = pdf,
-              noteWritable = writable && supportsNoteWrite,
-              penStore = projectPenStore,
-              penPageStore = loadedPenPages,
-              penWritable = writable && supportsPenWrite,
-            )
-          }
-          renderer = loaded.renderer
-          project = loaded.project
-          notesMarkdown = loaded.noteText
-          penStore = loaded.penStore
-          penPageStore = loaded.penPageStore
-          penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, 1)
-          penWritable = loaded.penWritable
-          failedPenSave = null
-          penStatus = if (loaded.penWritable) null else context.getString(R.string.pen_read_only)
-          val firstPage = NotePage.pageAt(loaded.noteText, 1)
-          noteDraft = firstPage
-          noteBaseRevision = PageNotes.revision(firstPage)
-          noteWritable = loaded.noteWritable
-          noteStatus = if (noteWritable) null else context.getString(R.string.read_only_project)
-          ocrResult = null
-          showOcrResult = false
-          regionOcrResult = null
-          readerOcrState = ReaderOcrState()
-          pageIndex = 0
-        } catch (error: Exception) {
-          errorMessage = context.getString(R.string.select_project_error, error.message ?: "")
-        } finally {
-          isOpening = false
-        }
-      }
+      scope.launch { openProjectTree(treeUri) }
     }
   }
 
@@ -860,10 +917,18 @@ private fun ReaderHome(
             projectPicker.launch(null)
           }
         },
-        enabled = !isOpening && !isSaving && !isPenSaving && failedPenSave == null &&
+        enabled = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && failedPenSave == null &&
           !isOcrRunning && !readerOcrState.inputLocked,
       ) {
         Text(stringResource(if (isOpening) R.string.opening_project else R.string.open_project))
+      }
+      TextButton(
+        modifier = Modifier.testTag("new_project"),
+        onClick = { showNewProject = true },
+        enabled = !isOpening && !isCreatingProject && !isSaving && !isPenSaving &&
+          !isOcrRunning && !readerOcrState.inputLocked,
+      ) {
+        Text(stringResource(R.string.new_project))
       }
       TextButton(
         modifier = Modifier.testTag("settings_action"),
@@ -1171,6 +1236,23 @@ private fun ReaderHome(
       onDismiss = { showAgentModelSettings = false },
     )
   }
+  if (showNewProject) {
+    NewProjectDialog(
+      name = newProjectName,
+      onNameChange = { newProjectName = it },
+      hasDir = newProjectDir != null,
+      error = newProjectError,
+      creating = isCreatingProject,
+      onChooseDir = { newProjectDirPicker.launch(null) },
+      onConfirm = { createNewProject(scope) },
+      onDismiss = {
+        if (!isCreatingProject) {
+          showNewProject = false
+          newProjectError = null
+        }
+      },
+    )
+  }
   if (showNoteHistory && project != null) {
     NoteHistoryDialog(
       page = pageIndex + 1,
@@ -1186,6 +1268,77 @@ private fun ReaderHome(
       },
     )
   }
+}
+
+@Composable
+internal fun NewProjectDialog(
+  name: String,
+  onNameChange: (String) -> Unit,
+  hasDir: Boolean,
+  error: String?,
+  creating: Boolean,
+  onChooseDir: () -> Unit,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.new_project_title)) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.new_project_name))
+        AndroidView(
+          factory = { viewContext ->
+            EditText(viewContext).apply {
+              inputType = InputType.TYPE_CLASS_TEXT
+              setText(name)
+              setSelection(text.length)
+              addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(editable: Editable?) {
+                  onNameChange(editable?.toString().orEmpty())
+                }
+              })
+            }
+          },
+          update = { editText ->
+            if (editText.text.toString() != name) {
+              editText.setText(name)
+              editText.setSelection(editText.text.length)
+            }
+          },
+        )
+        TextButton(
+          modifier = Modifier.testTag("new_project_choose_dir"),
+          onClick = onChooseDir,
+          enabled = !creating,
+        ) {
+          Text(
+            if (hasDir) stringResource(R.string.new_project_choose_dir) + " ✓"
+            else stringResource(R.string.new_project_choose_dir),
+          )
+        }
+        error?.let {
+          Text(it, color = MaterialTheme.colorScheme.error)
+        }
+      }
+    },
+    confirmButton = {
+      Button(
+        modifier = Modifier.testTag("new_project_confirm"),
+        onClick = onConfirm,
+        enabled = !creating,
+      ) {
+        Text(stringResource(if (creating) R.string.new_project_creating else R.string.new_project_create))
+      }
+    },
+    dismissButton = {
+      TextButton(modifier = Modifier.testTag("new_project_cancel"), onClick = onDismiss) {
+        Text(stringResource(R.string.cancel))
+      }
+    },
+  )
 }
 
 private fun isReaderErrorStatus(status: String): Boolean =

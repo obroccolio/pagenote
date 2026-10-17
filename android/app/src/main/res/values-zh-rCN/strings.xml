@@ -88,6 +88,14 @@
   <string name="note_rich_image_missing">图片缺失：%1$s</string>
   <string name="note_rich_image_remote">外链图片（离线不加载）：%1$s</string>
   <string name="note_rich_unclosed">代码围栏未闭合，已按纯文本显示。</string>
+  <string name="new_project">新建项目</string>
+  <string name="new_project_title">新建项目</string>
+  <string name="new_project_name">项目名称</string>
+  <string name="new_project_choose_dir">选择目录</string>
+  <string name="new_project_creating">创建中…</string>
+  <string name="new_project_create">创建</string>
+  <string name="new_project_bad_name">请输入有效的项目名称。</string>
+  <string name="new_project_failed">无法创建项目：%1$s</string>
   <string name="zoom_out">缩小</string>
   <string name="zoom_in">放大</string>
   <string name="fit_width">适宽</string>

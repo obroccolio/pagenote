@@ -21,7 +21,8 @@
   - [x] 解码并校验现有项目清单，通过 SAF 打开现有 PDF 项目。
   - [x] 实现 `splitPageNotes` 同语义分页与合并、空页占位，以及整页 SHA-256 revision 和 `expectedRevision` 冲突拒绝。
   - [x] 接入按页历史快照/列表/恢复工作流（保存成功自动快照去重，历史弹窗预览与二次确认恢复，`expectedRevision` 冲突不覆盖；契约见 `features/note-history-restore.md`）。
-  - [ ] 接入项目创建、assets 导入导出与 SAF 原子写。
+  - [x] 接入 SAF 项目创建（名称校验、目录选择、完整结构落盘、失败清理、创建后直接打开；契约见 `features/project-create.md`）。
+  - [ ] 接入 assets 导入导出与 SAF 原子写。
   - _Requirement: 项目与数据兼容，阅读与笔记_
 
 - [ ] 4. 阅读器与双栏自适应（部分：渲染比例/区域映射/准备缓存校验已落地；SAF 项目入口、PdfRenderer 阅读、PDF/笔记窄屏堆叠与宽屏并排已接通，真机验收待续）
