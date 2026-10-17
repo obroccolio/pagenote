@@ -45,19 +45,13 @@ object AnnotationValidation {
     require(COLOR.matches(color)) { "bad annotation color" }
     val width = item["width"]?.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation width")
     require(width.isFinite() && width >= 0.1 && width <= 100.0) { "bad annotation width" }
-    if (type == "pen" || type == "highlight") {
+    // Desktop validAnnotationItems requires points for every item type; pen/highlight
+    // additionally accept a rect shorthand (contract regression covers the rect branch).
+    if (type == "highlight") {
       val points = item["points"] as? JsonArray
       val rect = item["rect"] as? JsonArray
       if (points != null) {
-        require(points.size in 1..30000) { "bad annotation points" }
-        points.forEach { point ->
-          val pair = (point as? JsonArray) ?: throw IllegalArgumentException("bad annotation point")
-          require(pair.size == 2) { "bad annotation point" }
-          pair.forEach { axis ->
-            val value = axis.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation point")
-            require(value.isFinite() && kotlin.math.abs(value) <= 1_000_000.0) { "bad annotation point" }
-          }
-        }
+        validatePoints(points)
       } else if (rect != null) {
         require(rect.size == 4) { "bad annotation rect" }
         rect.forEach { axis ->
@@ -67,6 +61,9 @@ object AnnotationValidation {
       } else {
         throw IllegalArgumentException("bad annotation points")
       }
+    } else {
+      val points = item["points"] as? JsonArray ?: throw IllegalArgumentException("bad annotation points")
+      validatePoints(points)
     }
     if (type == "text") {
       val text = item["text"]?.toJsonStringOrNull() ?: throw IllegalArgumentException("bad annotation text")
@@ -79,6 +76,18 @@ object AnnotationValidation {
     if (type == "image") {
       val url = item["url"]?.toJsonStringOrNull() ?: throw IllegalArgumentException("bad annotation image url")
       require(IMAGE_URL.matches(url)) { "bad annotation image url" }
+    }
+  }
+
+  private fun validatePoints(points: JsonArray) {
+    require(points.size in 1..30000) { "bad annotation points" }
+    points.forEach { point ->
+      val pair = (point as? JsonArray) ?: throw IllegalArgumentException("bad annotation point")
+      require(pair.size == 2) { "bad annotation point" }
+      pair.forEach { axis ->
+        val value = axis.toJsonDoubleOrNull() ?: throw IllegalArgumentException("bad annotation point")
+        require(value.isFinite() && kotlin.math.abs(value) <= 1_000_000.0) { "bad annotation point" }
+      }
     }
   }
 

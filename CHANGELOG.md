@@ -4,6 +4,8 @@
 
 - Add Android port skeleton under `android/` (SPEC, Gradle modules, project/reader/notes/annotations/pen/OCR/agent) with unit tests; desktop builds ignore `android/`. / 新增安卓移植骨架（SPEC、Gradle 模块、项目/阅读/笔记/标注/笔迹/OCR/Agent）并附单测；桌面构建忽略 `android/`。
 
+- Match Android annotation validation to the desktop contract for shape points while preserving highlight rectangles. / 安卓标注校验对齐桌面契约，形状标注必须包含点坐标，同时保留荧光标注矩形格式。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。

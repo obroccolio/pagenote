@@ -83,4 +83,23 @@ class AnnotationStoreTest {
     } catch (_: IllegalArgumentException) {
     }
   }
+
+  @Test
+  fun shapeItemsRequirePoints() {
+    val dir = Files.createTempDirectory("pagenote-annotations").toFile()
+    listOf("line", "arrow", "rect", "ellipse").forEach { type ->
+      val missing = json.parseToJsonElement(
+        """[{"type":"$type","color":"#112233","width":2.0}]""",
+      ).jsonArray
+      try {
+        AnnotationStore.writePage(dir, "document", 1, missing)
+        fail("expected points rejection for $type")
+      } catch (_: IllegalArgumentException) {
+      }
+      val ok = json.parseToJsonElement(
+        """[{"type":"$type","color":"#112233","width":2.0,"points":[[1,2],[3,4]]}]""",
+      ).jsonArray
+      assertTrue(AnnotationStore.writePage(dir, "note", 1, ok))
+    }
+  }
 }
