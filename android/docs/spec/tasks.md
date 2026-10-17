@@ -41,6 +41,7 @@
   - [x] 5.1 API 34/35 AVD 已验证 LaTeX drawable span、Prism 高亮 span、页笔记/Markdown 源预览中的本地化诊断，以及有效公式真实像素绘制和无效 TeX 经 renderer 错误回退；JVM 覆盖多行/多反引号代码跨度和公式闭合符屏蔽。实施单见 `formula-preview-rendering-plan.md`。
   - [x] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；API 34/35 AVD 已验证缺图、损坏内联图片警告、解码期抛 I/O 的流仍显示 warning、HTTP/HTTPS 不连接，以及真实目标 `ContentResolver` 对 `DocumentsContract` 形状 URI 的查询/打开成功和查询拒绝/打开拒绝时的安全占位。此测试不证明系统 picker 或真实持久 URI grant；所有外链阻断独立于 Agent 联网权限。实施单见 `saf-image-contentresolver-plan.md`。
   - [x] 5.3 Mermaid 围栏由 APK 内固定 Mermaid/DOMPurify renderer 离线绘制；隐藏 WebView 仅加载白名单 APK 资源，SVG 转原生 Drawable；空/错误/超长源码、并发、JSON 安全传递与无网络由 Pixel Tablet API 35 AVD 验证。全量 JVM、56 项 AVD 仪器测试、四 ABI 构建和 16 KB ELF/ZIP 检查通过；真机交互待 task 12。
+  - [ ] 5.4 Mermaid 异步 SVG 在 69 页导入项目第 12 页与后续段落发生视觉重叠；按 `mermaid-layout-regression-plan.md` 复现、修复并在 API 34/35 AVD 做真实页面截图验收后，方可完成 Task 5。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - _Requirement: 阅读与笔记_
 
