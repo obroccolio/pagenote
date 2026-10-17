@@ -82,6 +82,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -98,6 +99,7 @@ import io.pagenote.agent.ModelEndpoint
 import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
+import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
@@ -307,6 +309,8 @@ private fun ReaderHome(
   var annotateIsRegion by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
   var showReviews by remember { mutableStateOf(false) }
+  var noteSelection by remember { mutableStateOf<TextRange?>(null) }
+  var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
   var showHandoff by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
@@ -1466,7 +1470,10 @@ private fun ReaderHome(
         actionCommand(
           "reviews", R.string.review_action, activeProject != null && !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
-        ) { showReviews = true },
+        ) {
+          selectionReviewDraft = null
+          showReviews = true
+        },
         actionCommand(
           "handoff", R.string.handoff_action, activeProject != null && !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
@@ -1626,7 +1633,36 @@ private fun ReaderHome(
       R.string.reader_menu_group_word_editing,
       listOf(
         pendingCommand("office_edit", R.string.reader_menu_office_edit),
-        pendingCommand("selection_to_annotation", R.string.reader_menu_selection_to_annotation),
+        actionCommand(
+          "selection_to_annotation",
+          R.string.reader_menu_selection_to_annotation,
+          enabled = activeProject != null && selectionToAnnotationEnabled(
+            selection = noteSelection,
+            markdown = noteDraft,
+            writable = noteWritable,
+            readerIdle = !menuBusy,
+          ),
+          disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_selection_required),
+        ) {
+          val selection = noteSelection ?: return@actionCommand
+          val selectedMarkdown = noteDraft
+          val selectedPage = pageIndex + 1
+          scope.launch {
+            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+            try {
+              selectionReviewDraft = NoteSelectionReviewDraft.capture(
+                page = selectedPage,
+                context = selectedMarkdown,
+                start = selection.start,
+                end = selection.end,
+              )
+              showReviews = true
+            } catch (_: IllegalArgumentException) {
+              noteStatus = context.getString(R.string.review_invalid_input)
+            }
+          }
+        },
         pendingCommand("save_return", R.string.reader_menu_save_return),
       ),
     ),
@@ -1805,6 +1841,7 @@ private fun ReaderHome(
               onMarkdownChange = readerSession::setNoteDraft,
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
+              onSelectionChanged = { noteSelection = it },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
@@ -1866,6 +1903,7 @@ private fun ReaderHome(
               onMarkdownChange = readerSession::setNoteDraft,
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
+              onSelectionChanged = { noteSelection = it },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
@@ -2065,7 +2103,11 @@ private fun ReaderHome(
       page = pageIndex + 1,
       project = project!!,
       noteRevision = noteBaseRevision,
-      onDismiss = { showReviews = false },
+      selectionDraft = selectionReviewDraft,
+      onDismiss = {
+        showReviews = false
+        selectionReviewDraft = null
+      },
       onChanged = { noteStatus = it },
     )
   }
@@ -2398,6 +2440,7 @@ internal fun ReviewListDialog(
   page: Int,
   project: OpenedProject,
   noteRevision: String,
+  selectionDraft: NoteSelectionReviewDraft? = null,
   onDismiss: () -> Unit,
   onChanged: (String) -> Unit,
 ) {
@@ -2439,6 +2482,14 @@ internal fun ReviewListDialog(
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        selectionDraft?.let { draft ->
+          Text(stringResource(R.string.review_selection_quote_label))
+          Text(
+            draft.quote,
+            modifier = Modifier.testTag("review_selection_quote"),
+            style = MaterialTheme.typography.bodyMedium,
+          )
+        }
         if (loadError == null && records.isEmpty()) {
           Text(stringResource(R.string.review_empty))
         }
@@ -2460,6 +2511,7 @@ internal fun ReviewListDialog(
         }
         Text(stringResource(R.string.review_instruction_label))
         AndroidView(
+          modifier = Modifier.fillMaxWidth().testTag("review_instruction_editor"),
           factory = { viewContext ->
             EditText(viewContext).apply {
               inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -2483,11 +2535,39 @@ internal fun ReviewListDialog(
             scope.launch {
               try {
                 withContext(Dispatchers.IO) {
-                  store().create("note", "overall", page, instruction, noteRevision)
+                  val reviewStore = store()
+                  val draft = selectionDraft
+                  if (draft == null) {
+                    reviewStore.create("note", "overall", page, instruction, noteRevision)
+                  } else {
+                    val latestNotes = ProjectNoteStore(context.contentResolver, project.notesUri).read()
+                    val latestPage = NotePage.pageAt(latestNotes, page)
+                    try {
+                      require(draft.page == page) { "selection belongs to another page" }
+                      draft.requireCurrentPage(latestPage)
+                    } catch (_: IllegalArgumentException) {
+                      throw StaleNoteSelectionReviewException()
+                    }
+                    reviewStore.create(
+                      ReviewCreate(
+                        side = "note",
+                        kind = "selection",
+                        page = page,
+                        instruction = instruction,
+                        scope = "page",
+                        quote = draft.quote,
+                        context = draft.context,
+                        revision = draft.revision,
+                        anchor = draft.anchor,
+                      ),
+                    )
+                  }
                 }
                 instruction = ""
                 refresh()
                 onChanged(context.getString(R.string.review_saved))
+              } catch (_: StaleNoteSelectionReviewException) {
+                onChanged(context.getString(R.string.review_selection_stale))
               } catch (error: Exception) {
                 onChanged(reviewCreateErrorMessage(context, error))
               }
@@ -2562,6 +2642,21 @@ internal fun reviewCreateErrorMessage(context: Context, error: Throwable): Strin
   } else {
     context.getString(R.string.review_save_failed, error.message ?: "")
   }
+
+private class StaleNoteSelectionReviewException : Exception()
+
+internal fun selectionToAnnotationEnabled(
+  selection: TextRange?,
+  markdown: String,
+  writable: Boolean,
+  readerIdle: Boolean,
+): Boolean {
+  if (!writable || !readerIdle || selection == null || markdown.length > 1_000_000) return false
+  val start = minOf(selection.start, selection.end)
+  val end = maxOf(selection.start, selection.end)
+  return start >= 0 && start < end && end <= markdown.length &&
+    end - start <= 100_000 && markdown.substring(start, end).isNotBlank()
+}
 
 @Composable
 internal fun HandoffDialog(
@@ -2943,6 +3038,7 @@ internal fun NotePanel(
   onMarkdownChange: (String) -> Unit,
   onSave: () -> Unit,
   onReload: () -> Unit,
+  onSelectionChanged: (TextRange?) -> Unit = {},
   historyEnabled: Boolean = false,
   onHistory: () -> Unit = {},
   sourceDirectoryUri: Uri? = null,
@@ -2950,6 +3046,7 @@ internal fun NotePanel(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
+  val selectionCallback = rememberUpdatedState(onSelectionChanged)
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
   var preview by remember { mutableStateOf(false) }
   val mermaidCoordinator = remember(context, preview) {
@@ -2966,6 +3063,10 @@ internal fun NotePanel(
   }
   val executor = remember { Executors.newSingleThreadExecutor() }
   val outlineColor = MaterialTheme.colorScheme.outline.toArgb()
+
+  LaunchedEffect(page, preview) {
+    selectionCallback.value(null)
+  }
 
   DisposableEffect(executor) {
     onDispose { executor.shutdownNow() }
@@ -3059,7 +3160,19 @@ internal fun NotePanel(
           AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { viewContext ->
-              EditText(viewContext).apply {
+              object : EditText(viewContext) {
+                override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+                  super.onSelectionChanged(selStart, selEnd)
+                  selectionCallback.value(
+                    if (selStart >= 0 && selEnd >= 0 && selStart != selEnd) {
+                      TextRange(selStart, selEnd)
+                    } else {
+                      null
+                    },
+                  )
+                }
+              }.apply {
+                tag = "note_markdown_editor"
                 gravity = Gravity.TOP or Gravity.START
                 inputType = InputType.TYPE_CLASS_TEXT or
                   InputType.TYPE_TEXT_FLAG_MULTI_LINE or
@@ -3088,6 +3201,7 @@ internal fun NotePanel(
               editText.backgroundTintList = ColorStateList.valueOf(outlineColor)
               editText.isEnabled = writable && !saving && content.page == page
               if (editText.text.toString() != content.markdown) {
+                selectionCallback.value(null)
                 editText.setText(content.markdown)
                 editText.setSelection(editText.text.length)
               }

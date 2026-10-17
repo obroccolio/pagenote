@@ -88,6 +88,7 @@
   <string name="reader_menu_delete_ink">Delete selected ink</string>
   <string name="reader_menu_office_edit">Edit Office document</string>
   <string name="reader_menu_selection_to_annotation">Selected text to AI annotation</string>
+  <string name="reader_menu_selection_required">Select non-whitespace text in the writable note.</string>
   <string name="reader_menu_save_return">Save and return to reading</string>
   <string name="reader_menu_about">About pagenote</string>
   <string name="reader_menu_shortcuts">Keyboard shortcuts</string>
@@ -191,6 +192,8 @@
   <string name="review_action">Review</string>
   <string name="review_title">Page %1$d reviews</string>
   <string name="review_new">New review</string>
+  <string name="review_selection_quote_label">Selected note text</string>
+  <string name="review_selection_stale">The note changed after this selection was captured. Select the text again before saving.</string>
   <string name="review_instruction_label">Instruction for AI</string>
   <string name="review_save">Save review</string>
   <string name="review_empty">No reviews on this page yet.</string>

@@ -88,6 +88,7 @@
   <string name="reader_menu_delete_ink">删除所选笔迹</string>
   <string name="reader_menu_office_edit">编辑 Office 文档</string>
   <string name="reader_menu_selection_to_annotation">将选中文字转为 AI 批注</string>
+  <string name="reader_menu_selection_required">请在可写笔记中选择非空白文本。</string>
   <string name="reader_menu_save_return">保存并返回阅读</string>
   <string name="reader_menu_about">关于 pagenote</string>
   <string name="reader_menu_shortcuts">键盘快捷键</string>
@@ -191,6 +192,8 @@
   <string name="review_action">审阅</string>
   <string name="review_title">第 %1$d 页审阅</string>
   <string name="review_new">新建审阅</string>
+  <string name="review_selection_quote_label">所选笔记文本</string>
+  <string name="review_selection_stale">捕获所选内容后笔记已发生变化。请重新选择文本后再保存。</string>
   <string name="review_instruction_label">给 AI 的修改要求</string>
   <string name="review_save">保存审阅</string>
   <string name="review_empty">这一页还没有审阅。</string>
