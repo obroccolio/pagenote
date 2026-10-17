@@ -31,7 +31,6 @@ class AgentRunner(
     }
     val completedPages = LinkedHashSet<Int>()
     val updatedPages = LinkedHashSet<Int>()
-    completedPages.add(task.page)
 
     val history = messages.toMutableList()
     var step = 0

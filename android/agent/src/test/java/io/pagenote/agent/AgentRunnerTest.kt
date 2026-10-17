@@ -125,8 +125,19 @@ class AgentRunnerTest {
     val event = runner.run(task(), endpoint(), messages())
     assertTrue(event is AgentEvent.Done)
     event as AgentEvent.Done
-    // 冲突写入失败：完成页保留（读过），但更新页必须为空，不能伪称写成功。
+    // 冲突写入失败：工具触达过该页但未更新，更新页必须为空。
     assertEquals(listOf(3), event.pages)
+    assertTrue(event.updated.isEmpty())
+  }
+
+  @Test
+  fun doneWithoutToolTouchReportsNoPages() = runBlocking {
+    val runner = AgentRunner(FakeChatClient(listOf("DONE")), LocalToolDispatcher())
+    val event = runner.run(task(), endpoint(), messages())
+    assertTrue(event is AgentEvent.Done)
+    event as AgentEvent.Done
+    // 没有工具实际触达任何页：完成页必须为空，不能预填任务页。
+    assertTrue(event.pages.isEmpty())
     assertTrue(event.updated.isEmpty())
   }
 }
