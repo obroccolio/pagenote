@@ -66,4 +66,15 @@ class PageRequestTest {
       current = PageRequest.PageMaterial(page = 5, text = "p5"),
     )
   }
+
+  @Test
+  fun singlePageDocumentAllowsPageScopedRequest() {
+    val messages = PageRequest.build(
+      task = task.copy(page = 1),
+      current = PageRequest.PageMaterial(page = 1, text = "only page"),
+      totalPages = 1,
+    )
+
+    assertTrue(messages.last()["content"].orEmpty().contains("only page"))
+  }
 }

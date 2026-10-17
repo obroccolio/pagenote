@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android page tutoring with bounded PDF/OCR context, a Markdown preview, and explicit revision-checked append to the current page note. / 安卓新增逐页 AI 讲解，基于有界 PDF/OCR 上下文生成 Markdown 预览，并经用户确认和 revision 校验后追加到当前页笔记。
+
 - Add Android OpenAI-compatible model settings with Android Keystore AES-GCM key storage, localized controls, and debug-only HTTP for local relay development. / 安卓新增 OpenAI 兼容模型设置，使用 Android Keystore AES-GCM 保存 Key，提供本地化控件，并仅在调试版开放本地中转所需 HTTP。
 
 - Specify Android OpenAI-compatible model settings, Android Keystore-backed key storage, and acceptance tests under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓 OpenAI 兼容模型设置、Android Keystore Key 存储与验收测试。

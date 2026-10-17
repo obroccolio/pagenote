@@ -63,4 +63,47 @@ class PageNoteEditorTest {
 
     assertEquals(listOf("first", "", "third"), PageNotes.split(result.markdown))
   }
+
+  @Test
+  fun appendsToOnlySelectedPage() {
+    val original = PageNotes.join(listOf("first", "existing note", "third"))
+
+    val result = PageNoteEditor.appendPage(
+      latestMarkdown = original,
+      page = 2,
+      addition = "AI explanation",
+      expectedRevision = PageNotes.revision("existing note"),
+    )
+
+    assertEquals(listOf("first", "existing note\n\nAI explanation", "third"), PageNotes.split(result.markdown))
+    assertEquals(PageNotes.revision("existing note\n\nAI explanation"), result.pageRevision)
+  }
+
+  @Test
+  fun appendsToEmptyPageAndKeepsFollowingEmptyPages() {
+    val original = PageNotes.join(listOf("first", "", ""))
+
+    val result = PageNoteEditor.appendPage(
+      latestMarkdown = original,
+      page = 2,
+      addition = "AI explanation",
+      expectedRevision = PageNotes.revision(""),
+    )
+
+    assertEquals(listOf("first", "AI explanation", ""), PageNotes.split(result.markdown))
+  }
+
+  @Test
+  fun rejectsStaleRevisionWithoutChangingInput() {
+    val latest = PageNotes.join(listOf("first", "newer note", "third"))
+
+    assertThrows(PageNoteConflictException::class.java) {
+      PageNoteEditor.appendPage(
+        latestMarkdown = latest,
+        page = 2,
+        addition = "AI explanation",
+        expectedRevision = PageNotes.revision("older note"),
+      )
+    }
+  }
 }

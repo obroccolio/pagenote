@@ -35,7 +35,7 @@ object PageRequest {
     require(current.page == task.page) { "current page must match task page" }
     require(neighbors.size <= MAX_NEIGHBORS) { "too many neighbor pages" }
     require(neighbors.none { it.page == task.page }) { "neighbor must not repeat current page" }
-    if (totalPages != null && totalPages >= 1) {
+    if (totalPages != null && totalPages >= 1 && neighbors.isNotEmpty()) {
       val covered = (neighbors.map { it.page } + current.page).toSet()
       require(covered.size < totalPages) {
         "refuse whole-chapter assembly"

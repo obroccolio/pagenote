@@ -84,6 +84,12 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import io.noties.markwon.ext.tables.TablePlugin
+import io.pagenote.agent.MissingModelConfigException
+import io.pagenote.agent.OkHttpChatClient
+import io.pagenote.agent.PageRequest
+import io.pagenote.agent.PageTutor
+import io.pagenote.agent.PageTutorRequest
+import io.pagenote.agent.PageTutorResult
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
@@ -200,6 +206,7 @@ private fun ReaderHome(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
+  val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   var project by remember { mutableStateOf<OpenedProject?>(null) }
   var renderer by remember { mutableStateOf<PdfDocumentSession?>(null) }
   var pageIndex by remember { mutableIntStateOf(0) }
@@ -232,6 +239,13 @@ private fun ReaderHome(
   var isOpening by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
+  var showPageTutor by remember { mutableStateOf(false) }
+  var pageTutorInstruction by remember {
+    mutableStateOf(context.getString(R.string.page_tutor_default_instruction))
+  }
+  var pageTutorResult by remember { mutableStateOf<PageTutorResult?>(null) }
+  var pageTutorError by remember { mutableStateOf<String?>(null) }
+  var isPageTutorRunning by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by remember { mutableStateOf(false) }
   val isPenSaving = pendingPenSaves > 0
@@ -435,6 +449,131 @@ private fun ReaderHome(
         showOcrResult = true
       } finally {
         isOcrRunning = false
+      }
+    }
+  }
+
+  fun explainCurrentPage(instruction: String) {
+    val activeProject = project ?: return
+    val activeRenderer = renderer ?: return
+    val targetPageIndex = pageIndex
+    scope.launch {
+      pageTutorInstruction = instruction
+      isPageTutorRunning = true
+      pageTutorError = null
+      pageTutorResult = null
+      try {
+        val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
+        if (hasUnsavedChanges && !saveCurrentNote()) {
+          pageTutorError = noteStatus ?: context.getString(R.string.note_save_failed, "")
+          return@launch
+        }
+
+        val currentNote = noteDraft
+        val expectedRevision = noteBaseRevision
+        val pageSourceLoader = PageTutorSourceLoader(
+          nativeText = { page ->
+            withContext(Dispatchers.IO) { activeRenderer.extractText(page) }
+          },
+          ocrText = { page ->
+            val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+            val bitmap = withContext(Dispatchers.IO) { activeRenderer.render(page) }
+            try {
+              withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+            } finally {
+              bitmap.recycle()
+            }
+          },
+        )
+        val (currentSource, neighbors) = withTimeout(OcrPolicy.TIMEOUT_MS) {
+          val current = pageSourceLoader.loadCurrent(targetPageIndex)
+          val adjacent = mutableListOf<PageRequest.PageMaterial>()
+          listOf(targetPageIndex - 1, targetPageIndex + 1)
+            .filter { it in 0 until activeRenderer.pageCount }
+            .forEach { neighborIndex ->
+              pageSourceLoader.loadNeighbor(neighborIndex)?.let { source ->
+                adjacent += PageRequest.PageMaterial(
+                  page = neighborIndex + 1,
+                  text = source.text,
+                )
+              }
+            }
+          current to adjacent
+        }
+        val result = pageTutor.explain(
+          endpoint = endpoint,
+          request = PageTutorRequest(
+            documentId = activeProject.manifest.id,
+            page = targetPageIndex + 1,
+            totalPages = activeRenderer.pageCount,
+            instruction = instruction,
+            sourceText = currentSource.text,
+            noteMarkdown = currentNote,
+            noteRevision = expectedRevision,
+            sourceWarnings = currentSource.warnings,
+            neighbors = neighbors,
+          ),
+        )
+        if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex) {
+          pageTutorError = context.getString(R.string.page_tutor_conflict)
+        } else {
+          pageTutorResult = result
+        }
+      } catch (missing: MissingModelConfigException) {
+        pageTutorError = context.getString(R.string.page_tutor_model_missing)
+        showAgentModelSettings = true
+      } catch (timeout: TimeoutCancellationException) {
+        pageTutorError = context.getString(R.string.page_tutor_timeout)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: PageTutorSourceException) {
+        pageTutorError = "${context.getString(R.string.page_tutor_source_failed)} ${error.message.orEmpty()}"
+      } catch (error: Exception) {
+        pageTutorError = "${context.getString(R.string.page_tutor_request_failed)} ${error.message.orEmpty()}"
+      } finally {
+        isPageTutorRunning = false
+      }
+    }
+  }
+
+  fun appendPageTutorResult() {
+    val activeProject = project ?: return
+    val preview = pageTutorResult ?: return
+    if (!noteWritable) return
+    if (preview.page != pageIndex + 1 || preview.noteRevision != noteBaseRevision) {
+      pageTutorError = context.getString(R.string.page_tutor_conflict)
+      return
+    }
+
+    scope.launch {
+      isSaving = true
+      pageTutorError = null
+      try {
+        val edited = withContext(Dispatchers.IO) {
+          val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
+          val latest = store.read()
+          val heading = context.getString(R.string.page_tutor_note_heading)
+          val result = PageNoteEditor.appendPage(
+            latestMarkdown = latest,
+            page = preview.page,
+            addition = "$heading\n\n${preview.markdown}",
+            expectedRevision = preview.noteRevision,
+          )
+          store.write(result.markdown)
+          result
+        }
+        notesMarkdown = edited.markdown
+        noteDraft = NotePage.pageAt(edited.markdown, preview.page)
+        noteBaseRevision = edited.pageRevision
+        noteStatus = context.getString(R.string.page_tutor_saved)
+        pageTutorResult = null
+        showPageTutor = false
+      } catch (conflict: PageNoteConflictException) {
+        pageTutorError = context.getString(R.string.page_tutor_conflict)
+      } catch (error: Exception) {
+        pageTutorError = "${context.getString(R.string.page_tutor_append_failed)} ${error.message.orEmpty()}"
+      } finally {
+        isSaving = false
       }
     }
   }
@@ -652,6 +791,15 @@ private fun ReaderHome(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         TextButton(
+          modifier = Modifier.testTag("page_tutor_action"),
+          onClick = {
+            pageTutorResult = null
+            pageTutorError = null
+            showPageTutor = true
+          },
+          enabled = !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning,
+        ) { Text(stringResource(R.string.page_tutor_action)) }
+        TextButton(
           onClick = { applyViewportZoom(0.8f) },
           enabled = viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
         ) { Text(stringResource(R.string.zoom_out)) }
@@ -826,6 +974,25 @@ private fun ReaderHome(
         showAgentModelSettings = true
       },
       onSave = settingsStore::save,
+    )
+  }
+  if (showPageTutor && renderer != null && project != null) {
+    PageTutorDialog(
+      page = pageIndex + 1,
+      instruction = pageTutorInstruction,
+      isRunning = isPageTutorRunning,
+      isSaving = isSaving,
+      errorMessage = pageTutorError,
+      preview = pageTutorResult,
+      noteWritable = noteWritable,
+      onInstructionChange = { pageTutorInstruction = it },
+      onExplain = ::explainCurrentPage,
+      onAppend = ::appendPageTutorResult,
+      onDismiss = {
+        showPageTutor = false
+        pageTutorResult = null
+        pageTutorError = null
+      },
     )
   }
   if (showAgentModelSettings) {

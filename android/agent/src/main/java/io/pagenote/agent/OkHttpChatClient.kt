@@ -15,12 +15,16 @@ import java.util.concurrent.TimeUnit
 
 class MissingModelConfigException : IllegalStateException("missing model config")
 
-class OkHttpChatClient(
-  private val client: OkHttpClient = OkHttpClient.Builder()
-    .connectTimeout(15, TimeUnit.SECONDS)
-    .readTimeout(120, TimeUnit.SECONDS)
-    .build(),
+class OkHttpChatClient private constructor(
+  private val client: OkHttpClient,
 ) : ChatClient {
+  constructor() : this(
+    OkHttpClient.Builder()
+      .connectTimeout(15, TimeUnit.SECONDS)
+      .readTimeout(120, TimeUnit.SECONDS)
+      .build(),
+  )
+
   private val json = Json { ignoreUnknownKeys = true }
 
   override suspend fun complete(endpoint: ModelEndpoint, messages: List<Map<String, String>>): String =
