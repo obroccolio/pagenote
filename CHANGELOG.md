@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add explicit version-2 prepared-manifest and OCR-result JSON codecs with validation and exact cache identity matching. / 新增带校验的 v2 预处理清单与 OCR 结果 JSON 编解码，并按完整缓存身份精确匹配。
+
 - Map Android reader selections through the centered page transform into clipped, normalized OCR coordinates. / 将安卓阅读器选区按页面居中变换映射为裁剪后的归一化 OCR 坐标。
 
 - Specify the Android reader region-OCR selection flow, transformed-page coordinate contract, and project-backed cache under `android/docs/spec/`. / 在 `android/docs/spec/` 中规定安卓阅读器区域 OCR 选区、变换坐标契约及项目内缓存流程。
