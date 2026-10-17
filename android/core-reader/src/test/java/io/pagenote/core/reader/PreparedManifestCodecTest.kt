@@ -77,6 +77,12 @@ class PreparedManifestCodecTest {
     assertThrows(IllegalArgumentException::class.java) {
       PreparedManifestCodec.encode(expected.copy(files = listOf("../outside.png")))
     }
+    assertThrows(IllegalArgumentException::class.java) {
+      PreparedManifestCodec.encode(expected.copy(files = listOf("C:\\outside.png")))
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      PreparedManifestCodec.encode(expected.copy(files = listOf("C:/outside.png")))
+    }
   }
 
   @Test

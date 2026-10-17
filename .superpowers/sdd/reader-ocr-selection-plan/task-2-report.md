@@ -42,4 +42,41 @@ The tests now cover every manifest field in a version-2 PDF entry, invalid page/
 
 ## Commit
 
-`<filled after commit>`
+`b89db22 feat(android): model prepared OCR manifests`
+
+## Task 2 Fix Round 1: Windows Drive Paths
+
+Added regression assertions rejecting both `C:\\outside.png` and `C:/outside.png`. `validateProjectRelativeFile` now rejects an ASCII drive-letter prefix followed by a colon before splitting and validating path segments.
+
+RED command:
+
+```text
+./gradlew :core-reader:testDebugUnitTest --offline --tests io.pagenote.core.reader.PreparedManifestCodecTest.manifestRejectsInvalidIdentityRegionAndCounts
+```
+
+Observed expected failure before the production fix:
+
+```text
+PreparedManifestCodecTest > manifestRejectsInvalidIdentityRegionAndCounts FAILED
+java.lang.AssertionError at PreparedManifestCodecTest.kt:80
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+Focused GREEN command, run after the production fix:
+
+```text
+./gradlew :core-reader:testDebugUnitTest --offline --tests io.pagenote.core.reader.PreparedManifestCodecTest.manifestRejectsInvalidIdentityRegionAndCounts
+BUILD SUCCESSFUL in 2s
+15 actionable tasks: 5 executed, 10 up-to-date
+```
+
+Full scoped verification:
+
+```text
+./gradlew :core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest --offline
+BUILD SUCCESSFUL in 2s
+30 actionable tasks: 4 executed, 26 up-to-date
+```
+
+Both successful runs emitted only the existing Gradle 10 compatibility warning. No app test was run because the fix changes only the private path validator and its core-reader test; no shared API changed.

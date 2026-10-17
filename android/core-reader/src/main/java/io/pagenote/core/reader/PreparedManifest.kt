@@ -64,6 +64,7 @@ object PreparedManifestStore {
     require(file.isNotBlank() && !file.startsWith('/') && !file.startsWith('\\')) {
       "bad project-relative file"
     }
+    require(!Regex("^[a-zA-Z]:").containsMatchIn(file)) { "bad project-relative file" }
     require(file.split('/', '\\').all { it.isNotEmpty() && it != "." && it != ".." }) {
       "bad project-relative file"
     }
