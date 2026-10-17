@@ -82,11 +82,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import io.noties.markwon.Markwon
-import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
-import io.noties.markwon.ext.tables.TablePlugin
-import io.noties.markwon.image.ImagesPlugin
 import io.pagenote.agent.MissingModelConfigException
 import io.pagenote.agent.OkHttpChatClient
 import io.pagenote.agent.PageRequest
@@ -2351,21 +2347,14 @@ internal fun MarkdownSourcePane(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val markwon = remember(context, sourceDirectoryUri) {
-    Markwon.builder(context)
-      .usePlugin(TablePlugin.create(context))
-      .usePlugin(
-        ImagesPlugin.create().addSchemeHandler(
-          NoteAssetSchemeHandler(context.contentResolver, sourceDirectoryUri),
-        ),
-      )
-      .build()
+  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+  val markwon = remember(context, sourceDirectoryUri, contentColorInt) {
+    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt)
   }
   val (previewText, truncated) = remember(markdown, page) {
     MarkdownSourcePages.previewPage(markdown, page)
   }
   val rewritten = remember(previewText) { NotePreviewRewrite.forPreview(previewText) }
-  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
   val fullPageText = remember(markdown, page) { MarkdownSourcePages.pageAt(markdown, page) }
   Column(modifier = modifier.padding(8.dp).testTag("markdown_source_pane")) {
     Text(
@@ -2384,7 +2373,7 @@ internal fun MarkdownSourcePane(
       )
     } else {
       AndroidView(
-        modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+        modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp),
         factory = { viewContext ->
           TextView(viewContext).apply {
             textSize = 16f
@@ -2612,22 +2601,16 @@ private fun NotePanel(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val markwon = remember(context, sourceDirectoryUri) {
-    Markwon.builder(context)
-      .usePlugin(TablePlugin.create(context))
-      .usePlugin(
-        ImagesPlugin.create().addSchemeHandler(
-          NoteAssetSchemeHandler(context.contentResolver, sourceDirectoryUri),
-        ),
-      )
-      .build()
+  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+  val markwon = remember(context, sourceDirectoryUri, contentColorInt) {
+    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt)
   }
-  val markwonEditor = remember(markwon) { MarkwonEditor.create(markwon) }
+  val markwonEditor = remember(context, sourceDirectoryUri, contentColorInt) {
+    NoteMarkdownRenderer.createEditor(context, sourceDirectoryUri, contentColorInt)
+  }
   val executor = remember { Executors.newSingleThreadExecutor() }
   var preview by remember { mutableStateOf(false) }
-  val contentColor = MaterialTheme.colorScheme.onSurface
   val outlineColor = MaterialTheme.colorScheme.outline.toArgb()
-  val contentColorInt = contentColor.toArgb()
 
   DisposableEffect(executor) {
     onDispose { executor.shutdownNow() }

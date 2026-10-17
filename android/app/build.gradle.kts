@@ -1,6 +1,7 @@
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.android")
+  id("org.jetbrains.kotlin.kapt")
   id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -59,9 +60,19 @@ dependencies {
   implementation("androidx.compose.material3:material3")
   implementation("io.noties.markwon:core:4.6.2")
   implementation("io.noties.markwon:editor:4.6.2")
+  implementation("io.noties.markwon:ext-latex:4.6.2")
+  implementation("io.noties.markwon:inline-parser:4.6.2")
+  implementation("io.noties.markwon:syntax-highlight:4.6.2") {
+    exclude(group = "org.jetbrains", module = "annotations-java5")
+  }
   implementation("io.noties.markwon:ext-tables:4.6.2")
   implementation("io.noties.markwon:image:4.6.2")
+  implementation("io.noties:prism4j:2.0.0") {
+    exclude(group = "org.jetbrains", module = "annotations-java5")
+  }
+  kapt("io.noties:prism4j-bundler:2.0.0")
   testImplementation("junit:junit:4.13.2")
+  debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.6")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
   androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.6")

@@ -82,10 +82,12 @@
   <string name="note_history_conflict">恢复时笔记发生变化，请重新加载后重试。</string>
   <string name="note_history_failed">无法加载历史：%1$s</string>
   <string name="note_rich_formula">公式</string>
+  <string name="note_rich_formula_error">公式无法渲染：%1$s</string>
   <string name="note_rich_code">代码（%1$s）</string>
   <string name="note_rich_code_plain">代码</string>
   <string name="note_rich_mermaid">图表源码（%1$s）</string>
   <string name="note_rich_image_missing">图片缺失：%1$s</string>
+  <string name="note_rich_image_decode_failed">图片无法解码：%1$s</string>
   <string name="note_rich_image_remote">外链图片（离线不加载）：%1$s</string>
   <string name="note_rich_unclosed">代码围栏未闭合，已按纯文本显示。</string>
   <string name="new_project">新建项目</string>

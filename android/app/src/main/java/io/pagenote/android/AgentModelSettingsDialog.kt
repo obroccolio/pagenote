@@ -65,11 +65,19 @@ internal fun AgentModelSettingsDialog(
   when (val loadState = state) {
     AgentModelSettingsLoadState.Loading -> AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.agent_model_settings_title)) },
+      title = {
+        Text(
+          stringResource(R.string.agent_model_settings_title),
+          modifier = Modifier.testTag("agent_model_settings_title"),
+        )
+      },
       text = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
           CircularProgressIndicator()
-          Text(stringResource(R.string.agent_model_settings_loading))
+          Text(
+            stringResource(R.string.agent_model_settings_loading),
+            modifier = Modifier.testTag("agent_model_settings_loading"),
+          )
         }
       },
       confirmButton = {},
@@ -79,8 +87,14 @@ internal fun AgentModelSettingsDialog(
     )
     is AgentModelSettingsLoadState.Failed -> AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text(loadErrorTitle) },
-      text = { Text(loadState.message, color = MaterialTheme.colorScheme.error) },
+      title = { Text(loadErrorTitle, modifier = Modifier.testTag("agent_model_settings_load_failed")) },
+      text = {
+        Text(
+          loadState.message,
+          modifier = Modifier.testTag("agent_model_settings_load_error"),
+          color = MaterialTheme.colorScheme.error,
+        )
+      },
       confirmButton = {
         TextButton(onClick = { retry += 1 }) { Text(stringResource(R.string.retry)) }
       },

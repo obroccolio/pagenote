@@ -134,12 +134,20 @@ internal fun ReaderSettingsLoadScreen(
     when (state) {
       ReaderSettingsLoadState.Loading -> {
         CircularProgressIndicator()
-        Text(stringResource(R.string.reader_settings_loading))
+        Text(
+          stringResource(R.string.reader_settings_loading),
+          modifier = Modifier.testTag("reader_settings_loading"),
+        )
       }
       is ReaderSettingsLoadState.Error -> {
-        Text(stringResource(R.string.reader_settings_load_error_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+          stringResource(R.string.reader_settings_load_error_title),
+          modifier = Modifier.testTag("reader_settings_load_failed"),
+          style = MaterialTheme.typography.titleMedium,
+        )
         Text(
           stringResource(R.string.reader_settings_load_error_detail, state.message),
+          modifier = Modifier.testTag("reader_settings_load_error"),
           color = MaterialTheme.colorScheme.error,
           style = MaterialTheme.typography.bodyMedium,
         )
@@ -243,7 +251,9 @@ internal fun ReaderSettingsDialog(
         }
 
         TextButton(
-          modifier = Modifier.fillMaxWidth().testTag("configure_agent_model"),
+          modifier = Modifier.fillMaxWidth().testTag(
+            if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",
+          ),
           enabled = !isSaving,
           onClick = {
             scope.launch {
@@ -270,7 +280,12 @@ internal fun ReaderSettingsDialog(
         ) { Text(stringResource(R.string.agent_model_settings_action)) }
 
         saveError?.let {
-          Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+          Text(
+            it,
+            modifier = Modifier.testTag("settings_save_error"),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+          )
         }
       }
     },

@@ -2,7 +2,7 @@ package io.pagenote.android
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import io.pagenote.core.project.PageNotes
@@ -15,7 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 @RunWith(AndroidJUnit4::class)
 class NoteHistoryDialogTest {
   @get:Rule
-  val composeRule = createAndroidComposeRule<MainActivity>()
+  val composeRule = createComposeRule()
 
   @Test
   fun emptyHistoryShowsEmptyState() {

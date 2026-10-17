@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,11 +20,55 @@ class NotePreviewRewriteTest {
   }
 
   @Test
-  fun mathFenceRewritesToFormulaQuote() {
+  fun mathFenceRewritesToNativeLatexBlock() {
     val rewritten = NotePreviewRewrite.forPreview("```math\nx^2\n```\n")
 
     assertFalse(rewritten.contains("```math"))
-    assertTrue(rewritten.contains("x^2"))
+    assertTrue(rewritten.contains("$$\nx^2\n$$"))
+  }
+
+  @Test
+  fun supportedCodeLanguageAliasesAreNormalizedForOfflineHighlighting() {
+    val rewritten = NotePreviewRewrite.forPreview("```python3\nprint(1)\n```\n")
+
+    assertTrue(rewritten.startsWith("```python\n"))
+  }
+
+  @Test
+  fun inlineSingleDollarMathUsesMarkwonLatexDelimiters() {
+    val rewritten = NotePreviewRewrite.forPreview("Value \$x^2\$ stays inline.")
+
+    assertTrue(rewritten.contains("Value \$\$x^2\$\$ stays inline."))
+  }
+
+  @Test
+  fun richFencesNestedInsideCodeAreNotRewritten() {
+    val markdown = "```text\n```mermaid\ngraph A-->B\n```\n```\n"
+
+    val rewritten = NotePreviewRewrite.forPreview(markdown)
+
+    assertEquals(markdown, rewritten)
+  }
+
+  @Test
+  fun dollarSignsInCodeAndEscapedTextAreNotRewritten() {
+    val markdown = "`\$x\$` and \\$5 stay literal; \$y\$ is math."
+
+    val rewritten = NotePreviewRewrite.forPreview(markdown)
+
+    assertTrue(rewritten.contains("`\$x\$`"))
+    assertTrue(rewritten.contains("\\$5"))
+    assertTrue(rewritten.contains("\$\$y\$\$"))
+  }
+
+  @Test
+  fun dollarSignsInsideMultilineCodeSpanRemainLiteral() {
+    val markdown = "before `code\n\$not math\$\nstill code` and \$y\$"
+
+    val rewritten = NotePreviewRewrite.forPreview(markdown)
+
+    assertTrue(rewritten.contains("`code\n\$not math\$\nstill code`"))
+    assertTrue(rewritten.endsWith("and \$\$y\$\$"))
   }
 
   @Test
@@ -37,7 +82,4 @@ class NotePreviewRewriteTest {
     assertFalse(rewritten.contains("/attachments/"))
   }
 
-  private fun assertEquals(expected: Int, actual: Int) {
-    org.junit.Assert.assertEquals(expected, actual)
-  }
 }

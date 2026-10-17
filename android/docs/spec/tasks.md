@@ -3,7 +3,7 @@
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
 
--# Implementation Plan
+## Implementation Plan
 
 - [x] 1. 跨端契约与测试夹具（`ProjectAssets` 导出/导入往返与缺文件跳过、`saveNote` 过期 revision 冲突拒绝已由共享回归 pin 住，契约见 `features/shared-contract-assets-revision.md`）
   - [x] 在 `android/docs/spec/contracts/` 落 `project.schema.json`、`annotations.schema.json`、`ai-reviews.schema.json`、`prepared-manifest.schema.json` 与分页示例。
@@ -14,6 +14,7 @@
 - [x] 2. 安卓工程骨架与构建隔离
   - 新建 Gradle 工程与 `app/core-project/core-reader/feature-notes/feature-annotations/feature-pen/feature-ocr/agent/shared-tests` 模块。
   - 接本地 SDK 与 Gradle Wrapper，`assembleDebug` 按 ABI 可出可安装产物。
+  - 最低运行版本 Android 14/API 34；所有 Android 模块的 `minSdk` 与需求规格一致。
   - 桌面构建忽略 `android/`，安卓构建只认 `android/`；验证互不干扰。
   - _Requirement: 构建与测试，约束与非功能_
 
@@ -34,8 +35,11 @@
   - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
-- [x] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、富块透出、超长页截断提示均已落地；编辑器沿用 Markwon 高亮编辑，不自研，真机待 task 12）
-  - [x] 富渲染透出已落地：mermaid/math 围栏预处理转引用块（源码单次出现）、附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`、代码语言别名归一、未闭合围栏与外链图失败态明确；契约见 `features/note-rich-render.md`。
+- [ ] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；8 项 renderer 测试包含在 API 35 AVD 全套 42 项通过结果中；SAF 不可读流、公式/代码诊断、Mermaid 实际绘制仍待补，真机交互待 task 12）
+  - [x] 富块透出与附件图已落地：Mermaid 源码单次出现并保留状态，附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`，未知语言与失败态不丢源码；契约见 `features/note-rich-render.md`。
+  - [ ] 5.1 AVD 已验证 LaTeX drawable span 与 Prism 高亮 span；仍需验证实际公式绘制、无效公式/未闭合围栏诊断和多行代码跨度，且源码不丢。
+  - [ ] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；AVD 已验证缺图、损坏内联图片警告及 HTTP/HTTPS 不连接。SAF 不可读流仍需可重复的仪器覆盖；所有外链阻断独立于 Agent 联网权限。
+  - [ ] 5.3 Mermaid 围栏由 APK 内离线 renderer 实际绘制；渲染错误显示状态并保留源码，专用 WebView 仅允许加载 APK 内资源且拦截外网。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - _Requirement: 阅读与笔记_
 
@@ -54,9 +58,9 @@
   - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
   - _Requirement: 笔迹，布局与适配_
 
-- [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通，Mermaid PNG 按 Non-goals 不移植）
+- [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通；此项不生成 Mermaid PNG 缓存，笔记预览实际绘图仍归 task 5）
   - [x] 原生文字/文字块抽取、整页 `PdfRenderer` 渲染、缓存 key、manifest 与 1000x1000 区域契约。
-  - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
+  - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。准备缓存不另存 Mermaid PNG；阅读预览绘图仍按 task 5 验收。
   - _Requirement: 页面准备与 OCR_
 
 - [x] 9. 离线 OCR（中英文整页/区域识别、自动触发规则、超时与失败标记、页面准备缓存、区域重识别均已落地，真机待 task 12）
@@ -68,8 +72,8 @@
 
 - [x] 10. 端侧 Agent 与 OpenAI 兼容接入（客户端、任务循环、读写工具、单页/批量任务 UI 均已落地，真模型与真机待 task 12）
   - OpenAI 兼容客户端，支持 BaseURL/Key/模型名配置，默认可配本地中转与指定模型。
-  - [x] Android 模型设置 UI、Keystore 加密 Key 存储与本地中转可达性说明，契约见 `features/openai-model-settings.md`，实施拆分见 `openai-model-settings-plan.md`；debug/release 网络策略和本地构建验证通过，Keystore/Compose 仪器测试待设备执行。
-  - [x] 单页讲解预览和显式追加，按页 OCR 回退、相邻页上下文、20,000 字符截断、旧提示词预览禁用及 SAF 写入恢复/revision 冲突保护；SAF 父目录/能力查询异常或备份准备失败时 fail closed，明确不支持备份才使用回滚兜底，清理失败报告残留名称；契约见 `features/page-tutor-preview-and-append.md`，单测、APK 构建及 16 KB 检查通过，仪器测试仅编译未在设备执行。
+  - [x] Android 模型设置 UI、Keystore 加密 Key 存储与本地中转可达性说明，契约见 `features/openai-model-settings.md`，实施拆分见 `openai-model-settings-plan.md`；debug/release 网络策略和本地构建验证通过，设置导航及 Keystore 仪器测试已在 API 35 AVD 执行通过。
+  - [x] 单页讲解预览和显式追加，按页 OCR 回退、相邻页上下文、20,000 字符截断、旧提示词预览禁用及 SAF 写入恢复/revision 冲突保护；SAF 父目录/能力查询异常或备份准备失败时 fail closed，明确不支持备份才使用回滚兜底，清理失败报告残留名称；契约见 `features/page-tutor-preview-and-append.md`，单测、APK 构建及 16 KB 检查通过，Compose 预览交互仪器用例已在 API 35 AVD 通过。
   - [x] 只读项目工具已接入（read_page/read_review/read_handoff：笔记+原生文字+revision/记录摘要/stale，异常转 ok=false 不中断循环；契约见 `features/agent-project-tools.md`）。
   - [x] 写工具已接入（write_note/patch_note/write_review_status/write_handoff：revision 必填，冲突转 ok=false 不覆盖并报告 updatedPage；契约见 `features/agent-write-tools.md`）。
   - [x] 单页任务 UI 闭环已接入（工具栏 Agent 任务入口、当前页上下文组装、工具循环、Done/Failed 范围报告、缺配置开模型设置、当前页被改刷新；契约见 `features/agent-task-run.md`）。
@@ -86,7 +90,7 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/仪器编译/四 ABI 16 KB 检查已通过；4 KB 真机冷启动 smoke 通过，功能矩阵与 16 KB 运行时验收仍待完成）
+- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 35 AVD 全部 42 项 Android 仪器测试通过；4 KB 真机冷启动 smoke 通过，API 34/16 KB 运行时及真实功能矩阵仍待完成）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
@@ -94,7 +98,7 @@
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-    - [ ] `MainActivityLaunchTest` 设备执行尚未得到结果：runner 在 USB 设置页前台期间中断；单测重试持续挂起且未产生应用异常栈。
+  - [x] Pixel Tablet API 35 AVD 执行完整 42 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
