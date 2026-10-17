@@ -43,6 +43,7 @@
   <string name="page_tutor_loading">正在准备页面并请求模型…</string>
   <string name="page_tutor_saving">正在将讲解加入本页笔记…</string>
   <string name="page_tutor_preview">讲解预览</string>
+  <string name="page_tutor_stale_preview">讲解要求已修改。请重新生成后再加入这段预览。</string>
   <string name="page_tutor_read_only">项目为只读状态。可以预览讲解，但不能加入笔记。</string>
   <string name="page_tutor_model_missing">请先配置接口地址、模型名称和 Key，再发起讲解。</string>
   <string name="page_tutor_source_failed">无法准备本页可用文字。请检查原文页面或重试 OCR。</string>
@@ -50,6 +51,8 @@
   <string name="page_tutor_request_failed">讲解请求失败，笔记没有改动。</string>
   <string name="page_tutor_conflict">讲解期间本页笔记已被修改。请重新载入笔记后再添加。</string>
   <string name="page_tutor_append_failed">无法将讲解加入本页笔记。</string>
+  <string name="page_tutor_recovery_copy_saved">笔记写入和恢复均失败。项目目录中保留了恢复副本：%1$s</string>
+  <string name="page_tutor_recovery_copy_unavailable">笔记写入和恢复均失败，且无法保留恢复副本。请先检查项目笔记文件。</string>
   <string name="page_tutor_saved">AI 讲解已加入本页笔记。</string>
   <string name="page_tutor_note_heading">### AI 讲解</string>
   <string name="open_project">打开项目</string>
@@ -83,6 +86,7 @@
   <string name="read_only_project">只读项目</string>
   <string name="note_read_only">此项目为只读，无法保存笔记</string>
   <string name="note_saved">已保存</string>
+  <string name="note_conflict">保存期间项目笔记已被其他修改更新。请重新载入后再编辑。</string>
   <string name="note_save_failed">笔记保存失败：%1$s</string>
   <string name="note_reload_failed">重新载入笔记失败：%1$s</string>
   <string name="note_reloaded">已重新载入</string>

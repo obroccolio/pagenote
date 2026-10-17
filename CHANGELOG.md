@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Harden Android page-tutor saves against stale previews and partial SAF writes; retain recovery copies when supported, report only warnings for context actually sent, and cover retry/warning states. / 加固安卓逐页讲解保存：防止旧指令预览被追加，保护 SAF 部分写入并在支持时保留恢复副本，只提示实际发送上下文的截断，并覆盖错误重试和警告状态。
+
 - Add Android page tutoring with bounded PDF/OCR context, a Markdown preview, and explicit revision-checked append to the current page note. / 安卓新增逐页 AI 讲解，基于有界 PDF/OCR 上下文生成 Markdown 预览，并经用户确认和 revision 校验后追加到当前页笔记。
 
 - Add Android OpenAI-compatible model settings with Android Keystore AES-GCM key storage, localized controls, and debug-only HTTP for local relay development. / 安卓新增 OpenAI 兼容模型设置，使用 Android Keystore AES-GCM 保存 Key，提供本地化控件，并仅在调试版开放本地中转所需 HTTP。

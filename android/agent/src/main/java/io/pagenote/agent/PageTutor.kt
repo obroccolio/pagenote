@@ -26,15 +26,15 @@ class PageTutor(
     validate(request)
     val warnings = request.sourceWarnings.filter(String::isNotBlank).distinct().toMutableList()
     val currentSource = capPageText(request.sourceText, request.page, warnings)
-    val requestedNeighborMaterials = request.neighbors.map { neighbor ->
+    val selectedNeighbors = if (request.neighbors.size + 1 >= request.totalPages) {
+      warnings += "Neighbor context was reduced to avoid sending the entire document."
+      request.neighbors.sortedBy { it.page }.take((request.totalPages - 2).coerceAtLeast(0))
+    } else {
+      request.neighbors
+    }
+    val neighborMaterials = selectedNeighbors.map { neighbor ->
       val text = capPageText(neighbor.text, neighbor.page, warnings)
       neighbor.copy(text = text)
-    }
-    val neighborMaterials = if (requestedNeighborMaterials.size + 1 >= request.totalPages) {
-      warnings += "Neighbor context was reduced to avoid sending the entire document."
-      requestedNeighborMaterials.sortedBy { it.page }.take((request.totalPages - 2).coerceAtLeast(0))
-    } else {
-      requestedNeighborMaterials
     }
     val currentText = buildString {
       append("PDF source:\n")

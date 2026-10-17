@@ -43,6 +43,7 @@
   <string name="page_tutor_loading">Preparing this page and asking the model…</string>
   <string name="page_tutor_saving">Adding the explanation to this page note…</string>
   <string name="page_tutor_preview">Preview</string>
+  <string name="page_tutor_stale_preview">The instruction changed. Generate a new explanation before adding this preview.</string>
   <string name="page_tutor_read_only">This project is read-only. You can preview the explanation but cannot add it to the note.</string>
   <string name="page_tutor_model_missing">Configure the API URL, model, and key before requesting an explanation.</string>
   <string name="page_tutor_source_failed">No usable text could be prepared for this page. Check the original page or try OCR again.</string>
@@ -50,6 +51,8 @@
   <string name="page_tutor_request_failed">The explanation request failed. The page note was not changed.</string>
   <string name="page_tutor_conflict">This page note changed while the explanation was being prepared. Reload the note before adding it.</string>
   <string name="page_tutor_append_failed">The explanation could not be added to the page note.</string>
+  <string name="page_tutor_recovery_copy_saved">The note write and restore both failed. A recovery copy remains in the project folder: %1$s</string>
+  <string name="page_tutor_recovery_copy_unavailable">The note write and restore both failed, and no recovery copy could be retained. Check the project note file before continuing.</string>
   <string name="page_tutor_saved">AI explanation added to the page note.</string>
   <string name="page_tutor_note_heading">### AI explanation</string>
   <string name="open_project">Open project</string>
@@ -83,6 +86,7 @@
   <string name="read_only_project">Read-only project</string>
   <string name="note_read_only">This project is read-only; notes cannot be saved</string>
   <string name="note_saved">Saved</string>
+  <string name="note_conflict">The project notes changed while saving. Reload before editing again.</string>
   <string name="note_save_failed">Unable to save notes: %1$s</string>
   <string name="note_reload_failed">Unable to reload notes: %1$s</string>
   <string name="note_reloaded">Reloaded</string>

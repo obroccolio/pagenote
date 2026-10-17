@@ -26,6 +26,8 @@
 - A delayed response must not overwrite a later edit; test stale `expectedRevision` rejection at append time.
 - Long pages must be visibly marked as truncated; test the exact 20,000-character boundary and warning.
 - A read-only project may preview but must not expose an enabled append action; cover the disabled state in Compose instrumentation.
+- A changed instruction must invalidate append eligibility for the old preview; a failed SAF write must restore the original or leave a named recovery copy when supported.
+- Truncation warnings must describe only page text that is actually sent to the model.
 
 ---
 
@@ -86,14 +88,27 @@
 - Test: `android/app/src/androidTest/java/io/pagenote/android/PageTutorDialogTest.kt`
 
 **Interfaces:**
-- `PageTutorDialog(page: Int, instruction: String, isRunning: Boolean, isSaving: Boolean, errorMessage: String?, preview: PageTutorResult?, noteWritable: Boolean, onInstructionChange: (String) -> Unit, onExplain: (String) -> Unit, onAppend: () -> Unit, onDismiss: () -> Unit)` owns only presentation state and delegates all I/O.
+- `PageTutorDialog(page: Int, instruction: String, previewInstruction: String?, isRunning: Boolean, isSaving: Boolean, errorMessage: String?, preview: PageTutorResult?, noteWritable: Boolean, onInstructionChange: (String) -> Unit, onExplain: (String) -> Unit, onAppend: () -> Unit, onDismiss: () -> Unit)` owns only presentation state and delegates all I/O.
 - `ReaderHome` builds `PageTutorRequest` from `PageTutorSourceLoader`, current note/revision, and native text from available immediate neighbors.
 - Resolve the endpoint before source preparation; missing configuration opens `AgentModelSettingsDialog` and makes no network request.
 - Save a dirty page note before source collection. Use `PageTutor(OkHttpChatClient())` to produce a preview, then `PageNoteEditor.appendPage` plus `ProjectNoteStore` only after explicit confirmation.
 
-- [x] **Step 1: Write failing Compose tests** named `showsInstructionAndGenerateAction`, `keepsModelOutputInPreviewUntilAppend`, `disablesAppendForReadOnlyNote`, `preventsDismissalWhileRequestIsRunning`, and `preventsDuplicateAppendWhileSaving`.
+- [x] **Step 1: Write failing Compose tests** named `showsInstructionAndGenerateAction`, `keepsModelOutputInPreviewUntilAppend`, `disablesAppendForReadOnlyNote`, `disablesAppendWhenInstructionNoLongerMatchesPreview`, `displaysRequestErrorAndKeepsGenerateAvailableForRetry`, `displaysOcrReviewWarningsWithThePreview`, `preventsDismissalWhileRequestIsRunning`, and `preventsDuplicateAppendWhileSaving`.
 - [x] **Step 2: Compile instrumentation tests** with `./gradlew :app:compileDebugAndroidTestKotlin --offline` and verify the new dialog contract is missing.
 - [x] **Step 3: Implement the localized page-tutor dialog and reader callbacks** with explicit loading, OCR warning, model error, preview, read-only, append and save states.
 - [x] **Step 4: Run `./gradlew testDebugUnitTest :app:compileDebugAndroidTestKotlin --offline`** and verify app unit tests and instrumentation-test compilation pass.
 - [x] **Step 5: Build debug APKs and run 16 KB checks** with `./gradlew :app:assembleDebug --offline` and `python3 android/scripts/check_16kb_apks.py <arm64-apk> <x86_64-apk>`.
+### Task 5: Recoverable SAF note writes
+
+**Files:**
+- Modify: `android/app/src/main/java/io/pagenote/android/ProjectNoteStore.kt`
+- Create: `android/app/src/main/java/io/pagenote/android/RecoverableDocumentWrite.kt`
+- Test: `android/app/src/test/java/io/pagenote/android/RecoverableDocumentWriteTest.kt`
+
+- [x] Add tests first and confirm the missing recovery and snapshot-check behavior fails before implementation.
+- [x] Snapshot-check the current note before and after recovery-copy preparation; abort if it changed.
+- [x] Create and clean up a same-folder recovery copy when the SAF provider permits it.
+- [x] Restore the original note after a partial write; retain and report the backup if rollback fails.
+- [x] Test rollback, backup retention, successful cleanup, and conflict behavior with deterministic write failures.
+
 - [x] **Step 6: Review the diff, run `git diff --check`, update `android/docs/spec/tasks.md` and `CHANGELOG.md`, then commit and push this feature to `fork/codex/android-port`.**

@@ -244,6 +244,7 @@ private fun ReaderHome(
     mutableStateOf(context.getString(R.string.page_tutor_default_instruction))
   }
   var pageTutorResult by remember { mutableStateOf<PageTutorResult?>(null) }
+  var pageTutorResultInstruction by remember { mutableStateOf<String?>(null) }
   var pageTutorError by remember { mutableStateOf<String?>(null) }
   var isPageTutorRunning by remember { mutableStateOf(false) }
   var isRendering by remember { mutableStateOf(false) }
@@ -367,7 +368,7 @@ private fun ReaderHome(
           replacement = draftToSave,
           expectedRevision = expectedRevision,
         )
-        store.write(edited.markdown)
+        store.write(edited.markdown, expectedOriginal = latest)
         edited
       }
       notesMarkdown = result.markdown
@@ -376,6 +377,9 @@ private fun ReaderHome(
       true
     } catch (conflict: PageNoteConflictException) {
       noteStatus = conflict.message
+      false
+    } catch (conflict: NoteDocumentConflictException) {
+      noteStatus = context.getString(R.string.note_conflict)
       false
     } catch (error: Exception) {
       noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
@@ -462,6 +466,7 @@ private fun ReaderHome(
       isPageTutorRunning = true
       pageTutorError = null
       pageTutorResult = null
+      pageTutorResultInstruction = null
       try {
         val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
         if (hasUnsavedChanges && !saveCurrentNote()) {
@@ -518,6 +523,7 @@ private fun ReaderHome(
           pageTutorError = context.getString(R.string.page_tutor_conflict)
         } else {
           pageTutorResult = result
+          pageTutorResultInstruction = instruction
         }
       } catch (missing: MissingModelConfigException) {
         pageTutorError = context.getString(R.string.page_tutor_model_missing)
@@ -559,7 +565,7 @@ private fun ReaderHome(
             addition = "$heading\n\n${preview.markdown}",
             expectedRevision = preview.noteRevision,
           )
-          store.write(result.markdown)
+          store.write(result.markdown, expectedOriginal = latest)
           result
         }
         notesMarkdown = edited.markdown
@@ -567,9 +573,16 @@ private fun ReaderHome(
         noteBaseRevision = edited.pageRevision
         noteStatus = context.getString(R.string.page_tutor_saved)
         pageTutorResult = null
+        pageTutorResultInstruction = null
         showPageTutor = false
       } catch (conflict: PageNoteConflictException) {
         pageTutorError = context.getString(R.string.page_tutor_conflict)
+      } catch (conflict: NoteDocumentConflictException) {
+        pageTutorError = context.getString(R.string.page_tutor_conflict)
+      } catch (recovery: NoteWriteRecoveryException) {
+        pageTutorError = recovery.recoveryCopyName?.let { name ->
+          context.getString(R.string.page_tutor_recovery_copy_saved, name)
+        } ?: context.getString(R.string.page_tutor_recovery_copy_unavailable)
       } catch (error: Exception) {
         pageTutorError = "${context.getString(R.string.page_tutor_append_failed)} ${error.message.orEmpty()}"
       } finally {
@@ -794,6 +807,7 @@ private fun ReaderHome(
           modifier = Modifier.testTag("page_tutor_action"),
           onClick = {
             pageTutorResult = null
+            pageTutorResultInstruction = null
             pageTutorError = null
             showPageTutor = true
           },
@@ -980,8 +994,9 @@ private fun ReaderHome(
     PageTutorDialog(
       page = pageIndex + 1,
       instruction = pageTutorInstruction,
+      previewInstruction = pageTutorResultInstruction,
       isRunning = isPageTutorRunning,
-      isSaving = isSaving,
+      isSaving = isSaving && pageTutorResult != null,
       errorMessage = pageTutorError,
       preview = pageTutorResult,
       noteWritable = noteWritable,
@@ -991,6 +1006,7 @@ private fun ReaderHome(
       onDismiss = {
         showPageTutor = false
         pageTutorResult = null
+        pageTutorResultInstruction = null
         pageTutorError = null
       },
     )

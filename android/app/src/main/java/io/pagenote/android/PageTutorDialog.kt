@@ -33,6 +33,7 @@ import io.pagenote.agent.PageTutorResult
 internal fun PageTutorDialog(
   page: Int,
   instruction: String,
+  previewInstruction: String?,
   isRunning: Boolean,
   isSaving: Boolean,
   errorMessage: String?,
@@ -44,6 +45,7 @@ internal fun PageTutorDialog(
   onDismiss: () -> Unit,
 ) {
   val isBusy = isRunning || isSaving
+  val previewIsStale = preview != null && previewInstruction != instruction
   val context = LocalContext.current
   val markwon = remember(context) {
     Markwon.builder(context).usePlugin(TablePlugin.create(context)).build()
@@ -89,6 +91,14 @@ internal fun PageTutorDialog(
           )
         }
         preview?.let { result ->
+          if (previewIsStale) {
+            Text(
+              text = stringResource(R.string.page_tutor_stale_preview),
+              modifier = Modifier.testTag("page_tutor_stale_preview"),
+              color = MaterialTheme.colorScheme.tertiary,
+              style = MaterialTheme.typography.bodySmall,
+            )
+          }
           if (result.warnings.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               result.warnings.forEach { warning ->
@@ -134,7 +144,7 @@ internal fun PageTutorDialog(
         }
         Button(
           modifier = Modifier.testTag("page_tutor_append"),
-          enabled = !isBusy && noteWritable && preview != null,
+          enabled = !isBusy && noteWritable && preview != null && !previewIsStale,
           onClick = onAppend,
         ) {
           Text(stringResource(R.string.page_tutor_add_to_note))

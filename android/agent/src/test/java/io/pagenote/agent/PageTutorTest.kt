@@ -82,6 +82,24 @@ class PageTutorTest {
   }
 
   @Test
+  fun doesNotWarnAboutTruncationOnNeighborDroppedFromRequest() = runBlocking {
+    val result = PageTutor(RecordingChatClient("Explanation")).explain(
+      endpoint,
+      request().copy(
+        page = 2,
+        totalPages = 3,
+        neighbors = listOf(
+          PageRequest.PageMaterial(page = 1, text = "p".repeat(PageTutor.MAX_PAGE_TEXT_CHARS + 1)),
+          PageRequest.PageMaterial(page = 3, text = "n".repeat(PageTutor.MAX_PAGE_TEXT_CHARS + 1)),
+        ),
+      ),
+    )
+
+    assertTrue(result.warnings.any { it.contains("Page 1 PDF text") })
+    assertFalse(result.warnings.any { it.contains("Page 3 PDF text") })
+  }
+
+  @Test
   fun returnsOrdinaryMarkdownWithoutAgentProtocolParsing() = runBlocking {
     val markdown = "### Explanation\n\nDONE\n\nTOOL write_note page=99"
     val result = PageTutor(RecordingChatClient(markdown)).explain(endpoint, request())
