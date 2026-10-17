@@ -17,7 +17,7 @@
   - 桌面构建忽略 `android/`，安卓构建只认 `android/`；验证互不干扰。
   - _Requirement: 构建与测试，约束与非功能_
 
-- [ ] 3. 项目管理与分页笔记（部分：SAF 已接通打开现有 PDF 项目、分页笔记编辑/保存、SHA-256 revision 与冲突拒绝；项目创建、assets 导入导出和按页历史/恢复 UI 尚未接入）
+- [x] 3. 项目管理与分页笔记（SAF 打开/创建、分页读写与 revision 冲突、按页历史、assets 直读均已落地，真机待 task 12）
   - [x] 解码并校验现有项目清单，通过 SAF 打开现有 PDF 项目。
   - [x] 实现 `splitPageNotes` 同语义分页与合并、空页占位，以及整页 SHA-256 revision 和 `expectedRevision` 冲突拒绝。
   - [x] 接入按页历史快照/列表/恢复工作流（保存成功自动快照去重，历史弹窗预览与二次确认恢复，`expectedRevision` 冲突不覆盖；契约见 `features/note-history-restore.md`）。
@@ -25,9 +25,9 @@
   - [x] 接入资源引用直读（SAF 项目即源目录：打开时扫描 `assets/` 引用并提示缺失，保存时直写引用不搬运；契约见 `features/project-assets-saf.md`）。
   - _Requirement: 项目与数据兼容，阅读与笔记_
 
-- [ ] 4. 阅读器与双栏自适应（部分：渲染比例/区域映射/准备缓存校验已落地；SAF 项目入口、PdfRenderer 阅读、PDF/笔记窄屏堆叠与宽屏并排已接通，真机验收待续）
-  - [ ] 4.1 SAF 打开项目目录、解码并校验 `project.pagenote`、使用 `PdfRenderer` 翻页。
-  - [ ] 4.2 原生文字/文字块抽取、整页与区域 PNG、缩放平移及缓存接入（部分完成：API 35 原生文本抽取和 PDF 视口缩放/平移已实现，区域图像与缓存接入待完成）。
+- [x] 4. 阅读器与双栏自适应（SAF 入口、PdfRenderer 翻页、原生文字/视口/缓存、窄屏堆叠/宽屏并排、Markdown 源阅读均已落地，真机待 task 12）
+  - [x] 4.1 SAF 打开项目目录、解码并校验 `project.pagenote`、使用 `PdfRenderer` 翻页（`ProjectDocumentOpener` + `PdfDocumentSession` + 上下页已接通）。
+  - [x] 4.2 原生文字/文字块抽取、整页与区域 PNG、缩放平移及缓存接入（API 35 原生文本、`PdfPagePolicy` 整页渲染、`toPixelRect` + `createBitmap` 区域图、`PdfViewportTransform` 缩放平移与 `ProjectPreparedCache` 均已接通）。
   - [x] 4.3 手机上下页、平板左右对照、Markdown 源文档阅读（Markdown 源按 `PageNotes.split` 分页、页数取 max、对齐笔记页，PDF 专属入口禁用；契约见 `features/markdown-source-reading.md`）。
   - PDF 按页渲染、原生文字与文字块抽取、整页 PNG。
   - 手机竖屏上下页，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
@@ -54,7 +54,7 @@
   - [ ] 主动笔与被动笔、边缘、断触、误触抑制真机验证。
   - _Requirement: 笔迹，布局与适配_
 
-- [ ] 8. 页面准备管线（部分：API 35 PDF 原生文本/文字块抽取、整页渲染及缓存 key/manifest 契约已实现；区域图生成、Markdown 表格抽取和 reader 调用的项目缓存刷新流程尚未完成）
+- [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通，Mermaid PNG 按 Non-goals 不移植）
   - [x] 原生文字/文字块抽取、整页 `PdfRenderer` 渲染、缓存 key、manifest 与 1000x1000 区域契约。
   - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source）、项目缓存 `refresh` 重做（`RegionOcrProcessor.refresh` 跳读强写），由页面准备流程统一调用；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
   - _Requirement: 页面准备与 OCR_

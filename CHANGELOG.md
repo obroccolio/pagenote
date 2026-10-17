@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Mark Android project, reader, and page-preparation milestones complete with SAF entry, viewport, and cache coverage. / 安卓项目管理、阅读器与页面准备里程碑收尾：SAF 入口、视口与缓存覆盖已对齐。
+
 - Run single-page Android agent tasks from the reader with live project tools and true completion scope. / 安卓阅读器可执行单页 Agent 任务：接真实项目工具并报告真实完成范围。
 
 - Read Markdown-source pagenote projects on Android with paged Markwon preview aligned to note pages and PDF-only actions disabled. / 安卓支持 Markdown 源项目阅读：按页 Markwon 预览与笔记页对齐，PDF 专属入口禁用。
