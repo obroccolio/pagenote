@@ -122,5 +122,5 @@
   - [x] Activity 级 `ReaderSessionViewModel`、紧凑 `SavedStateHandle` 检查点、归一化 PDF 视口书签和按 SAF 目标/项目/页隔离的 app-private `AtomicFile` 草稿日志已实现。
   - [x] JVM 单测、AtomicFile 仪器测试、Activity 重建与 fresh-ViewModel 恢复/版本冲突测试已实现；Pixel Tablet API 34、API 35 各 69 项 app instrumentation tests 通过。
   - [x] `:app:assembleDebug` 通过；四 ABI debug APK 均通过 16 KB 对齐检查。
-  - [ ] AVD 上实际系统回收进程后，经持久 SAF 授权重新打开项目并恢复草稿的烟测；DocumentsUI 未向 picker 展示本次测试夹具，fresh-ViewModel 自动化测试不等价于 OS 级杀进程。
+  - [x] Pixel Tablet API 34 AVD 通过 DocumentsUI 授予持久 SAF 目录权限，编辑未保存草稿后将 Activity 退到后台，并以应用 UID 执行 SIGKILL；重新调回原任务后项目和草稿均恢复，界面显示本机草稿恢复状态。此验证覆盖进程死亡与任务恢复，不代表自然低内存杀进程或真机测试。
   - _Requirement: 阅读器状态恢复、草稿持久性与冲突保护_

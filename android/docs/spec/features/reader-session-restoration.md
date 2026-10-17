@@ -51,7 +51,8 @@ The viewport bookmark stores scale and the normalized page point centered in the
 
 - JVM tests cover bookmark capture/restore across portrait/tablet bounds, scale preservation, malformed values, and translation clamping; recovery-record identity and revision decisions are tested as pure behavior.
 - Android instrumentation tests cover `AtomicFile` journal write/read/clear, a real two-page PDF renderer across `ActivityScenario.recreate()`, checkpoint restoration into a fresh ViewModel, and revision-conflict retention.
-- Run the Android JVM suite, `assembleDebug`, instrumentation on API 34 and API 35 AVDs, and the four-ABI 16 KB APK checker. A manual AVD process-reclaim smoke is recorded separately from `ActivityScenario.recreate()` evidence; neither is represented as physical-device verification.
+- Android 14 / API 34 AVD process-death smoke: grant the fixture folder through DocumentsUI, edit a note without saving, background the app, SIGKILL its process through the app UID while retaining the task, then bring the existing task forward. The project reopened through the persisted SAF grant, the recovery status appeared, and the exact unsaved draft remained in the editor. This is distinct from `ActivityScenario.recreate()` and does not simulate natural low-memory-killer pressure or physical-device behavior.
+- Run the Android JVM suite, `assembleDebug`, instrumentation on API 34 and API 35 AVDs, and the four-ABI 16 KB APK checker. Emulator results are not represented as physical-device verification.
 
 ## Related
 
