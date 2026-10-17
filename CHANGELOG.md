@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android AI review and handoff dialogs with SAF persistence, status transitions, and stale guards. / 安卓新增 AI 审阅与交接弹窗：SAF 落盘、状态流转与过期保护。
+
 - Add Android text annotation mode with tap-to-place, list, and delete backed by the generic SAF store. / 安卓新增文字批注模式：点选落点、列表与删除，经通用 SAF 存储落盘。
 
 - Report missing Android project asset references on open while keeping direct SAF reads and writes. / 安卓打开项目时报告缺失资源引用，读写仍走 SAF 直写。

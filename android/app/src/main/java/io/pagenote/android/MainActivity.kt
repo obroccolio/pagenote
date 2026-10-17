@@ -107,6 +107,8 @@ import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -261,6 +263,8 @@ private fun ReaderHome(
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
   var showAnnotations by remember { mutableStateOf(false) }
+  var showReviews by remember { mutableStateOf(false) }
+  var showHandoff by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
 
@@ -1085,6 +1089,16 @@ private fun ReaderHome(
           enabled = !readerOcrState.inputLocked,
         ) { Text(stringResource(R.string.annotations)) }
         TextButton(
+          modifier = Modifier.testTag("reviews_list"),
+          onClick = { showReviews = true },
+          enabled = !readerOcrState.inputLocked,
+        ) { Text(stringResource(R.string.review_action)) }
+        TextButton(
+          modifier = Modifier.testTag("handoff_open"),
+          onClick = { showHandoff = true },
+          enabled = !readerOcrState.inputLocked,
+        ) { Text(stringResource(R.string.handoff_action)) }
+        TextButton(
           onClick = ::undoPenPage,
           enabled = penWritable && !readerOcrState.inputLocked && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
         ) { Text(stringResource(R.string.undo)) }
@@ -1363,6 +1377,25 @@ private fun ReaderHome(
       page = pageIndex + 1,
       project = project!!,
       onDismiss = { showAnnotations = false },
+      onChanged = { noteStatus = it },
+    )
+  }
+  if (showReviews && project != null) {
+    ReviewListDialog(
+      page = pageIndex + 1,
+      project = project!!,
+      noteRevision = noteBaseRevision,
+      onDismiss = { showReviews = false },
+      onChanged = { noteStatus = it },
+    )
+  }
+  if (showHandoff && project != null && renderer != null) {
+    HandoffDialog(
+      page = pageIndex + 1,
+      project = project!!,
+      noteRevision = PageNotes.revision(noteDraft),
+      sourceRevision = renderer!!.sourceRevision.orEmpty(),
+      onDismiss = { showHandoff = false },
       onChanged = { noteStatus = it },
     )
   }
@@ -1646,6 +1679,260 @@ private fun Any?.toJsonElementValue(): kotlinx.serialization.json.JsonElement = 
   is Map<*, *> -> (this as Map<String, Any?>).toJsonElement()
   is Iterable<*> -> kotlinx.serialization.json.JsonArray(map { it.toJsonElementValue() })
   else -> kotlinx.serialization.json.JsonPrimitive(toString())
+}
+
+@Composable
+internal fun ReviewListDialog(
+  page: Int,
+  project: OpenedProject,
+  noteRevision: String,
+  onDismiss: () -> Unit,
+  onChanged: (String) -> Unit,
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var records by remember(project, page) { mutableStateOf<List<JsonObject>>(emptyList()) }
+  var loadError by remember(project, page) { mutableStateOf<String?>(null) }
+  var instruction by remember { mutableStateOf("") }
+  var pendingApply by remember { mutableStateOf<String?>(null) }
+  var pendingDismiss by remember { mutableStateOf<String?>(null) }
+  var pendingDelete by remember { mutableStateOf<String?>(null) }
+
+  fun store() = ProjectReviewStore(context.contentResolver, project.sourceDirectoryUri, project.reviewsUri)
+
+  LaunchedEffect(project, page) {
+    loadError = null
+    records = withContext(Dispatchers.IO) {
+      runCatching {
+        store().list(page).mapNotNull { it as? JsonObject }
+      }.getOrElse {
+        loadError = context.getString(R.string.review_save_failed, it.message ?: "")
+        emptyList()
+      }
+    }
+  }
+
+  suspend fun refresh() {
+    records = withContext(Dispatchers.IO) {
+      runCatching { store().list(page).mapNotNull { it as? JsonObject } }.getOrDefault(records)
+    }
+  }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.review_title, page)) },
+    text = {
+      Column(
+        modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (loadError == null && records.isEmpty()) {
+          Text(stringResource(R.string.review_empty))
+        }
+        records.forEach { record ->
+          val id = record["id"]?.let { (it as? JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          val text = record["instruction"]?.let { (it as? JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          val status = record["status"]?.let { (it as? JsonPrimitive)?.contentOrNullFallback() } ?: ""
+          Column(modifier = Modifier.fillMaxWidth()) {
+            Text(text)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text(status, style = MaterialTheme.typography.labelSmall)
+              if (status == "open") {
+                TextButton(onClick = { pendingApply = id }) { Text(stringResource(R.string.review_applied)) }
+                TextButton(onClick = { pendingDismiss = id }) { Text(stringResource(R.string.review_dismissed)) }
+              }
+              TextButton(onClick = { pendingDelete = id }) { Text(stringResource(R.string.delete)) }
+            }
+          }
+        }
+        Text(stringResource(R.string.review_instruction_label))
+        AndroidView(
+          factory = { viewContext ->
+            EditText(viewContext).apply {
+              inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+              setText(instruction)
+              addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(editable: Editable?) {
+                  instruction = editable?.toString().orEmpty()
+                }
+              })
+            }
+          },
+          update = { editText ->
+            if (editText.text.toString() != instruction) editText.setText(instruction)
+          },
+        )
+        Button(
+          modifier = Modifier.testTag("review_create"),
+          onClick = {
+            scope.launch {
+              try {
+                withContext(Dispatchers.IO) {
+                  store().create("note", "overall", page, instruction, noteRevision)
+                }
+                instruction = ""
+                refresh()
+                onChanged(context.getString(R.string.review_saved))
+              } catch (error: Exception) {
+                onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
+              }
+            }
+          },
+          enabled = instruction.isNotBlank(),
+        ) { Text(stringResource(R.string.review_save)) }
+      }
+    },
+    confirmButton = {
+      TextButton(modifier = Modifier.testTag("reviews_close"), onClick = onDismiss) {
+        Text(stringResource(R.string.close))
+      }
+    },
+  )
+  pendingApply?.let { id ->
+    AlertDialog(
+      onDismissRequest = { pendingApply = null },
+      title = { Text(stringResource(R.string.review_applied)) },
+      text = { Text(stringResource(R.string.review_instruction_label)) },
+      confirmButton = {
+        TextButton(onClick = {
+          scope.launch {
+            try {
+              withContext(Dispatchers.IO) { store().transition(id, "applied", noteRewritten = true) }
+              refresh()
+              onChanged(context.getString(R.string.review_applied))
+            } catch (error: Exception) {
+              onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
+            } finally {
+              pendingApply = null
+            }
+          }
+        }) { Text(stringResource(R.string.review_applied)) }
+      },
+      dismissButton = {
+        TextButton(onClick = { pendingApply = null }) { Text(stringResource(R.string.cancel)) }
+      },
+    )
+  }
+  pendingDismiss?.let { id ->
+    scope.launch {
+      try {
+        withContext(Dispatchers.IO) { store().transition(id, "dismissed") }
+        refresh()
+        onChanged(context.getString(R.string.review_dismissed))
+      } catch (error: Exception) {
+        onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
+      } finally {
+        pendingDismiss = null
+      }
+    }
+  }
+  pendingDelete?.let { id ->
+    scope.launch {
+      try {
+        withContext(Dispatchers.IO) { store().delete(id) }
+        refresh()
+        onChanged(context.getString(R.string.review_deleted))
+      } catch (error: Exception) {
+        onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
+      } finally {
+        pendingDelete = null
+      }
+    }
+  }
+}
+
+@Composable
+internal fun HandoffDialog(
+  page: Int,
+  project: OpenedProject,
+  noteRevision: String,
+  sourceRevision: String,
+  onDismiss: () -> Unit,
+  onChanged: (String) -> Unit,
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var view by remember(project, page) { mutableStateOf<HandoffSafView?>(null) }
+  var summary by remember { mutableStateOf("") }
+  var loadError by remember(project, page) { mutableStateOf<String?>(null) }
+
+  fun store() = ProjectHandoffStore(context.contentResolver, project.sourceDirectoryUri, project.handoffsUri)
+
+  LaunchedEffect(project, page, noteRevision, sourceRevision) {
+    loadError = null
+    view = withContext(Dispatchers.IO) {
+      runCatching { store().view(page, noteRevision, sourceRevision) }.getOrElse {
+        loadError = context.getString(R.string.handoff_save_failed, it.message ?: "")
+        null
+      }
+    }
+    view?.record?.let { summary = it.summary }
+  }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.handoff_title, page)) },
+    text = {
+      Column(
+        modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val current = view
+        if (current?.record == null && loadError == null) {
+          Text(stringResource(R.string.handoff_empty))
+        }
+        current?.record?.let { Text(it.summary) }
+        if (current?.stale == true) {
+          Text(stringResource(R.string.handoff_stale), color = MaterialTheme.colorScheme.error)
+        }
+        Text(stringResource(R.string.handoff_summary_label))
+        AndroidView(
+          factory = { viewContext ->
+            EditText(viewContext).apply {
+              inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+              setText(summary)
+              addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(editable: Editable?) {
+                  summary = editable?.toString().orEmpty()
+                }
+              })
+            }
+          },
+          update = { editText ->
+            if (editText.text.toString() != summary) editText.setText(summary)
+          },
+        )
+        Button(
+          modifier = Modifier.testTag("handoff_save"),
+          onClick = {
+            scope.launch {
+              try {
+                val saved = withContext(Dispatchers.IO) {
+                  store().write(page, summary, noteRevision, sourceRevision, noteRevision)
+                }
+                view = HandoffSafView(saved, false)
+                onChanged(context.getString(R.string.handoff_saved))
+              } catch (error: Exception) {
+                onChanged(context.getString(R.string.handoff_save_failed, error.message ?: ""))
+              }
+            }
+          },
+          enabled = summary.isNotBlank() && current?.stale != true,
+        ) { Text(stringResource(R.string.handoff_save)) }
+      }
+    },
+    confirmButton = {
+      TextButton(modifier = Modifier.testTag("handoff_close"), onClick = onDismiss) {
+        Text(stringResource(R.string.close))
+      }
+    },
+  )
 }
 
 private fun isReaderErrorStatus(status: String): Boolean =

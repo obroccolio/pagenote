@@ -44,8 +44,8 @@
   - [x] 实现 annotation、AI review、handoff 数据模型、校验和本地 store 单测。
   - [x] 通用标注 SAF 数据边界已落地（`ProjectAnnotationStore` 全类型读写/删页，`AnnotationSafBoundary` 纯函数，与笔迹写共存；契约见 `features/annotation-saf-boundary.md`）。
   - [x] 文字批注创建/列表/删除 UI 已落地（批注模式点选落点、文本输入、全量页写回、非笔迹列表与删除；契约见 `features/annotation-text-ui.md`）。
-  - [ ] 接入 AI review 改写/状态流转 UI。
-  - [ ] 接入交接读写 UI 与 stale 冲突处理。
+  - [x] AI review 创建/列表/状态流转 UI 已落地（本页 open 列表、新建 overall、applied/dismissed 流转、删除；契约见 `features/review-handoff-ui.md`）。
+  - [x] 交接读写 UI 与 stale 处理已落地（本页交接预览、stale 警告、过期 revision 拒绝覆盖；契约见 `features/review-handoff-ui.md`）。
   - _Requirement: 标注_
 
 - [ ] 7. 手写笔迹（部分：原生 View、压感、分页编辑和 SAF 项目保存已实现；真机验收待做）
