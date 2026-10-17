@@ -4,7 +4,7 @@
 
 **SPEC:** `android/docs/spec/features/offline-ocr.md`.
 
-## Verified Failure
+## Historical Failure (Resolved)
 
 - The seven-test OCR instrumentation suite starts on the official Android 15 16 KB ARM64 AVD (`getconf PAGESIZE = 16384`) and its first `OfflineOcrEngine.create()` call terminates the process with `SIGILL`.
 - Tombstone: `libopencv_java4.so`, Build ID `5429c4ab527a597e1faf1cfee1673954863e2021`, relative PC `0x168e258`. NDK `llvm-objdump` decodes this address as `rdvl x0, #1`.
@@ -26,6 +26,7 @@ The supported target AVD must not require the SVE path. If a source build still 
 3. [x] Replace the Maven AAR with the project-built artifact without changing PaddleOCR or ONNX model assets; retain upstream license notices and record dependency provenance.
 4. [x] Run the seven real-model OCR instrumentation tests on API 34, API 35 4 KB, and API 35 16 KB ARM64 AVDs. Bundled Chinese/English recognition, region coordinate mapping, bitmap ownership, and explicit failure behavior pass on all three.
 5. [x] Run JVM tests, all app/module compilation and debug assembly, then all four ABI APK 16 KB checks. Runtime execution and static alignment are recorded separately below.
+6. [x] Run strict offline OCR acceptance on an API 35 / 16 KB AVD with airplane mode on, Wi-Fi and mobile data disabled, and no active default network.
 
 ## Acceptance
 
@@ -40,6 +41,6 @@ The supported target AVD must not require the SVE path. If a source build still 
 
 The native runtime remediation is implemented and emulator-validated. `android/scripts/build_opencv_android.py` builds OpenCV commit `71d3237a093b60a27601c20e9ee6c3e52154e8b1` with NDK `28.2.13676358`; the committed AAR is 33 MB with SHA-256 `abbe71f57e31364ae9cb04d907ff50b4dc0a91306c5e35cfaf175cc79a51b060`. It contains all four configured ABIs. The ARM64 `libopencv_java4.so` and `libc++_shared.so` LOAD segments are all 16 KB aligned; JNI has no OpenCV-module `DT_NEEDED` entries; ARM64 disassembly has no `RDVL`.
 
-The seven OCR instrumentation tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB ARM64 AVDs. The complete app suite passes 71/71 on API 34 and 71/71 on API 35 / 16 KB. JVM tests, `assembleDebug`, `assembleDebugAndroidTest`, and all four APK 16 KB checks pass. A LaTeX drawable test's async wait was increased from 2 to 10 seconds after it timed out once under the full 16 KB suite; the isolated retry and subsequent complete suite pass.
+The seven OCR instrumentation tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB ARM64 AVDs. The complete app suite passes 71/71 on API 34 and 71/71 on API 35 / 16 KB. JVM tests, `assembleDebug`, `assembleDebugAndroidTest`, and all four APK 16 KB checks pass. A LaTeX drawable test's async wait was increased from 2 to 10 seconds after it timed out once under the full 16 KB suite; the isolated retry and subsequent complete suite pass. `android/scripts/test_offline_ocr_avd.sh` additionally ran all seven OCR tests on the 16 KB AVD after confirming `Active default network: none`, then restored the original emulator radio settings.
 
-Not yet verified: the emulator's network was not explicitly disabled during OCR tests, and no physical ARM device has been tested. The larger Android migration goal remains in progress.
+Not yet verified: physical ARM device behavior. The larger Android migration goal remains in progress.

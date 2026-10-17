@@ -65,10 +65,10 @@
   - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。准备缓存不另存 Mermaid PNG；阅读预览绘图仍按 task 5 验收。
   - _Requirement: 页面准备与 OCR_
 
-- [ ] 9. 离线 OCR（OpenCV native 崩溃已由项目自建 4 ABI AAR 修复；API 34、API 35 4 KB/16 KB AVD 的真实模型测试通过。显式飞行模式及实体 ARM 设备验证仍待做；详情见 `features/offline-ocr.md` 与 `offline-ocr-native-runtime-plan.md`）
+- [x] 9. 离线 OCR（API 34、API 35 4 KB/16 KB AVD 的真实模型测试通过；API 35 16 KB AVD 在飞行模式、Wi-Fi/移动数据关闭且无默认网络时通过全部 7 项 OCR 仪器测试。实体 ARM 设备仍未验证，见 `features/offline-ocr.md` 与 `offline-ocr-native-runtime-plan.md`）
   - [x] 原生 OCR 引擎在 API 34、API 35 4 KB 和 16 KB ARM64 AVD 各通过 7 项 instrumentation；中英文识别、区域坐标、原图所有权和失败语义均有覆盖。
-  - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
-  - 触发规则（`OcrTrigger`：不可用/空/图多字少自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、飞行模式可用。
+  - [x] 中英文整页与区域识别、坐标、置信度、警告、原图保留。
+  - [x] 触发规则（`OcrTrigger`：不可用/空/图多字少自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、严格离线可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
   - [x] 阅读器区域选择、离线识别与 SAF 项目缓存；JVM 回归、仪器测试编译、四 ABI APK 构建及 16 KB 对齐检查通过，真机手写笔/启动验收待完成，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
@@ -93,19 +93,19 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与真机验收（全量构建/JVM/四 ABI 16 KB 检查及 Pixel Tablet API 34、API 35 AVD 仪器测试此前通过；官方 16 KB API 35 AVD 启动且 69 项 app 仪器测试通过，隔离 SAF URI 往返测试亦在 API 34/35/16 KB AVD 通过；OCR 原生运行时 SIGILL、真实 DocumentsUI/持久授权、用户项目打开和完整功能矩阵仍未完成；PDF session 重复关闭回归由 API 35 AVD 验证）
+- [ ] 12. 自动化与设备验收（API 34/35 AVD 构建、JVM/仪器测试及 16 KB 运行时验证通过；严格离线 OCR 验收通过。真实 DocumentsUI/持久授权、用户 69 页项目打开和全功能交互矩阵仍待验收；已解决的 OpenCV SIGILL 不再作为待办）
   - 契约回归、单元、集成、模型真接口（本地中转）测试。
   - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
   - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
   - [ ] 安卓启动与 16 KB 页面兼容性修复，契约见 `features/startup-and-16kb-compatibility.md`，实施拆分见 `startup-and-16kb-compatibility-plan.md`。
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
-    - [x] 切换到已核验的官方 OpenCV 4.14.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查。
+    - [x] 切换到项目自建 OpenCV 4.10.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查；原 4.14.0 `RDVL`/SIGILL 已解决。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，69 项 app 仪器测试全部通过。
-  - [ ] OCR 模块此前缺少 `testInstrumentationRunner`，Gradle 曾报告 0 tests；现补齐配置后实际发现 7 tests，但首个 OCR 初始化在 `libopencv_java4.so` 的 SVE `RDVL` 指令 SIGILL，Android 15 4 KB 与 16 KB AVD 均可复现。AVD CPU 特征不匹配仅为假设，待验证；详情见 `features/offline-ocr.md` 与 `startup-and-16kb-compatibility-plan.md`。
+  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，最新记录的 71 项 app 仪器测试全部通过。
+  - [x] 修复 OCR 测试 runner 曾静默运行 0 tests 的问题，并以项目自建 OpenCV 4.10.0 AAR 解决旧版 `RDVL`/SIGILL；API 34、API 35 4 KB/16 KB 的模型识别测试均通过。API 35 16 KB AVD 的严格断网测试由 `scripts/test_offline_ocr_avd.sh` 验证。
   - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
   - [ ] 真实 DocumentsUI 选取、持久 URI 授权、用户已完成讲解的模式识别 PDF 打开及 app 界面/手写交互验收仍待完成；隔离 Provider 用例不替代这些检查。
-  - [x] Pixel Tablet API 34 与 API 35 AVD 各运行 59 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
+  - [x] Pixel Tablet API 34 与 API 35 AVD 的完整 app instrumentation suite（最新 71 项）通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。

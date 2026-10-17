@@ -24,7 +24,7 @@
 ## Task 3: Replace Misaligned OpenCV Binaries
 
 - [x] Add `android/scripts/check_16kb_apks.py` to inspect every packaged 64-bit ELF `LOAD` segment and APK ZIP alignment with the Android SDK/NDK tools.
-- [x] Replace `com.quickbirdstudios:opencv:4.5.3.0` with the API-compatible official OpenCV AAR selected by inspecting its actual 64-bit ELF segments; verify the packaged C++ runtime is aligned too.
+- [x] Replace the legacy OpenCV dependency with the project-built, pinned OpenCV 4.10.0 AAR; verify the packaged C++ runtime and all 64-bit ELF segments are 16 KB aligned.
 - [x] Build all configured ABI APKs and run all JVM unit-test tasks.
 - [x] Inspect every resulting `arm64-v8a` and `x86_64` library with NDK `llvm-objdump -p`; all `LOAD` alignments are `>= 2**14`.
 - [x] Run `python3 android/scripts/check_16kb_apks.py <apk>...` on all four APKs. ELF and SDK `zipalign -c -P 16` checks pass.
@@ -42,9 +42,9 @@
 - [x] Install the official Android 15 `google_apis_playstore_ps16k` ARM64 system image and create the dedicated `Pixel_Tablet_16KB` AVD without replacing the existing 4 KB AVDs.
 - [x] Confirm `getconf PAGESIZE` reports `16384`; record the Google Play ARM64 image and API 35.
 - [x] Build/install the current ARM64 debug APK and launch `MainActivity`; no startup fatal crash was observed. OCR's lazily loaded native runtime is validated separately below.
-- [x] Run all 69 app instrumentation tests on the 16 KB AVD; all pass, including reader/PDF instrumentation.
-- [ ] Run `feature-ocr` instrumentation on the same AVD and require successful bundled Chinese/English recognition. The module runner was missing, so the prior zero-test Gradle success was invalid; after adding the runner, seven tests are discovered but the process crashes in `libopencv_java4.so` at SVE `RDVL`. The same failure reproduces on the 4 KB API 35 AVD; root cause is unresolved.
+- [x] Run the full app instrumentation suite on the 16 KB AVD; the latest recorded run passes all 71 tests, including reader/PDF instrumentation.
+- [x] Run `feature-ocr` instrumentation with a nonzero test count and require successful bundled Chinese/English recognition. Seven tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB; strict offline execution on the 16 KB AVD also passes with no active default network.
 - [ ] Verify the app can open the SAF picker and render a representative project page on the 16 KB AVD.
 - [x] Record runtime results separately from ELF/ZIP alignment checks and physical-device validation; root Unreleased changelog is updated before pushing.
 
-**Expected:** The Android 15 16 KB AVD reports a 16,384-byte page size, the app launches, all 69 app tests and the nonzero OCR model-integration suite execute, and representative reader/native OCR flows pass. A zero-test Gradle task is not acceptance evidence. Current OCR runtime failure is tracked as unresolved; no production OCR change should be made until the SVE failure is isolated and covered by a regression test.
+**Outcome:** The Android 15 16 KB AVD reports a 16,384-byte page size; app startup and the full 71-test app suite pass. Seven OCR model-integration tests pass, including a strict offline run with no active default network. Real SAF picker interaction and representative user-project rendering remain separate task 12 acceptance items. A zero-test Gradle task is not acceptance evidence.

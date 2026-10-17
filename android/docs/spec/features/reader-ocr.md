@@ -30,4 +30,4 @@ This slice does not auto-trigger OCR, merge native PDF text, persist prepared-pa
 
 - Existing OCR policy and mapper unit tests cover failures, confidence, and normalized boxes.
 - App compilation verifies the reader action integration.
-- Device acceptance must exercise an installed APK in airplane mode on a Chinese/English fixture; no Android device or AVD is currently available in the development environment.
+- A strict API 35 / 16 KB AVD run disables airplane mode exceptions, Wi-Fi, and mobile data, confirms no active default network, then recognizes the bundled Chinese/English fixture with the installed instrumentation APK. This verifies engine availability offline; it does not replace physical-device reader interaction or real-project acceptance.

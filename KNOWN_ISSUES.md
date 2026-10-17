@@ -10,14 +10,14 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 | 多种 Office、DPI、双屏和低配置设备 | 未穷尽环境；报告具体条件后逐项处理。 |
 | Windows 签名与安全软件 | 当前未签名。早期 NSIS 安装包曾被火绒查杀，未取得厂商复核结论；不将其宣称为误报。新文件以实际检测为准。 |
 | Mac 签名、公证和首次打开 | 当前构建未签名、公证；系统可能拦截，需后续完善分发体验。 |
-| Android 真机与功能验收 | 一台 4 KB 页 Android 16/API 36 设备上，arm64 debug APK 可启动并绘制项目首页；APK ELF LOAD 段与 ZIP 16 KB 对齐检查通过，但没有 16 KB 页运行时设备。Pixel Tablet API 35 AVD 上完整 42 项 Android 仪器测试全部通过（包括 8 项 Markdown renderer、设置导航、项目/批注/Agent/OCR 选择 UI）；SAF 不可读流仍未由仪器夹具验证。`minSdk=34` 已由 manifest 核实，但未在 API 34 设备运行。真实 SAF 打开、离线 OCR 识别、手写笔、平板 PDF 阅读交互和 OpenAI 端到端仍未验收，不宣称 Android 全流程通过。 |
+| Android 实机与端到端矩阵 | API 34/35 AVD 的 JVM、应用/模块仪器测试和四 ABI 16 KB 对齐已验证；API 35 16 KB AVD 在飞行模式、Wi-Fi/移动数据关闭且无默认网络时通过 7 项真实模型 OCR 测试。仍未验证实体 ARM 上的笔迹/延迟、真实 DocumentsUI 持久授权、用户的 69 页模式识别项目以及 OpenAI 服务端到端；不宣称 Android 全流程已验收。 |
 | OCR 运行库与识别质量 | 部分 Windows 环境可能缺少 VC++ 运行库；OCR 不是无损识别，图表仍需结合原页图查看。 |
 | 旧 2.0 测试版升级至 1.0 | 有意重置首个正式版本编号；完全退出旧版，手动安装或完整解压新 ZIP。若系统拒绝覆盖，可卸载应用后安装；先备份项目，保留用户数据。 |
 | AI、Word/PPT 外部依赖 | 不内置大模型；AI 客户端、服务额度和本机 Office 授权需用户自行准备。 |
 
 遇到 Bug 请[提交 Issue](https://github.com/laihong06/pagenote/issues/new)，附版本、系统、操作步骤及脱敏截图；不要上传私人课件或连接密钥。联系：chennanfeng310@gmail.com。
 
-Windows stable is founder-approved; macOS remains experimental. Android has passed a 4 KB-device home-screen smoke check, APK alignment inspection, and all 42 instrumentation tests on a Pixel Tablet API 35 AVD. API 34 runtime coverage, SAF failure-stream behavior, real offline OCR, stylus interaction, the broader feature matrix, and 16 KB runtime behavior remain unverified. Other pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
+Windows stable is founder-approved; macOS remains experimental. Android API 34/35 AVD coverage includes app/module instrumentation, 16 KB runtime checks, and a strict offline OCR run on the API 35 16 KB AVD. Physical stylus behavior, real DocumentsUI grants, the user's 69-page project, and OpenAI service end-to-end remain unverified; this is not a claim that the full Android workflow has passed. Other pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, and antivirus review. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
 
 ## beta 1.1 测试记录
 

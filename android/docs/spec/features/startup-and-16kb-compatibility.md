@@ -39,6 +39,10 @@ Keep the Android reader launchable when it applies a user-selected locale throug
 
 ## Runtime Evidence (2026-10-18)
 
-- An official Android 15 Google Play ARM64 16 KB tablet AVD reports a 16,384-byte page size. The debug app launches and all 69 app instrumentation tests pass on it.
-- OCR instrumentation now discovers seven tests instead of silently starting zero. Its process currently terminates with `SIGILL` in `libopencv_java4.so` during `OpenCVUtils.init`, at an SVE `RDVL` instruction. The same library build ID and failure reproduce on an Android 15 4 KB ARM64 AVD, so the failure is not isolated to 16 KB page sizing.
-- A simulator CPU-feature mismatch is one hypothesis, not a confirmed root cause. APK ELF/ZIP alignment is verified independently; OCR native execution, SAF picker interaction, and representative project rendering remain open runtime checks.
+- The official Android 15 Google Play ARM64 16 KB tablet AVD reports a 16,384-byte page size. The debug app launches and the latest recorded full app instrumentation suite passes 71/71.
+- All seven real-model OCR instrumentation tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB ARM64 AVDs. A strict API 35 / 16 KB offline run verified airplane mode, Wi-Fi disabled, mobile data disabled, and `Active default network: none` before the tests started.
+- The earlier OpenCV 4.14.0 `RDVL`/`SIGILL` failure described below was resolved by replacing it with the project-built, pinned OpenCV 4.10.0 four-ABI AAR; the replacement passes native execution, OCR recognition, and 16 KB ELF/ZIP checks. Physical ARM64 runtime and real DocumentsUI/project interaction remain unverified.
+
+### Historical Failure (Resolved)
+
+The initial official OpenCV 4.14.0 artifact passed static alignment checks but terminated OCR instrumentation with `SIGILL` at SVE `RDVL` on API 35 4 KB and 16 KB AVDs. The project-built OpenCV 4.10.0 replacement and its provenance are documented in `../offline-ocr-native-runtime-plan.md`; the failure is retained here as historical diagnostic evidence, not current status.
