@@ -2,7 +2,7 @@
 
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
-> `features/desktop-ui-and-office-parity.md` 正在等待发起人审阅；当前复选框仅记录既有 Android 实现，不代表桌面菜单/Office 终态已完成。获批后再据此扩展任务与验收矩阵。
+> `features/desktop-ui-and-office-parity.md` 的菜单分组/自适应侧栏方向已确认，导航按 `adaptive-menu-navigation-plan.md` 实施；Office 引擎仍需单独验证，桌面 Office 终态尚未完成。
 
 ## Implementation Plan
 
@@ -110,3 +110,9 @@
   - 每次推送附 `CHANGELOG.md` 未发布区条目。
   - 安卓产物独立，不混入桌面 `release/`。
   - _Requirement: 构建与测试_
+
+- [ ] 14. 桌面菜单分组与自适应导航（SPEC 已确认；组件和 ReaderHome 命令接线按 `adaptive-menu-navigation-plan.md` 分批实施）
+  - 窄窗口使用模态抽屉，宽窗口使用常驻可折叠侧栏，断点按窗口宽度而非设备型号判断。
+  - 保留桌面菜单分组与顺序；已支持命令复用现有 handler，未接线功能明确显示禁用原因。
+  - 菜单开合、断点变化不重置页码、视口、笔迹和笔记草稿。
+  - _Requirement: 布局与适配、桌面菜单语义一致_

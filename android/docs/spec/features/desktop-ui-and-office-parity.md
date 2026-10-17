@@ -1,6 +1,6 @@
 # Android 桌面功能区与 Office 编辑对齐
 
-> 状态：提议 SPEC，待发起人审阅。本文锁定终态；实现拆分在 SPEC 获批后加入 `tasks.md`。
+> 状态：桌面菜单分组和自适应侧栏方向已由发起人确认；导航实施契约见 `adaptive-menu-navigation.md`。本文记录完整桌面功能/Office 终态，Office 引擎实现仍需单独完成可行性验证，不视为已批准或已实现。
 
 ## 1. 目标与边界
 
@@ -107,6 +107,7 @@ Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只�
 
 ## 7. 关联
 
+- 菜单导航实施契约：`adaptive-menu-navigation.md`；任务与逐项验证：`../adaptive-menu-navigation-plan.md`。
 - 父规格：`../requirements.md`、`../design.md`、`../tasks.md`。
 - 当前功能契约：`reader-shell.md`、`reader-viewport.md`、`pen-canvas.md`、`note-rich-render.md`、`openai-model-settings.md`。
 - 桌面实现参照：仓库根目录 `index.html`、`src/main.js`、`src/theme.css`、`src/desktop.css`、`desktop/word.cjs`、`desktop/mac-office.cjs`。
