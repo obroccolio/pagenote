@@ -8,7 +8,9 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.noties.markwon.image.AsyncDrawable
 import io.noties.markwon.image.AsyncDrawableSpan
+import io.noties.markwon.ext.latex.JLatexAsyncDrawableSpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +46,54 @@ class NoteMarkdownRendererTest {
     assertTrue("known code language must create syntax color spans", spans.any {
       it is ForegroundColorSpan
     })
+  }
+
+  @Test
+  fun inlineAndBlockFormulasDrawVisiblePixels() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val markdown = NotePreviewRewrite.forPreview(
+      "Inline \$x^2\$ and block:\n\n\$\$\ny = x + 1\n\$\$",
+    )
+    val renderer = NoteMarkdownRenderer.createPreview(context, null, Color.BLACK)
+    val rendered = renderer.render(renderer.parse(markdown)) as Spanned
+    val formulas = rendered.getSpans(0, rendered.length, JLatexAsyncDrawableSpan::class.java)
+
+    assertEquals("both inline and block formulas must render", 2, formulas.size)
+    formulas.forEach { span ->
+      val drawable = (span as AsyncDrawableSpan).drawable
+      awaitLatexDrawable(drawable)
+
+      assertTrue("LaTeX rendering must complete", drawable.hasResult())
+      assertFalse("valid formula must not use error fallback", drawable.result is FormulaFallbackDrawable)
+      assertTrue(
+        "valid formula must resolve to JLatexMathDrawable, got ${drawable.result.javaClass.name}",
+        drawable.result.javaClass.name.startsWith("ru.noties.jlatexmath."),
+      )
+      assertDrawableHasVisiblePixels(drawable.result)
+    }
+  }
+
+  @Test
+  fun invalidFormulaUsesRendererFallbackAndPreservesFollowingText() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = "\\notARealCommand{x}"
+    val markdown = "Before formula:\n\n\$\$\n$source\n\$\$\n\nAfter formula."
+    val renderer = NoteMarkdownRenderer.createPreview(context, null, Color.BLACK)
+    val rendered = renderer.render(renderer.parse(markdown)) as Spanned
+    val formula = rendered.getSpans(0, rendered.length, JLatexAsyncDrawableSpan::class.java).single()
+    val drawable = (formula as AsyncDrawableSpan).drawable
+
+    awaitLatexDrawable(drawable)
+
+    assertTrue("invalid TeX must complete through the renderer error handler", drawable.hasResult())
+    val fallback = drawable.result as? FormulaFallbackDrawable
+    assertTrue(
+      "renderer error handler must return FormulaFallbackDrawable, got ${drawable.result.javaClass.name}",
+      fallback != null,
+    )
+    assertTrue("fallback must retain the original formula source", requireNotNull(fallback).source.contains(source))
+    assertDrawableHasVisiblePixels(fallback)
+    assertTrue("content after the formula must remain rendered", rendered.toString().contains("After formula."))
   }
 
   @Test
@@ -247,6 +297,24 @@ class NoteMarkdownRendererTest {
     return image
   }
 
+  private fun assertDrawableHasVisiblePixels(drawable: Drawable) {
+    val width = drawable.intrinsicWidth
+    val height = drawable.intrinsicHeight
+    assertTrue("rendered formula must report a positive width", width > 0)
+    assertTrue("rendered formula must report a positive height", height > 0)
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    drawable.setBounds(0, 0, width, height)
+    drawable.draw(Canvas(bitmap))
+
+    var visiblePixels = 0
+    for (y in 0 until height) {
+      for (x in 0 until width) {
+        if (Color.alpha(bitmap.getPixel(x, y)) > 0) visiblePixels++
+      }
+    }
+    assertTrue("formula drawable must draw actual pixels", visiblePixels > 4)
+  }
+
   private fun loadAndAwaitImage(
     renderer: io.noties.markwon.Markwon,
     image: io.noties.markwon.image.AsyncDrawable,
@@ -261,6 +329,20 @@ class NoteMarkdownRendererTest {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val deadline = android.os.SystemClock.uptimeMillis() + 2_000
     while (!image.hasResult() && android.os.SystemClock.uptimeMillis() < deadline) {
+      instrumentation.waitForIdleSync()
+      Thread.sleep(10)
+    }
+  }
+
+  private fun awaitLatexDrawable(drawable: AsyncDrawable) {
+    drawable.setCallback2(object : Drawable.Callback {
+      override fun invalidateDrawable(who: Drawable) = Unit
+      override fun scheduleDrawable(who: Drawable, what: Runnable, `when`: Long) = Unit
+      override fun unscheduleDrawable(who: Drawable, what: Runnable) = Unit
+    })
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    val deadline = android.os.SystemClock.uptimeMillis() + 2_000
+    while (!drawable.hasResult() && android.os.SystemClock.uptimeMillis() < deadline) {
       instrumentation.waitForIdleSync()
       Thread.sleep(10)
     }
