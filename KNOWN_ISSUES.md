@@ -6,6 +6,7 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 |---|---|
 | 历史长测约 54 分钟时窗口关闭 | 原因未明；重开后已保存内容恢复。历史中断不记作一小时通过，保留后续排查。 |
 | Mac 全流程与环境覆盖 | 贡献者报告部分实机测试，本次维护者使用 Windows，未独立复验 Mac；继续测试版。 |
+| Mac 新增设置、主题与触控板手势 | 贡献者在 Apple Silicon 本机及 arm64 包验证自动化流程；物理触控板手工验收、Intel Mac 包和新增共享界面的 Windows 实机复验尚未单独记录，保持测试版。 |
 | 多种 Office、DPI、双屏和低配置设备 | 未穷尽环境；报告具体条件后逐项处理。 |
 | Windows 签名与安全软件 | 当前未签名。早期 NSIS 安装包曾被火绒查杀，未取得厂商复核结论；不将其宣称为误报。新文件以实际检测为准。 |
 | Mac 签名、公证和首次打开 | 当前构建未签名、公证；系统可能拦截，需后续完善分发体验。 |
@@ -19,6 +20,8 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 Windows stable is founder-approved; macOS remains experimental. Pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
 
 ## beta 1.1 测试记录
+
+- beta.4：GitHub macOS 15 arm64 的 Paper 主题回归在“切换排版后拖动源 Markdown 手写线条”的位置断言失败（预期发生位移，检测到线条基本停留原位）。同一套测试在 Windows 通过；尚未区分命中位置、自动化事件与产品定位缺陷。保留为非阻断 Beta 待办，Mac CI 单独展示该诊断结果，不算通过。PDF/笔记阅读与 Mermaid 底栏逐帧回归独立验证。
 
 - 新分层工作流覆盖材料准备、缓存、分页续读、Tag 范围、意见凭据、用户偏好版本保护及实时入口编辑。
 - 完整 MCP 回归在“静默更新后通过页码输入跳到第 3 页”的等待断言发生超时；记录显示页码输入为 3、阅读状态仍为 1，已保存的第 3 页笔记存在。两次结果和截图保留在本机 tmp；最小翻页复现未重现，根因尚未确认。不得将此轮完整 MCP 套件写为通过，后续继续排查。正式 v1.0 未被本次 beta 改动覆盖。

@@ -87,6 +87,10 @@ if (platform === 'win') {
   );
   Object.assign(build, {
     extraResources: [
+      {
+        from: 'build/mac-settings/pagenote Settings.app',
+        to: 'pagenote Settings.app',
+      },
       { from: 'mcp-dist/page-notes-mcp.cjs', to: 'page-notes-mcp.cjs' },
       { from: 'mcp-dist/mcp-node', to: 'mcp-node' },
       { from: 'desktop/mac-office.applescript', to: 'mac-office.applescript' },
@@ -114,8 +118,8 @@ if (platform === 'win') {
     ]),
     mac: {
       target: [
-        { target: 'dmg', arch: ['arm64', 'x64'] },
-        { target: 'zip', arch: ['arm64', 'x64'] },
+        { target: 'dmg', arch: ['arm64'] },
+        { target: 'zip', arch: ['arm64'] },
       ],
       icon: 'build/icon.icns',
       category: 'public.app-category.education',
@@ -136,6 +140,17 @@ if (platform === 'win') {
     },
     artifactName: 'pagenote-${version}-mac-${arch}.${ext}',
   });
+}
+if (/-beta\./.test(pkg.version)) {
+  build.appId = 'io.pagenote.desktop.beta';
+  build.productName = 'pagenote Beta';
+  build.executableName = 'pagenote';
+  build.directories.output = 'release/beta-' + pkg.version;
+  // Beta installs alongside stable and never claims its project association.
+  delete build.fileAssociations;
+  if (build.nsis) build.nsis.shortcutName = 'pagenote Beta';
+  if (build.mac?.extendInfo) delete build.mac.extendInfo.CFBundleDocumentTypes;
+  if (platform === 'win') build.extraFiles = [];
 }
 pkg.build = build;
 await fs.writeFile(

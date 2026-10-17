@@ -1,8 +1,12 @@
-# pagenote
+# pagenote Beta
 
-**[⬇ Windows installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Windows portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · **[⬇ Mac Apple Silicon](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · **[⬇ Mac Intel](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg)** · [Source archive](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
+**[⬇ Windows beta installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [Beta portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Beta source](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
-Windows **v1.0 is stable**; macOS remains **experimental in this project**. Mac downloads are independently built by [obroccolio](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0), with filenames numbered 1.0.0; they are not the Windows release or a guaranteed build of this repository's latest source. Download an installer to use the app, or download the source / fork the repository to modify it.
+**[⬇ Mac Apple Silicon beta DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac beta ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
+
+This is the **beta branch**. The README and downloads on this page describe **1.1.0-beta.4**, including native Mac settings, light/dark appearance, Paper reading theme, welcome screen, prompt routing and Windows trackpad changes. [Stable branch](https://github.com/laihong06/pagenote/tree/main).
+
+Beta installs as **pagenote Beta**, with a separate installation identity, shortcuts and local settings/data directory. It does not take over stable project file associations. Project files you explicitly open are still shared files: copy a project before testing if you want to keep its stable copy unchanged.
 
 <img src="build/icon.png" alt="pagenote paired-page icon" width="88">
 
@@ -17,6 +21,14 @@ As AI becomes part of everyday life, using it to study is a familiar choice. We 
 Yet this way of learning has practical shortcomings. The source and explanation sit in separate windows, and switching between them makes it easy to lose our place. AI sometimes rearranges the material, disrupting the order of the lesson. Asking it to explain an entire document at once can run into context and output limits, producing a summary that skips derivations, unfamiliar notation and examples. We may feel we have understood it, only to struggle when solving a problem or putting it into practice.
 
 These frustrations led to Pagenote. The idea is to keep each source page beside its explanation and give it the attention of a separate request: start from familiar knowledge, fill in the intermediate steps and continue from the preceding page. When something is unclear, select a passage or a figure and leave a request for another example or a different explanation. Notes can be revised as we learn, without repeatedly copying text and explaining the background. Illustrations, runnable code, mathematical notation and flowcharts give AI more ways to make abstract ideas understandable. That was the original purpose of Pagenote.
+
+## Prompt and data routing (beta)
+
+![Pagenote layered prompt and local data routing](docs/images/prompt-routing-en.svg)
+
+The left side follows generation and revision through preparation, execution and saving. The right side holds shared teaching skills, output rules and learner preferences. Solid lines show execution and data flow; dashed lines mark editable prompts. [View the full diagram](docs/images/prompt-routing-en.svg).
+
+The editable entry routes generation and revision to shared teaching skills, output rules and learner preferences. Local tools prepare source/neighbor pages, notes, Tags, OCR and images; the host Agent owns sessions, delegation and context. Edit the guidance in **Settings → AI settings**, without copying prompts. See the [workflow](docs/AI-TEACHING.zh-CN.md) and [full prompt/tool catalog](docs/PROMPTS.zh-CN.md).
 
 ## Features in pictures
 
@@ -66,45 +78,24 @@ Beta.5 reads source and notes separately, fetches only the needed note passages,
 
 It also bundles offline Chinese/English OCR and prepares reusable positioned text, confidence, page/region images and native Markdown table/Mermaid assets. Sources and visuals remain available for checking uncertain formulas and charts. See [local page preparation](docs/LOCAL-PREPARATION.md).
 
-**Current Windows version: 1.0.0 stable**; macOS remains experimental.
+**Current Windows beta version: 1.1.0-beta.4**.
 
 ## Download and install
 
-[Windows x64 installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe) · [Complete Windows ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.0.0)
+[Windows x64 installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe) · [Complete Windows ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
 1. Download `pagenote-VERSION-windows-x64-setup.exe` from this repository's **Releases**. **Code → Download ZIP** contains source code, not an installer.
 2. Run the installer and choose a location. Installation is per user and normally does not require administrator privileges.
-3. Launch **pagenote** from the desktop or Start menu.
+3. Launch **pagenote Beta** from the desktop or Start menu.
 4. Choose Simplified Chinese or English under **Settings → Language / 语言**.
 
 Alternatively, extract the complete Windows ZIP distribution and run `pagenote.exe`. Keep its accompanying resources together.
 
 Releases should include `SHA256SUMS.txt` and pass security review. The current local build has no publisher signature. If security software blocks it, stop and report the detection; **do not disable protection or add an exclusion**.
 
-### Install on Mac (experimental)
+### macOS beta availability
 
-| Your Mac | Installer | ZIP alternative |
-|---|---|---|
-| Apple Silicon, M-series | [arm64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg) | [arm64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) |
-| Intel | [x64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) | [x64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) |
-
-1. Open **Apple menu → About This Mac** to identify the chip or processor.
-2. Open the DMG and drag **pagenote.app** to **Applications**. For ZIP, extract and move the complete app to Applications.
-3. These Mac packages are unsigned and not notarized. If macOS blocks opening, verify the source and checksum, then follow the OS prompts under **System Settings → Privacy & Security**. Do not disable Gatekeeper globally.
-4. PDF and Markdown need no Office. Word/PPT import and preview refresh require locally installed, activated **Microsoft Word / PowerPoint**. Allow the requested Automation and document access permissions.
-5. Choose your language in Settings, import a document or open a project, then add page notes or connect your external AI client.
-
-The Office bridge requires Microsoft Word / PowerPoint; WPS, Pages and Keynote are not replacements. If an operation times out, check Office for pending permission, activation or document dialogs before retrying. MCP Word screenshots render a temporary PDF without screen-recording permission. Conversion failures or source conflicts retain the working copy for recovery.
-
-[Mac release notes and checksums](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0) · [Office setup and troubleshooting](docs/MAC-OFFICE.md)
-
-Use `shasum -a 256 PATH_TO_DOWNLOAD` and compare against the contributor's Mac checksum file, not the Windows manifest.
-
-### What the Mac contribution adds
-
-[obroccolio](https://github.com/obroccolio) contributed [PR #3](https://github.com/laihong06/pagenote/pull/3): Finder project opening, Dock window restoration, native menus and Command shortcuts, local Word/PPT conversion and refresh, and revision-checked Word operations through MCP. Word screenshots render a temporary PDF. Build scripts support Apple Silicon and Intel, with a bundled MCP Node.js runtime.
-
-The code is merged here, while the linked Mac binaries are separate contributor builds and may differ from the latest merged source. Windows acceptance does not establish Mac acceptance. Track pending work in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+Matching Apple Silicon (arm64) DMG and ZIP packages are provided as experimental builds. Intel packages are not offered in this beta. Builds are unsigned and not notarized; macOS may block the first launch. Platform setup: [Mac Office](docs/MAC-OFFICE.md).
 
 ## Other controls
 
@@ -129,7 +120,7 @@ My project/
     ai-reviews.json         # AI annotations, created when used
 ```
 
-With the installed app, double-click `project.pagenote`, or choose it under **File → Open project**. For a ZIP distribution without an association, run `register-project-files.cmd` in the newer distribution folder once. Register again after moving the app. If Windows already has another default, choose pagenote under **Open with**.
+Open **pagenote Beta**, then choose **File → Open project** and select `project.pagenote`. This beta installer and ZIP deliberately do not register project associations; double-clicking a project may still open stable. For isolated testing, copy the complete project folder first.
 
 Legacy `project.page-notes.json` files remain supported through the app. The `left` and `right` links are read on opening. Move the complete folder, not just its manifest.
 
@@ -142,7 +133,7 @@ On Mac, move pagenote to Applications and open projects through Finder or **File
 ## Requirements
 
 - Windows 10/11, x64: v1.0 stable, approved by the founder after accepting LTH0001's tests together with their own supplementary local tests.
-- macOS 12 or later: experimental Apple Silicon and Intel builds; Windows stable acceptance does not apply to macOS.
+- macOS 12 or later: experimental Apple Silicon arm64 builds; no Intel package in this beta; Windows stable acceptance does not apply to macOS.
 - ARM64 Windows is not yet verified.
 - PDF and Markdown do not require Office. Word/PPT import, project preview and post-save refresh need locally licensed **Microsoft Word / PowerPoint** on Windows and macOS.
 - On first Mac integration, allow pagenote to control Word / PowerPoint; if denied, enable it under **System Settings → Privacy & Security → Automation**. Mac Word editing uses a separate window with MCP read, selection, revision-checked replacement and PDF-rendered screenshots. See [Mac Office notes](docs/MAC-OFFICE.md).
@@ -160,7 +151,7 @@ npm run build
 npm run desktop
 ```
 
-Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon and Intel), or `npm run package:mac:local` for a local-arch folder build. The test suite runs on Windows and macOS.
+Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon arm64), or `npm run package:mac:local` for an arm64 folder build. The test suite runs on Windows and macOS.
 
 See the [release guide](docs/RELEASING.en-US.md), [terminology specification](docs/TERMINOLOGY.md) and [release-readiness report](docs/RELEASE-READINESS.md). Bug reports should include the version, Windows version, reproduction steps and redacted logs. Do not upload private projects or MCP connection keys.
 
@@ -188,3 +179,5 @@ Thanks to [obroccolio](https://github.com/obroccolio) for Mac support and downlo
 [Release policy](docs/RELEASE-POLICY.md) · [Known issues](KNOWN_ISSUES.md)
 
 Beta 1.1 adds a soft page-edge highlight, editable entry/strategies/teaching/profile modules, prepared task context and evidence-linked preferences. See [workflow](docs/AI-TEACHING.zh-CN.md); stable downloads above remain v1.0.
+
+Windows touchpads (beta): pinch continuously in the pane under the pointer; two-finger scrolling pans both axes. Ctrl + wheel remains supported. Small pages zoom around their center; filled pages keep the pointer anchor. PDF detail refreshes after the gesture without rebuilding the text layer; the toolbar does not zoom.

@@ -70,6 +70,41 @@
 
 - Add native Android pen/highlighter/eraser input with pressure-aware strokes, page-scoped undo/redo, SAF persistence, and preservation of unrelated annotation data. / 新增安卓原生手写笔、荧光笔与橡皮，支持压感、按页撤销/重做及 SAF 保存，并保留无关批注数据。
 
+## 1.1.0-beta.4 — 2026-10-17
+
+- Dismiss the pen popover before test pan/ink drag actions: on compact displays it can cover the source pane and legitimately receive those events. Preserve the actual native-pan and ink-position assertions. / 小屏幕交互测试先收起覆盖文档的画笔面板，再验证平移和手写拖动；保留实际效果断言。
+
+- Adapt the reading zoom test to compact displays, where the optional Fit label is intentionally hidden; keep all focal-point and page-transition assertions. / 阅读缩放测试兼容小屏幕隐藏“适合窗口”文字按钮的布局，保留全部缩放与翻页断言。
+
+- Record the failed Mac Paper/ink drag assertion as a non-blocking beta diagnostic instead of claiming a pass; retain the failing assertions and screenshots. Keep web prompt-control tests on the web fallback while separately testing native settings. / 如实记录 Mac 纸张主题手写拖动断言异常，保留测试；区分网页控件与原生设置验证。
+
+- Explicitly install the Electron runtime before native/UI tests on clean CI, where npm lifecycle scripts are disabled by repository policy. / 干净 CI 按仓库策略禁用 npm 生命周期脚本，测试前显式准备 Electron 运行库。
+
+- Initialize the temporary test directory on clean macOS CI checkouts; the Swift helper and application compile successfully there. / 修复干净 CI 检出时测试临时目录未创建的问题；已确认 Swift 原生组件与应用可编译。
+
+- Integrate obroccolio PR #6 into beta: native Mac settings, system/light/dark themes, Paper reading layout and first-run welcome. Windows retains the web settings window. / 合入 Mac 主题与原生设置，Windows 使用网页设置窗口。
+- Bring native prompt editing up to the current routing architecture and forward expected revisions to prevent overwriting concurrent AI preference updates. / 补齐入口、生成策略、用户画像模块及提示词保存版本保护。
+- Keep Mermaid measurement outside the window grid and clean it after success/failure; cover cold rendering, repeated navigation and invalid diagrams. / 修复 Mermaid 测量节点顶起底栏的问题并验证翻页与异常图表。
+- Publish matching Windows x64 and Mac Apple Silicon arm64 beta packages; isolate beta identity/data from stable. Intel Mac builds are not included because the native helper is arm64. / 分发同版本 Windows 与 Apple Silicon 测试包，正式版不变；不提供夹带 arm64 组件的 Intel 包。
+- Add a dedicated macOS CI build/native/UI/reading/package validation workflow; retain the existing exhaustive workflow and documented MCP limitations. / 增加针对 Mac 改动的分级构建验证，保留既有完整测试与已知限制。
+
+- Redraw the bilingual beta README workflow using aligned generation/revision columns, shared guidance and a learner-feedback loop, following the founder's reference diagram. Documentation only; release binaries unchanged. / 按参考图重排中英文路由图，保留生成、修改、材料准备与用户画像回路；仅更新文档，不改安装包。
+
+- Clarify beta project opening: use File → Open project; remove inherited stable association/registration instructions. Documentation only; beta.3 binaries unchanged. / 修正 beta 项目打开说明，不引导注册正式版文件关联；安装包不变。
+
+## 1.1.0-beta.3 — 2026-10-17
+
+- Separate beta READMEs/downloads from main: publish Windows beta installer, ZIP, source and checksums as a prerelease; keep stable v1.0 untouched. / beta 文档仅提供对应测试包，正式版保持独立；Mac 当前测试包未提供。
+- Install as pagenote Beta with a distinct app ID, shortcuts and local data directory; do not migrate stable/legacy data or claim project associations. Explicitly opened project files remain shared. / 分离安装和本地数据，不接管正式版关联；主动打开的项目文件仍需自行复制隔离。
+- Include the beta.1 layered workflows and beta.2 routing diagrams/Windows gestures in this beta distribution. / 本次测试包包含此前分层提示词、路由图及触控板改进。
+
+### 1.1.0-beta.2（仅 beta，尚未公开发布）
+
+- Add bilingual SVG prompt/data-routing diagrams to beta READMEs. / 为 beta 中英文 README 增加分层路由图。
+- Adapt the gesture engine from obroccolio PR #6 (77d30dd) for Windows: proportional pinch, native two-axis pan, anchored pane zoom, retained PDF/text layers, refreshed bitmap detail and zoom-aware Tag positions. / 沿用贡献者手势逻辑适配 Windows，支持连续捏合、双向平移、锚点缩放与批注定位。
+- Observe outer viewport size and reserve scrollbar gutters so Windows scrollbar appearance does not rebuild pages during pinch. / 修正 Windows 非覆盖滚动条引起的尺寸变化与文字层重建。
+
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。
