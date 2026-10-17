@@ -10,6 +10,8 @@
 
 - Open Android pagenote project folders through SAF, validate desktop manifests and source paths, and render bounded PDF pages with native `PdfRenderer`. / 安卓端通过 SAF 打开 pagenote 项目文件夹，校验桌面清单与原文路径，并使用系统 `PdfRenderer` 渲染受像素上限保护的 PDF 页面。
 
+- Report only actual Android Agent page results, continue after ordinary page failures, and stop cleanly on rate limits. / 安卓 Agent 仅报告真实完成的目标页，普通页失败后继续处理，并在遇到限流时停止且明确未完成范围。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。
