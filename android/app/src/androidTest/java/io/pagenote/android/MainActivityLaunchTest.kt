@@ -2,8 +2,8 @@ package io.pagenote.android
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -16,11 +16,9 @@ class MainActivityLaunchTest {
 
   @Test
   fun localizedReaderHome_remainsAvailableAfterSettingsLoad() {
-    val openProject = composeRule.activity.getString(R.string.open_project)
-
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithText(openProject).fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("open_project").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithText(openProject).assertIsDisplayed()
+    composeRule.onNodeWithTag("open_project").assertIsDisplayed()
   }
 }

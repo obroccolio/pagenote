@@ -72,6 +72,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -573,6 +574,7 @@ private fun ReaderHome(settings: ReaderSettings, settingsStore: ReaderSettingsSt
         overflow = TextOverflow.Ellipsis,
       )
       Button(
+        modifier = Modifier.testTag("open_project"),
         onClick = {
           scope.launch {
             if (hasUnsavedChanges && !saveCurrentNote()) return@launch

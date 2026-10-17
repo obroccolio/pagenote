@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Make Android reader startup instrumentation locale-independent with a stable project-picker test tag. / 为安卓阅读器启动仪器测试增加稳定的项目选择器标签，避免受界面语言影响。
+
 - Correct the Android manifest API implementation commit reference in the review ledger. / 修正安卓 manifest API 审查记录中的实现提交引用。
 
 - Add a reusable Android APK checker for 16 KB ELF and ZIP alignment. / 新增可复用的安卓 APK 16 KB ELF 与 ZIP 对齐检查脚本。
