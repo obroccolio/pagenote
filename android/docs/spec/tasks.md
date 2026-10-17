@@ -53,7 +53,7 @@
 
 - [ ] 8. 页面准备管线（部分：API 35 PDF 原生文本/文字块抽取、整页渲染及缓存 key/manifest 契约已实现；区域图生成、Markdown 表格抽取和 reader 调用的项目缓存刷新流程尚未完成）
   - [x] 原生文字/文字块抽取、整页 `PdfRenderer` 渲染、缓存 key、manifest 与 1000x1000 区域契约。
-  - [ ] 接通区域 PNG 生成、Markdown 表格抽取、项目缓存失效和刷新重试，并由页面准备流程统一调用。
+  - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source）、项目缓存 `refresh` 重做（`RegionOcrProcessor.refresh` 跳读强写），由页面准备流程统一调用；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
   - _Requirement: 页面准备与 OCR_
 
 - [ ] 9. 离线 OCR（部分：已打包 PP-OCRv6 tiny 中英文模型、端侧 ONNX 引擎和当前页手动识别入口；自动触发、页面准备缓存、区域重识别与真机验收待续）

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add GFM table extraction for Android page preparation and refresh-forced region OCR cache rewrite. / 安卓页面准备新增 GFM 表格抽取与区域 OCR 缓存 refresh 强制重做。
+
 - Add per-page Android note history with save-time snapshots, a version preview dialog, and confirmed revision-checked restore. / 安卓笔记新增按页历史：保存时自动快照、版本预览弹窗、二次确认的 revision 校验恢复。
 
 - Add shared Android project-asset export/import helpers with missing-file skip semantics and pin stale-revision note conflicts in shared contract tests. / 安卓新增项目资源导入导出共享 helper（含缺文件跳过语义），并在共享契约测试中锁定过期 revision 笔记冲突。

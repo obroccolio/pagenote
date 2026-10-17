@@ -74,6 +74,7 @@ class ReaderOcrSelectionTest {
       page = 3,
       sourceRevision = sourceRevision,
       selection = selection,
+      refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
       engine = engine,
@@ -90,6 +91,32 @@ class ReaderOcrSelectionTest {
     assertEquals(0, cache.writeCalls)
   }
 
+  @Test fun refreshSkipsCacheReadButWritesResult() = runBlocking {
+    val cached = cacheEntry()
+    val cache = FakePreparedRegionCacheStore(cached)
+    var inferenceCalls = 0
+
+    val outcome = processor(cache).recognize(
+      srcDirectoryUri = "content://test/src",
+      documentId = "doc",
+      page = 3,
+      sourceRevision = sourceRevision,
+      selection = selection,
+      refresh = true,
+      imageWidth = 800,
+      imageHeight = 1200,
+      engine = engine,
+      notCachedWarning = "not cached",
+      recognize = { inferenceCalls += 1; result },
+      encodeImages = { PreparedOcrImages(byteArrayOf(1), byteArrayOf(2)) },
+    )
+
+    assertFalse(outcome.fromCache)
+    assertEquals(1, inferenceCalls)
+    assertEquals(0, cache.readCalls)
+    assertEquals(1, cache.writeCalls)
+  }
+
   @Test fun cacheWriteFailurePreservesOcrOutputAndAddsWarning() = runBlocking {
     val cache = FakePreparedRegionCacheStore(writeResult = PreparedOcrCacheWriteResult.NotSaved("read only"))
 
@@ -99,6 +126,7 @@ class ReaderOcrSelectionTest {
       page = 3,
       sourceRevision = sourceRevision,
       selection = selection,
+      refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
       engine = engine,
@@ -123,6 +151,7 @@ class ReaderOcrSelectionTest {
       page = 3,
       sourceRevision = null,
       selection = selection,
+      refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
       engine = engine,

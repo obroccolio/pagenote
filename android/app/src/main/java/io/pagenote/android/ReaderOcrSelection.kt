@@ -141,6 +141,7 @@ class RegionOcrProcessor(private val cache: PreparedRegionCacheStore) {
     page: Int,
     sourceRevision: String?,
     selection: NormalizedOcrRegion,
+    refresh: Boolean = false,
     imageWidth: Int,
     imageHeight: Int,
     engine: String,
@@ -149,7 +150,7 @@ class RegionOcrProcessor(private val cache: PreparedRegionCacheStore) {
     encodeImages: suspend () -> PreparedOcrImages,
   ): RegionOcrOutcome {
     val region = selection.toPageRegion()
-    if (sourceRevision != null) {
+    if (sourceRevision != null && !refresh) {
       val cached = try {
         withContext(Dispatchers.IO) {
           cache.read(srcDirectoryUri, documentId, page, sourceRevision, region, engine)
