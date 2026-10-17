@@ -4,6 +4,7 @@ import io.pagenote.core.reader.PdfTextExtractionResult
 import io.pagenote.core.reader.PdfTextExtractionStatus
 import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultPolicy
+import io.pagenote.feature.ocr.OcrTrigger
 
 data class PageTutorSourceText(
   val text: String,
@@ -16,11 +17,17 @@ class PageTutorSourceException(message: String, cause: Throwable? = null) : Ille
 class PageTutorSourceLoader(
   private val nativeText: suspend (Int) -> PdfTextExtractionResult,
   private val ocrText: suspend (Int) -> OcrResult,
+  private val hasBitmap: (Int) -> Boolean = { false },
 ) {
   suspend fun loadCurrent(pageIndex: Int): PageTutorSourceText {
     require(pageIndex >= 0) { "page index must not be negative" }
     val native = nativeText(pageIndex)
-    if (native.status == PdfTextExtractionStatus.AVAILABLE && native.fullText.isNotBlank()) {
+    val shouldOcr = OcrTrigger.shouldRun(
+      nativeAvailable = native.status == PdfTextExtractionStatus.AVAILABLE,
+      nativeText = native.fullText,
+      hasBitmap = hasBitmap(pageIndex),
+    )
+    if (!shouldOcr) {
       return PageTutorSourceText(text = native.fullText, usedOcr = false)
     }
 

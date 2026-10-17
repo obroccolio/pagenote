@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Unify Android offline OCR auto-triggering with a shared native/bitmap rule. / 安卓离线 OCR 自动触发统一为共享的原文/位图判定规则。
+
 - Add Android region annotations with normalized rect items, list, and delete. / 安卓新增区域批注：归一化 rect 落盘、列表与删除。
 
 - Truncate overlong Android note and source previews with explicit length hints while keeping full-text editing. / 安卓超长笔记与源文预览截断并提示字数，编辑仍为全文。

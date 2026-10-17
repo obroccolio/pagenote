@@ -54,6 +54,20 @@ class PageTutorSourceLoaderTest {
   }
 
   @Test
+  fun supplementsSparseBitmapPageWithOcr() = runBlocking {
+    val loader = PageTutorSourceLoader(
+      nativeText = { availableText("图1") },
+      ocrText = { recognizedText("recognized page") },
+      hasBitmap = { true },
+    )
+
+    val source = loader.loadCurrent(0)
+
+    assertEquals("recognized page", source.text)
+    assertTrue(source.usedOcr)
+  }
+
+  @Test
   fun rejectsFailedOcrWithoutReturningSource() = runBlocking {
     val loader = PageTutorSourceLoader(
       nativeText = { PdfTextExtractionResult.unavailableForOcr() },

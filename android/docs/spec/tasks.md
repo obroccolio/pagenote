@@ -59,9 +59,9 @@
   - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source）、项目缓存 `refresh` 重做（`RegionOcrProcessor.refresh` 跳读强写），由页面准备流程统一调用；契约见 `features/page-prepare-pipeline.md`。Mermaid PNG 渲染按 Non-goals 暂不移植。
   - _Requirement: 页面准备与 OCR_
 
-- [ ] 9. 离线 OCR（部分：已打包 PP-OCRv6 tiny 中英文模型、端侧 ONNX 引擎和当前页手动识别入口；自动触发、页面准备缓存、区域重识别与真机验收待续）
+- [x] 9. 离线 OCR（中英文整页/区域识别、自动触发规则、超时与失败标记、页面准备缓存、区域重识别均已落地，真机待 task 12）
   - 中英文整页与区域识别、坐标、置信度、警告、原图保留。
-  - 触发规则、超时处理、失败明确标记、飞行模式可用。
+  - 触发规则（`OcrTrigger`：不可用/空/图多字少自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、飞行模式可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
   - [x] 阅读器区域选择、离线识别与 SAF 项目缓存；JVM 回归、仪器测试编译、四 ABI APK 构建及 16 KB 对齐检查通过，真机手写笔/启动验收待完成，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
