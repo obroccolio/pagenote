@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Expose the prepared manifest JSON types transitively to Android app consumers. / 通过 Android `core-reader` 向应用消费者传递公开的预处理清单 JSON 类型。
+
 - Specify an Android app-module consumer test for the prepared manifest JSON API boundary. / 补充安卓 app 模块对预处理清单 JSON 公开 API 边界的消费测试要求。
 
 - Reject Windows drive-qualified paths in Android prepared-manifest file entries. / 拒绝安卓预处理清单文件项中的 Windows 驱动器限定路径。

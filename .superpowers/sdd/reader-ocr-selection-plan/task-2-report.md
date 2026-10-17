@@ -80,3 +80,34 @@ BUILD SUCCESSFUL in 2s
 ```
 
 Both successful runs emitted only the existing Gradle 10 compatibility warning. No app test was run because the fix changes only the private path validator and its core-reader test; no shared API changed.
+
+## Task 2 Fix Round 2: App JSON API Visibility
+
+Added `android/app/src/test/java/io/pagenote/android/PreparedManifestApiVisibilityTest.kt`. The test constructs `PreparedManifest` with `JsonObject`/`JsonArray` values and reads the public JSON fields from the app module. Changed `core-reader`'s `kotlinx-serialization-json` dependency from `implementation` to `api`, retaining version `1.7.3`.
+
+RED command before changing the dependency configuration:
+
+```text
+./gradlew :app:testDebugUnitTest --offline --tests io.pagenote.android.PreparedManifestApiVisibilityTest
+```
+
+Observed expected app compile failure:
+
+```text
+Task :app:compileDebugUnitTestKotlin FAILED
+Unresolved reference 'serialization' for the kotlinx.serialization.json imports.
+Cannot access class 'kotlinx.serialization.json.JsonObject' / 'JsonArray' from the public PreparedManifest constructor and fields.
+BUILD FAILED
+```
+
+Passing command after changing `implementation` to `api` (the filtered app consumer test runs first, followed by both module suites and the complete app unit-test suite):
+
+```text
+./gradlew :app:testDebugUnitTest --tests io.pagenote.android.PreparedManifestApiVisibilityTest :core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:testDebugUnitTest --offline
+BUILD SUCCESSFUL in 3s
+130 actionable tasks: 6 executed, 124 up-to-date
+```
+
+The successful run emitted the existing Gradle 10 compatibility warning. No unrelated paths were modified.
+
+Fix round 2 commit: `aa8bba8 fix(android): expose manifest JSON API`.
