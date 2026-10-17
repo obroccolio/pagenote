@@ -70,6 +70,7 @@
   - OpenAI 兼容客户端，支持 BaseURL/Key/模型名配置，默认可配本地中转与指定模型。
   - [x] Android 模型设置 UI、Keystore 加密 Key 存储与本地中转可达性说明，契约见 `features/openai-model-settings.md`，实施拆分见 `openai-model-settings-plan.md`；debug/release 网络策略和本地构建验证通过，Keystore/Compose 仪器测试待设备执行。
   - [x] 单页讲解预览和显式追加，按页 OCR 回退、相邻页上下文、20,000 字符截断、旧提示词预览禁用及 SAF 写入恢复/revision 冲突保护；SAF 父目录/能力查询异常或备份准备失败时 fail closed，明确不支持备份才使用回滚兜底，清理失败报告残留名称；契约见 `features/page-tutor-preview-and-append.md`，单测、APK 构建及 16 KB 检查通过，仪器测试仅编译未在设备执行。
+  - [x] 只读项目工具已接入（read_page/read_review/read_handoff：笔记+原生文字+revision/记录摘要/stale，异常转 ok=false 不中断循环；契约见 `features/agent-project-tools.md`）。
   - 任务循环、本地工具收敛集、多步上限、revision 冲突处理、实际完成范围报告。
   - 提示词索引与按 revision 分批读，逐页独立请求加相邻源页。
   - 单页串行汇总只报告真实完成/修改的请求页；限流停止，普通失败继续。

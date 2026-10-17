@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Wire read-only Android agent project tools for page text, reviews, and handoffs. / 安卓 Agent 接入只读项目工具：页面文本、审阅与交接。
+
 - Add Android AI review and handoff dialogs with SAF persistence, status transitions, and stale guards. / 安卓新增 AI 审阅与交接弹窗：SAF 落盘、状态流转与过期保护。
 
 - Add Android text annotation mode with tap-to-place, list, and delete backed by the generic SAF store. / 安卓新增文字批注模式：点选落点、列表与删除，经通用 SAF 存储落盘。
