@@ -60,6 +60,7 @@ dependencies {
   implementation("io.noties.markwon:core:4.6.2")
   implementation("io.noties.markwon:editor:4.6.2")
   implementation("io.noties.markwon:ext-tables:4.6.2")
+  implementation("io.noties.markwon:image:4.6.2")
   testImplementation("junit:junit:4.13.2")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
