@@ -53,11 +53,11 @@
 - Consumes: `PdfViewportTransform(scale, translationX, translationY)` and `NormalizedOcrRegion(left, top, right, bottom)`.
 - Produces: `PdfViewportBounds(viewportWidthPx, viewportHeightPx, pageWidthPx, pageHeightPx)`, `PdfSelectionPoint(x, y)`, and `mapPdfSelectionToOcrRegion(start, end, bounds, transform): NormalizedOcrRegion?`.
 
-- [ ] **Step 1: Add failing tests** named `fitWidthLetterbox_mapsToFullPageCoordinates`, `zoomPan_mapsSelectionThroughInverseTransform`, `startInLetterbox_isRejected`, `dragEndOutsidePage_isClipped`, `reverseDrag_isNormalized`, and `invalidBounds_areRejected`. Pin a fitted non-square page (`1000x800` viewport, `600x800` page, drag `(300,200)` to `(700,600)` -> `(166,250,834,750)`) and a zoomed/panned page (scale `2`, translation `(50,-100)`, drag `(350,200)` to `(750,600)` -> `(333,437,667,688)`).
-- [ ] **Step 2: Run tests and verify RED.** Run `cd android && ./gradlew :app:testDebugUnitTest --tests io.pagenote.android.PdfViewportTransformTest --offline`; expect unresolved mapper symbols or failing new cases before implementation.
-- [ ] **Step 3: Implement the pure mapper.** Invert scale/translation around the measured viewport/page centers, reject starts outside the page, clip end coordinates, then floor left/top and ceil right/bottom into 0..1000 integer bounds.
-- [ ] **Step 4: Run focused and module tests.** The focused mapper tests and `:app:testDebugUnitTest` must pass.
-- [ ] **Step 5: Commit.** `feat(android): map transformed page selections`; include an Unreleased changelog line.
+- [x] **Step 1: Add failing tests** named `fitWidthLetterbox_mapsToFullPageCoordinates`, `zoomPan_mapsSelectionThroughInverseTransform`, `startInLetterbox_isRejected`, `dragEndOutsidePage_isClipped`, `reverseDrag_isNormalized`, and `invalidBounds_areRejected`. Pin a fitted non-square page (`1000x800` viewport, `600x800` page, drag `(300,200)` to `(700,600)` -> `(166,250,834,750)`) and a zoomed/panned page (scale `2`, translation `(50,-100)`, drag `(350,200)` to `(750,600)` -> `(333,437,667,688)`).
+- [x] **Step 2: Run tests and verify RED.** Run `cd android && ./gradlew :app:testDebugUnitTest --tests io.pagenote.android.PdfViewportTransformTest --offline`; expect unresolved mapper symbols or failing new cases before implementation.
+- [x] **Step 3: Implement the pure mapper.** Invert scale/translation around the measured viewport/page centers, reject starts outside the page, clip end coordinates, then floor left/top and ceil right/bottom into 0..1000 integer bounds.
+- [x] **Step 4: Run focused and module tests.** The focused mapper tests and `:app:testDebugUnitTest` must pass.
+- [x] **Step 5: Commit.** `feat(android): map transformed page selections`; include an Unreleased changelog line.
 
 ### Task 2: Prepared Manifest and OCR Result Codecs
 
@@ -76,11 +76,11 @@
 - Produces: `PreparedManifestCodec.encode(manifest): String`, `PreparedManifestCodec.decode(json): PreparedManifest`, and `OcrResultJsonCodec.encode(result): String` / `decode(json): OcrResult`.
 - `PreparedManifest` carries `originalPreserved: Boolean`, the five non-negative character/block/table counts from the schema, `ocr: JsonObject`, `files: List<String>`, and `visuals: JsonArray`, in addition to its existing identity, region, dimensions, scale, warnings, and visual-review fields.
 
-- [ ] **Step 1: Add failing tests** named `versionTwoManifest_roundTripsEveryContractField`, `manifestRejectsInvalidIdentityRegionAndCounts`, `ocrResultRoundTripsCoordinatesWarningsAndOwnership`, and `unknownManifestFieldsAreIgnored`. Round-trip all schema fields for a version-2 PDF region entry; reject invalid page/revision/region/counts; preserve all `OcrResult` doubles, status, warnings and `imagePreserved`. Add an app-module consumer test that constructs a manifest with a `JsonObject` and reads its JSON fields, proving the core-reader public dependency is visible transitively.
-- [ ] **Step 2: Run tests and verify RED.** Run the two focused Gradle test tasks; expect missing codec symbols or missing manifest fields.
-- [ ] **Step 3: Implement the complete version-2 model and explicit JSON codecs.** Add the existing project version `org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3` as an `api` dependency of `core-reader`, because its public manifest model exposes `JsonObject` and `JsonArray` (no serialization compiler plugin; codecs build JSON values explicitly); keep `ocr` and `visuals` JSON data extensible, validate required manifest fields and safe project-relative file names, and make `PreparedManifestStore.isHit(cached, expected)` compare document id, page, source revision, region, cache key, and version.
-- [ ] **Step 4: Run focused and module tests.** `:core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:testDebugUnitTest` must pass.
-- [ ] **Step 5: Commit.** `feat(android): model prepared OCR manifests`; include an Unreleased changelog line.
+- [x] **Step 1: Add failing tests** named `versionTwoManifest_roundTripsEveryContractField`, `manifestRejectsInvalidIdentityRegionAndCounts`, `ocrResultRoundTripsCoordinatesWarningsAndOwnership`, and `unknownManifestFieldsAreIgnored`. Round-trip all schema fields for a version-2 PDF region entry; reject invalid page/revision/region/counts; preserve all `OcrResult` doubles, status, warnings and `imagePreserved`. Add an app-module consumer test that constructs a manifest with a `JsonObject` and reads its JSON fields, proving the core-reader public dependency is visible transitively.
+- [x] **Step 2: Run tests and verify RED.** Run the two focused Gradle test tasks; expect missing codec symbols or missing manifest fields.
+- [x] **Step 3: Implement the complete version-2 model and explicit JSON codecs.** Add the existing project version `org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3` as an `api` dependency of `core-reader`, because its public manifest model exposes `JsonObject` and `JsonArray` (no serialization compiler plugin; codecs build JSON values explicitly); keep `ocr` and `visuals` JSON data extensible, validate required manifest fields and safe project-relative file names, and make `PreparedManifestStore.isHit(cached, expected)` compare document id, page, source revision, region, cache key, and version.
+- [x] **Step 4: Run focused and module tests.** `:core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:testDebugUnitTest` pass.
+- [x] **Step 5: Commit.** `feat(android): model prepared OCR manifests`; include an Unreleased changelog line.
 
 ### Task 3: SAF Project Region Cache
 
@@ -97,9 +97,10 @@
 
 - [x] **Step 1: Add failing tests** named `emptyTreeIsMiss`, `savedEntryRoundTripsResultAndImages`, `changedDocumentPageSourceRegionEngineOrVersionIsMiss`, `malformedManifestOrMissingFileIsMiss`, `invalidImageOrResultIsMiss`, `writeFailureReturnsNotSaved`, and `manifestIsRequiredAsCompletionMarker`, using an in-memory `PreparedDocumentAccess` and injected image validator.
 - [x] **Step 2: Run tests and verify RED.** Run `cd android && ./gradlew :app:testDebugUnitTest --tests io.pagenote.android.ProjectPreparedCacheTest --offline`; first run failed on missing cache APIs; the later focused run passed all seven tests.
-- [x] **Step 3: Implement SAF-backed storage.** Create/find `src/prepared/<page>-<key-prefix>` through `DocumentsContract`; read and validate every required file; encode `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`; remove an old completion manifest before replacement and write the new manifest last. Add the `ContentResolver` adapter and fakeable document-access interface.
+- [x] **Step 3: Implement SAF-backed storage.** Create/find `src/prepared/<page>-<key-prefix>` through `DocumentsContract`; read and validate every required file; encode `manifest.json`, `page.png`, `region.png`, `ocr.txt`, and `blocks.json`; remove an old completion manifest before replacement and write the new manifest last. Add the `ContentResolver` adapter and fakeable document-access interface. Query failure is distinct from confirmed absence, and saved manifest warnings include both caller and OCR warnings.
 - [x] **Step 4: Run cache, codec, and app tests.** `:app:testDebugUnitTest :core-reader:testDebugUnitTest :feature-ocr:testDebugUnitTest :app:assembleDebug --offline` passed.
 - [x] **Step 5: Commit.** `feat(android): cache region OCR in SAF projects`; include an Unreleased changelog line.
+- [x] **Step 6: Close review findings.** Add `childDiscoveryFailureStopsReplacement` and `savedManifestIncludesCallerAndOcrWarnings`; distinguish SAF enumeration errors from confirmed absence and persist the de-duplicated union of both warning sources. Focused tests, the full JVM suite, Android-test compilation, APK assembly, and all-ABI 16 KB checks pass; commit includes an Unreleased changelog entry.
 
 ### Task 4: Reader Selection and OCR Integration
 

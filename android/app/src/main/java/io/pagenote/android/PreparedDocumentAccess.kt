@@ -3,6 +3,7 @@ package io.pagenote.android
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -15,6 +16,9 @@ interface PreparedDocumentAccess {
   fun openOutput(uri: String): OutputStream?
 }
 
+internal fun <T : Any> requireChildQueryCursor(cursor: T?): T =
+  cursor ?: throw IOException("SAF provider returned no child query cursor")
+
 class SafPreparedDocumentAccess(private val resolver: ContentResolver) : PreparedDocumentAccess {
   override fun findChild(parent: String, name: String): String? {
     val parentUri = Uri.parse(parent)
@@ -24,7 +28,7 @@ class SafPreparedDocumentAccess(private val resolver: ContentResolver) : Prepare
       DocumentsContract.Document.COLUMN_DOCUMENT_ID,
       DocumentsContract.Document.COLUMN_DISPLAY_NAME,
     )
-    val cursor = resolver.query(childrenUri, columns, null, null, null) ?: return null
+    val cursor = requireChildQueryCursor(resolver.query(childrenUri, columns, null, null, null))
     cursor.use {
       val idColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
       val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)

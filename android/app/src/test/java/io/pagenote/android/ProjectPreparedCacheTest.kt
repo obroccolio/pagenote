@@ -5,6 +5,7 @@ import io.pagenote.core.reader.PreparedCache
 import io.pagenote.core.reader.PreparedManifest
 import io.pagenote.feature.ocr.OcrBlock
 import io.pagenote.feature.ocr.OcrResult
+import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -40,6 +41,19 @@ class ProjectPreparedCacheTest {
     assertEquals(result, entry!!.result)
     assertTrue(pagePng.contentEquals(entry.pagePng))
     assertTrue(regionPng.contentEquals(entry.regionPng))
+  }
+
+  @Test fun savedManifestIncludesCallerAndOcrWarnings() {
+    val documents = MemoryDocuments()
+    val store = store(documents)
+    val resultWithDuplicateWarnings = result.copy(
+      warnings = listOf("caller warning", "review", "review"),
+    )
+    store.write(root, manifest(), resultWithDuplicateWarnings, pagePng, regionPng)
+
+    val entry = store.read(root, "doc", 1, revision, region, engine)
+
+    assertEquals(listOf("caller warning", "review"), entry!!.manifest.warnings)
   }
 
   @Test fun changedDocumentPageSourceRegionEngineOrVersionIsMiss() {
@@ -117,10 +131,30 @@ class ProjectPreparedCacheTest {
     assertEquals("manifest.json", docs.operations.last())
   }
 
+  @Test fun childDiscoveryFailureStopsReplacement() {
+    val docs = MemoryDocuments()
+    val store = store(docs)
+    assertTrue(store.write(root, manifest(), result, pagePng, regionPng) is PreparedOcrCacheWriteResult.Saved)
+    val entryDir = docs.findChild(docs.findChild(root, "prepared")!!,
+      PreparedCache.folderName(1, manifest().cacheKey))!!
+    val previous = store.read(root, "doc", 1, revision, region, engine)!!
+    docs.failFindChildAt = "$entryDir/manifest.json"
+
+    val writeResult = store.write(root, manifest(), result.copy(warnings = listOf("replacement")),
+      byteArrayOf(7, 8, 9), byteArrayOf(10, 11, 12))
+
+    assertTrue(writeResult is PreparedOcrCacheWriteResult.NotSaved)
+    docs.failFindChildAt = null
+    val retained = store.read(root, "doc", 1, revision, region, engine)!!
+    assertEquals(previous.result, retained.result)
+    assertTrue(previous.pagePng.contentEquals(retained.pagePng))
+    assertTrue(previous.regionPng.contentEquals(retained.regionPng))
+  }
+
   private fun manifest() = PreparedManifest(
     documentId = "doc", page = 1, sourceRevision = revision, kind = "pdf", region = region,
     cacheKey = PreparedCache.cacheKey(revision, "region-ocr", region, engine),
-    width = 1200, height = 1600, scale = 1.0,
+    width = 1200, height = 1600, scale = 1.0, warnings = listOf("caller warning"),
     files = listOf("manifest.json", "page.png", "region.png", "ocr.txt", "blocks.json"),
   )
 
@@ -135,10 +169,12 @@ class ProjectPreparedCacheTest {
     private val files = mutableMapOf<String, ByteArray>()
     val operations = mutableListOf<String>()
     var failWrites = false
+    var failFindChildAt: String? = null
 
     private fun path(parent: String, name: String) = "$parent/$name"
     override fun findChild(parent: String, name: String): String? {
       val child = path(parent, name)
+      if (child == failFindChildAt) throw IOException("child query failed")
       return if (child in directories || files.containsKey(child)) child else null
     }
     override fun createDirectory(parent: String, name: String): String {

@@ -93,7 +93,10 @@ class ProjectPreparedCache(
       entryDir,
       MANIFEST_FILE,
       "application/json",
-      PreparedManifestCodec.encode(manifest.copy(files = REQUIRED_FILES)).toByteArray(Charsets.UTF_8),
+      PreparedManifestCodec.encode(manifest.copy(
+        files = REQUIRED_FILES,
+        warnings = (manifest.warnings + result.warnings).distinct(),
+      )).toByteArray(Charsets.UTF_8),
     )
     PreparedOcrCacheWriteResult.Saved
   } catch (error: Exception) {
