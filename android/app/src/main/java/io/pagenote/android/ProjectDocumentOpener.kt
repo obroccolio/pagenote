@@ -14,6 +14,8 @@ data class OpenedProject(
   val notesUri: Uri,
   val sourceDirectoryUri: Uri,
   val annotationsUri: Uri?,
+  val reviewsUri: Uri?,
+  val handoffsUri: Uri?,
   val sourceName: String,
   val sourceExtension: String,
 ) {
@@ -40,6 +42,8 @@ class ProjectDocumentOpener(private val resolver: ContentResolver) {
     val sourceDirectoryUri = findDocument(treeUri, rootDocumentId, listOf("src"))
       ?: throw IllegalArgumentException("项目文件夹中没有 src 目录")
     val annotationsUri = findDocument(treeUri, rootDocumentId, listOf("src", "annotations.json"))
+    val reviewsUri = findDocument(treeUri, rootDocumentId, listOf("src", "ai-reviews.json"))
+    val handoffsUri = findDocument(treeUri, rootDocumentId, listOf("src", "ai-handoffs.json"))
     val notesUri = findDocument(treeUri, rootDocumentId, notesSegments)
       ?: throw IllegalArgumentException("找不到笔记：${manifest.right}")
     val sourceName = manifest.leftName ?: sourceSegments.last()
@@ -51,6 +55,8 @@ class ProjectDocumentOpener(private val resolver: ContentResolver) {
       notesUri = notesUri,
       sourceDirectoryUri = sourceDirectoryUri,
       annotationsUri = annotationsUri,
+      reviewsUri = reviewsUri,
+      handoffsUri = handoffsUri,
       sourceName = sourceName,
       sourceExtension = extension,
     )
