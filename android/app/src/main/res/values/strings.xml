@@ -185,4 +185,5 @@
   <string name="note_preview">Preview</string>
   <string name="markdown_source_empty">This source page is empty. Notes on this page can still be edited and saved.</string>
   <string name="markdown_source_truncated">This source page was truncated for preview. The original file is unchanged.</string>
+  <string name="note_preview_truncated">This note page is long (%1$d chars). Preview shows the first %2$d chars; editing still uses the full text.</string>
 </resources>

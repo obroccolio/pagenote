@@ -34,10 +34,9 @@
   - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
-- [ ] 5. 笔记渲染与轻量编辑（部分：Markwon 基础编辑/预览、GFM 表格、分页读写与 revision 冲突校验已落地；公式、代码高亮、Mermaid、图片和历史界面待续）
+- [x] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、富块透出、超长页截断提示均已落地；编辑器沿用 Markwon 高亮编辑，不自研，真机待 task 12）
   - [x] 富渲染透出已落地：mermaid/math 围栏预处理转引用块（源码单次出现）、附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`、代码语言别名归一、未闭合围栏与外链图失败态明确；契约见 `features/note-rich-render.md`。
-  - 轻量开源 Markdown 编辑适配，不自研编辑器。
-  - 超长页截断与按需读取，不一次全量装入。
+  - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - _Requirement: 阅读与笔记_
 
 - [ ] 6. 标注与 AI 标注工作台（部分：annotation/review/handoff 数据模型与 File store 状态规则已实现；app 目前仅接入分页手写笔迹读写，文字/区域批注、列表/删除、AI review 与 handoff 用户流程尚未接入）

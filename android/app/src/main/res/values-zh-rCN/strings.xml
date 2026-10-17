@@ -185,4 +185,5 @@
   <string name="note_preview">预览</string>
   <string name="markdown_source_empty">这一源页面为空，本页笔记仍可编辑保存。</string>
   <string name="markdown_source_truncated">该源页面过长，仅预览前部内容，源文件未改动。</string>
+  <string name="note_preview_truncated">本页笔记较长（共 %1$d 字），预览仅显示前 %2$d 字；编辑仍为全文，保存不受影响。</string>
 </resources>

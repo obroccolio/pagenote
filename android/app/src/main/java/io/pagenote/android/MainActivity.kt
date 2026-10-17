@@ -2178,6 +2178,7 @@ internal fun MarkdownSourcePane(
   }
   val rewritten = remember(previewText) { NotePreviewRewrite.forPreview(previewText) }
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+  val fullPageText = remember(markdown, page) { MarkdownSourcePages.pageAt(markdown, page) }
   Column(modifier = modifier.padding(8.dp).testTag("markdown_source_pane")) {
     Text(
       text = "$sourceName · ${page}",
@@ -2212,8 +2213,12 @@ internal fun MarkdownSourcePane(
     }
     if (truncated) {
       Text(
-        text = stringResource(R.string.markdown_source_truncated),
-        modifier = Modifier.padding(top = 4.dp),
+        text = stringResource(
+          R.string.note_preview_truncated,
+          fullPageText.length,
+          previewText.length,
+        ),
+        modifier = Modifier.padding(top = 4.dp).testTag("note_preview_truncated"),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -2490,21 +2495,38 @@ private fun NotePanel(
     ) { content ->
       key(content.page, content.preview) {
         if (content.preview) {
-          AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { viewContext ->
-              TextView(viewContext).apply {
-                textSize = 16f
-                gravity = Gravity.TOP or Gravity.START
-                setTextColor(contentColorInt)
-                setPadding(12, 10, 12, 10)
-              }
-            },
-            update = { view ->
-              view.setTextColor(contentColorInt)
-              markwon.setMarkdown(view, NotePreviewRewrite.forPreview(content.markdown))
-            },
-          )
+          val (previewMarkdown, isTruncated) = remember(content.markdown) {
+            NotePage.preview(content.markdown)
+          }
+          Column(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+              modifier = Modifier.weight(1f).fillMaxWidth(),
+              factory = { viewContext ->
+                TextView(viewContext).apply {
+                  textSize = 16f
+                  gravity = Gravity.TOP or Gravity.START
+                  setTextColor(contentColorInt)
+                  setPadding(12, 10, 12, 10)
+                }
+              },
+              update = { view ->
+                view.setTextColor(contentColorInt)
+                markwon.setMarkdown(view, NotePreviewRewrite.forPreview(previewMarkdown))
+              },
+            )
+            if (isTruncated) {
+              Text(
+                text = stringResource(
+                  R.string.note_preview_truncated,
+                  content.markdown.length,
+                  previewMarkdown.length,
+                ),
+                modifier = Modifier.padding(top = 4.dp).testTag("note_preview_truncated"),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          }
         } else {
           AndroidView(
             modifier = Modifier.fillMaxSize(),
