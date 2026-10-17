@@ -27,11 +27,12 @@ class LocalToolDispatcher(
   private val handlers: Map<String, suspend (ToolRequest) -> ToolResult> = emptyMap(),
 ) : ToolDispatcher {
   override suspend fun dispatch(tool: ToolRequest): ToolResult {
+    when (val check = ToolSchemas.check(tool)) {
+      ToolSchemas.Check.Ok -> Unit
+      is ToolSchemas.Check.Rejected -> return ToolResult(ok = false, detail = check.reason)
+    }
     val handler = handlers[tool.name]
       ?: return ToolResult(ok = false, detail = "unknown tool: ${tool.name}")
-    if (!AgentLoop.LOCAL_TOOLS.contains(tool.name)) {
-      return ToolResult(ok = false, detail = "unknown tool: ${tool.name}")
-    }
     return handler(tool)
   }
 }

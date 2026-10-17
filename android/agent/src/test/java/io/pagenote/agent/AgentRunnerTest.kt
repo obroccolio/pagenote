@@ -2,6 +2,7 @@ package io.pagenote.agent
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -74,7 +75,7 @@ class AgentRunnerTest {
     suspend fun saveNote(@Suppress("UNUSED_PARAMETER") request: ToolRequest): ToolResult =
       ToolResult(ok = true, detail = "saved", updatedPage = 3)
     val tools = LocalToolDispatcher(mapOf("write_note" to ::saveNote))
-    val runner = AgentRunner(FakeChatClient(listOf("TOOL write_note page=3", "DONE")), tools)
+    val runner = AgentRunner(FakeChatClient(listOf("TOOL write_note page=3 expectedRevision=r1", "DONE")), tools)
     val event = runner.run(task(), endpoint(), messages())
     assertTrue(event is AgentEvent.Done)
     event as AgentEvent.Done
@@ -102,6 +103,21 @@ class AgentRunnerTest {
   }
 
   @Test
+  fun dispatcherRejectsInvalidWriteBeforeCallingHandler() = runBlocking {
+    var called = false
+    val tools = LocalToolDispatcher(mapOf("write_note" to {
+      called = true
+      ToolResult(ok = true, updatedPage = 3)
+    }))
+
+    val result = tools.dispatch(ToolRequest("write_note", mapOf("page" to "3")))
+
+    assertFalse(result.ok)
+    assertTrue(result.detail.contains("expectedRevision"))
+    assertFalse(called)
+  }
+
+  @Test
   fun rateLimitReportsActualScope() = runBlocking {
     val runner = AgentRunner(
       FakeChatClient(error = IllegalStateException("model http 429")),
@@ -119,7 +135,7 @@ class AgentRunnerTest {
       ToolResult(ok = false, detail = "note changed, read again")
     val tools = LocalToolDispatcher(mapOf("write_note" to ::conflict))
     val runner = AgentRunner(
-      FakeChatClient(listOf("TOOL write_note page=3", "DONE")),
+      FakeChatClient(listOf("TOOL write_note page=3 expectedRevision=r1", "DONE")),
       tools,
     )
     val event = runner.run(task(), endpoint(), messages())
