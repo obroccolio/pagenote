@@ -102,6 +102,7 @@
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
   - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，69 项 app 仪器测试全部通过。
   - [ ] OCR 模块此前缺少 `testInstrumentationRunner`，Gradle 曾报告 0 tests；现补齐配置后实际发现 7 tests，但首个 OCR 初始化在 `libopencv_java4.so` 的 SVE `RDVL` 指令 SIGILL，Android 15 4 KB 与 16 KB AVD 均可复现。AVD CPU 特征不匹配仅为假设，待验证；详情见 `features/offline-ocr.md` 与 `startup-and-16kb-compatibility-plan.md`。
+  - [ ] 既有 v1 `.pagenote` 项目的 SAF 往返测试：69 页 PDF 按第 1/35/69 页渲染，修改第 35 页后重开并确认邻页笔记未变；契约见 `features/existing-project-saf-roundtrip.md`。测试 Provider 不代替真实 DocumentsUI/持久授权/用户文件验收。
   - [x] Pixel Tablet API 34 与 API 35 AVD 各运行 59 项 Android 仪器测试并全部通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、离线 OCR 识别、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [ ] SAF 打开既有项目以及阅读/笔迹/OCR/Agent 设备交互矩阵仍待验收。
