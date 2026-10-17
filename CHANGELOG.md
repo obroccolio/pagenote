@@ -6,6 +6,8 @@
 
 - Match Android annotation validation to the desktop contract for shape points while preserving highlight rectangles. / 安卓标注校验对齐桌面契约，形状标注必须包含点坐标，同时保留荧光标注矩形格式。
 
+- Persist Android reader theme, language, split ratio, and note-animation preferences with validated DataStore settings. / 使用带校验的 DataStore 持久化安卓阅读器主题、语言、分栏比例和笔记动画设置。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。

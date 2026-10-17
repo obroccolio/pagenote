@@ -11,6 +11,15 @@ object ReaderSettingsPolicy {
   private val THEMES = setOf("system", "light", "dark", "paper")
   private val LANGUAGES = setOf("system", "zh-CN", "en-US")
 
+  fun sanitize(settings: ReaderSettings): ReaderSettings {
+    val defaults = ReaderSettings()
+    return settings.copy(
+      theme = settings.theme.takeIf(THEMES::contains) ?: defaults.theme,
+      language = settings.language.takeIf(LANGUAGES::contains) ?: defaults.language,
+      leftPercent = settings.leftPercent.takeIf { it in 20..80 } ?: defaults.leftPercent,
+    )
+  }
+
   fun validate(settings: ReaderSettings) {
     require(THEMES.contains(settings.theme)) { "bad theme" }
     require(LANGUAGES.contains(settings.language)) { "bad language" }
