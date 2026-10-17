@@ -62,6 +62,16 @@ class ReaderOcrSelectionTest {
     assertFalse(recovered.selectionInvalid)
   }
 
+  @Test fun invalidDragKeepsTheLastValidSelection() {
+    val selected = ReaderOcrState().enterSelection(0).withSelection(selection)
+
+    val afterInvalidDrag = selected.withSelection(null)
+
+    assertEquals(selection, afterInvalidDrag.selection)
+    assertFalse(afterInvalidDrag.selectionInvalid)
+    assertTrue(afterInvalidDrag.beginRecognition() != null)
+  }
+
   @Test fun cacheHitBypassesInferenceAndImageEncoding() = runBlocking {
     val cached = cacheEntry()
     val cache = FakePreparedRegionCacheStore(cached)
@@ -77,6 +87,7 @@ class ReaderOcrSelectionTest {
       refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
+      renderScale = 2.0,
       engine = engine,
       notCachedWarning = "not cached",
       recognize = { inferenceCalls += 1; result },
@@ -89,6 +100,32 @@ class ReaderOcrSelectionTest {
     assertEquals(0, imageEncodingCalls)
     assertEquals(1, cache.readCalls)
     assertEquals(0, cache.writeCalls)
+  }
+
+  @Test fun writtenManifestCarriesOcrCounts() = runBlocking {
+    val cache = FakePreparedRegionCacheStore()
+
+    processor(cache).recognize(
+      srcDirectoryUri = "content://test/src",
+      documentId = "doc",
+      page = 3,
+      sourceRevision = sourceRevision,
+      selection = selection,
+      refresh = true,
+      imageWidth = 800,
+      imageHeight = 1200,
+      renderScale = 2.0,
+      engine = engine,
+      notCachedWarning = "not cached",
+      recognize = { result },
+      encodeImages = { PreparedOcrImages(byteArrayOf(1), byteArrayOf(2)) },
+    )
+
+    val written = cache.writtenManifest ?: error("manifest was not written")
+    assertEquals("recognized text".length, written.ocrCharacters)
+    assertEquals("recognized text".length, written.textCharacters)
+    assertEquals(1, written.blockCount)
+    assertEquals(2.0, written.scale, 0.0)
   }
 
   @Test fun refreshSkipsCacheReadButWritesResult() = runBlocking {
@@ -105,6 +142,7 @@ class ReaderOcrSelectionTest {
       refresh = true,
       imageWidth = 800,
       imageHeight = 1200,
+      renderScale = 2.0,
       engine = engine,
       notCachedWarning = "not cached",
       recognize = { inferenceCalls += 1; result },
@@ -129,6 +167,7 @@ class ReaderOcrSelectionTest {
       refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
+      renderScale = 2.0,
       engine = engine,
       notCachedWarning = "recognized but not cached",
       recognize = { result },
@@ -154,6 +193,7 @@ class ReaderOcrSelectionTest {
       refresh = false,
       imageWidth = 800,
       imageHeight = 1200,
+      renderScale = 2.0,
       engine = engine,
       notCachedWarning = "source revision unavailable; not cached",
       recognize = { inferenceCalls += 1; result },
@@ -196,6 +236,7 @@ class ReaderOcrSelectionTest {
   ) : PreparedRegionCacheStore {
     var readCalls = 0
     var writeCalls = 0
+    var writtenManifest: PreparedManifest? = null
 
     override fun read(
       srcDirectoryUri: String,
@@ -217,6 +258,7 @@ class ReaderOcrSelectionTest {
       regionPng: ByteArray,
     ): PreparedOcrCacheWriteResult {
       writeCalls += 1
+      writtenManifest = manifest
       return writeResult
     }
   }

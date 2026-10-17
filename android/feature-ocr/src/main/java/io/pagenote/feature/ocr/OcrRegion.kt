@@ -1,5 +1,8 @@
 package io.pagenote.feature.ocr
 
+import io.pagenote.core.reader.PageRegion
+import io.pagenote.core.reader.PdfPagePolicy
+
 data class NormalizedOcrRegion(
   val left: Int,
   val top: Int,
@@ -8,29 +11,17 @@ data class NormalizedOcrRegion(
 ) {
   fun toPixelRect(imageWidth: Int, imageHeight: Int): OcrPixelRect {
     require(imageWidth > 0 && imageHeight > 0) { "OCR image dimensions must be positive" }
-    require(left in 0..1000 && top in 0..1000 && right in 0..1000 && bottom in 0..1000) {
-      "OCR region must be within normalized page bounds 0..1000"
-    }
-    require(right > left && bottom > top) { "OCR region must have positive area" }
-
-    val pixelLeft = (left.toLong() * imageWidth / NORMALIZED_SCALE).toInt().coerceIn(0, imageWidth)
-    val pixelTop = (top.toLong() * imageHeight / NORMALIZED_SCALE).toInt().coerceIn(0, imageHeight)
-    val pixelRight = ceilPixel(right, imageWidth)
-    val pixelBottom = ceilPixel(bottom, imageHeight)
-    require(pixelRight > pixelLeft && pixelBottom > pixelTop) {
-      "OCR region does not intersect the image"
-    }
-
-    return OcrPixelRect(pixelLeft, pixelTop, pixelRight, pixelBottom)
-  }
-
-  private fun ceilPixel(normalized: Int, pixels: Int): Int =
-    ((normalized.toLong() * pixels + NORMALIZED_SCALE - 1) / NORMALIZED_SCALE)
-      .toInt()
-      .coerceIn(0, pixels)
-
-  private companion object {
-    const val NORMALIZED_SCALE = 1000L
+    val pixels = PdfPagePolicy.regionPixels(
+      imageWidth,
+      imageHeight,
+      PageRegion(left.toDouble(), top.toDouble(), (right - left).toDouble(), (bottom - top).toDouble()),
+    )
+    return OcrPixelRect(
+      left = pixels[0],
+      top = pixels[1],
+      right = pixels[0] + pixels[2],
+      bottom = pixels[1] + pixels[3],
+    )
   }
 }
 

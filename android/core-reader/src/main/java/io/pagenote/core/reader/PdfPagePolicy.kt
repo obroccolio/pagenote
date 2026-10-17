@@ -2,6 +2,7 @@ package io.pagenote.core.reader
 
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.math.ceil
 
 object PdfPagePolicy {
   const val MAX_PIXELS = 16_000_000
@@ -33,8 +34,12 @@ object PdfPagePolicy {
     require(pageWidthPx > 0 && pageHeightPx > 0)
     val left = ((region.x / 1000.0) * pageWidthPx).toInt().coerceIn(0, pageWidthPx - 1)
     val top = ((region.y / 1000.0) * pageHeightPx).toInt().coerceIn(0, pageHeightPx - 1)
-    val width = ((region.width / 1000.0) * pageWidthPx).toInt().coerceIn(1, pageWidthPx - left)
-    val height = ((region.height / 1000.0) * pageHeightPx).toInt().coerceIn(1, pageHeightPx - top)
+    val right = ceil(((region.x + region.width) / 1000.0) * pageWidthPx).toInt()
+      .coerceIn(left + 1, pageWidthPx)
+    val bottom = ceil(((region.y + region.height) / 1000.0) * pageHeightPx).toInt()
+      .coerceIn(top + 1, pageHeightPx)
+    val width = right - left
+    val height = bottom - top
     return intArrayOf(left, top, width, height)
   }
 }

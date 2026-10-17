@@ -20,6 +20,8 @@ import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.io.File
 
+data class PdfRenderedPage(val bitmap: Bitmap, val scale: Double)
+
 class PdfDocumentSession private constructor(
   private val descriptor: ParcelFileDescriptor,
   private val renderer: PdfRenderer,
@@ -48,15 +50,19 @@ class PdfDocumentSession private constructor(
   }
 
   @Synchronized
-  fun render(pageIndex: Int): Bitmap {
+  fun render(pageIndex: Int): Bitmap = renderWithMetadata(pageIndex).bitmap
+
+  @Synchronized
+  fun renderWithMetadata(pageIndex: Int): PdfRenderedPage {
     check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
     val page = renderer.openPage(pageIndex)
     try {
+      val scale = PdfPagePolicy.renderScale(page.width.toDouble(), page.height.toDouble())
       val (width, height) = PdfPagePolicy.renderedSize(page.width.toDouble(), page.height.toDouble())
       val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
       try {
         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-        return bitmap
+        return PdfRenderedPage(bitmap, scale)
       } catch (error: Exception) {
         bitmap.recycle()
         throw error

@@ -20,6 +20,7 @@ import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PreparedCache
 import io.pagenote.core.reader.PreparedManifest
 import io.pagenote.feature.ocr.OcrResult
+import io.pagenote.feature.ocr.OcrResultPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,8 +40,12 @@ data class ReaderOcrState(
     pageIndex = pageIndex,
   )
 
-  fun withSelection(region: NormalizedOcrRegion?) =
-    if (mode == ReaderOcrMode.SELECTING) copy(selection = region, selectionInvalid = region == null) else this
+  fun withSelection(region: NormalizedOcrRegion?): ReaderOcrState = when {
+    mode != ReaderOcrMode.SELECTING -> this
+    region != null -> copy(selection = region, selectionInvalid = false)
+    selection != null -> copy(selectionInvalid = false)
+    else -> copy(selectionInvalid = true)
+  }
 
   fun beginRecognition(): ReaderOcrState? =
     if (mode == ReaderOcrMode.SELECTING && selection != null) {
@@ -144,11 +149,13 @@ class RegionOcrProcessor(private val cache: PreparedRegionCacheStore) {
     refresh: Boolean = false,
     imageWidth: Int,
     imageHeight: Int,
+    renderScale: Double,
     engine: String,
     notCachedWarning: String,
     recognize: suspend () -> OcrResult,
     encodeImages: suspend () -> PreparedOcrImages,
   ): RegionOcrOutcome {
+    require(renderScale.isFinite() && renderScale > 0) { "bad render scale" }
     val region = selection.toPageRegion()
     if (sourceRevision != null && !refresh) {
       val cached = try {
@@ -172,6 +179,7 @@ class RegionOcrProcessor(private val cache: PreparedRegionCacheStore) {
     try {
       val images = withContext(Dispatchers.IO) { encodeImages() }
       val key = PreparedCache.cacheKey(sourceRevision, "region-ocr", region, engine)
+      val ocrText = OcrResultPolicy.textOf(result)
       val manifest = PreparedManifest(
         documentId = documentId,
         page = page,
@@ -181,7 +189,10 @@ class RegionOcrProcessor(private val cache: PreparedRegionCacheStore) {
         cacheKey = key,
         width = imageWidth,
         height = imageHeight,
-        scale = 1.0,
+        scale = renderScale,
+        ocrCharacters = ocrText.length,
+        textCharacters = ocrText.length,
+        blockCount = result.blocks.size,
         warnings = result.warnings,
         files = CACHE_FILES,
       )

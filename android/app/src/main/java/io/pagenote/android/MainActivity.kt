@@ -534,7 +534,8 @@ private fun ReaderHome(
       }
       try {
         val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-        input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
+        val renderedPage = withContext(Dispatchers.IO) { activeRenderer.renderWithMetadata(targetPage) }
+        input = renderedPage.bitmap
         val pageImage = input ?: error("OCR page image is unavailable")
         val regionEngine = selection.toEngineRegion()
         val processor = RegionOcrProcessor(
@@ -548,6 +549,7 @@ private fun ReaderHome(
           selection = selection,
           imageWidth = pageImage.width,
           imageHeight = pageImage.height,
+          renderScale = renderedPage.scale,
           engine = OcrResultMapper.ENGINE,
           notCachedWarning = context.getString(R.string.ocr_not_cached),
           recognize = {
