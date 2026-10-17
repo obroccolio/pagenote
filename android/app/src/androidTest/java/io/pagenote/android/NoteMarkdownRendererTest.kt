@@ -341,7 +341,7 @@ class NoteMarkdownRendererTest {
       override fun unscheduleDrawable(who: Drawable, what: Runnable) = Unit
     })
     val instrumentation = InstrumentationRegistry.getInstrumentation()
-    val deadline = android.os.SystemClock.uptimeMillis() + 2_000
+    val deadline = android.os.SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(10)
     while (!drawable.hasResult() && android.os.SystemClock.uptimeMillis() < deadline) {
       instrumentation.waitForIdleSync()
       Thread.sleep(10)

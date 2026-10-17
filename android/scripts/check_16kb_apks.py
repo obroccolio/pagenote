@@ -115,6 +115,28 @@ def load_segment_powers(objdump: Path, library: Path) -> list[int]:
     return powers
 
 
+def rdvl_instruction_lines(disassembly: str) -> list[str]:
+    return [
+        line.strip()
+        for line in disassembly.splitlines()
+        if re.search(r"\brdvl\b", line, re.IGNORECASE)
+    ]
+
+
+def is_arm64_opencv_library(name: str) -> bool:
+    return name.startswith("lib/arm64-v8a/libopencv_") and name.endswith(".so")
+
+
+def verify_opencv_instruction_baseline(objdump: Path, library: Path) -> list[str]:
+    result = subprocess.run(
+        [str(objdump), "-d", "--mattr=+sve", str(library)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return rdvl_instruction_lines(result.stdout)
+
+
 def verify_apk(apk: Path, objdump: Path, zipalign: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -134,6 +156,19 @@ def verify_apk(apk: Path, objdump: Path, zipalign: Path) -> list[str]:
                         errors.append(f"{apk}: {name}: unaligned LOAD segments ({details})")
                     else:
                         print(f"ALIGNED {apk}: {name} LOAD segments >= 2**{MINIMUM_ELF_ALIGNMENT_POWER}")
+                    if is_arm64_opencv_library(name):
+                        try:
+                            rdvl_lines = verify_opencv_instruction_baseline(objdump, library)
+                        except (OSError, subprocess.CalledProcessError) as error:
+                            errors.append(f"{apk}: {name}: could not verify ARM64 instruction baseline: {error}")
+                        else:
+                            if rdvl_lines:
+                                errors.append(
+                                    f"{apk}: {name}: contains unsupported RDVL instruction(s): "
+                                    f"{rdvl_lines[0]}"
+                                )
+                            else:
+                                print(f"SAFE {apk}: {name} contains no RDVL instruction")
     except (OSError, zipfile.BadZipFile) as error:
         return [f"{apk}: unable to inspect APK: {error}"]
 

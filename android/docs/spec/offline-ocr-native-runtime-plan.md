@@ -21,11 +21,11 @@ The supported target AVD must not require the SVE path. If a source build still 
 
 ## Tasks
 
-1. Build the native AAR from the pinned OpenCV source with reproducible script/configuration, SDK 34 packager settings, IPP disabled, the narrow camera-example exclusion in both Gradle templates, statically linked OCR modules, and retained upstream license notices.
-2. Add a native-artifact check that rejects `RDVL` in the ARM64 OpenCV library and verifies every ELF `LOAD` alignment is at least 16 KB.
-3. Replace the Maven AAR with the project-built artifact without changing PaddleOCR or ONNX model assets; update third-party notices and dependency provenance.
-4. Run the seven real-model OCR instrumentation tests on API 34, API 35 4 KB, and API 35 16 KB ARM64 AVDs. Require bundled Chinese/English recognition, region coordinate mapping, bitmap ownership, and explicit failure behavior.
-5. Run JVM tests, all app/module compilation and debug assembly, then all four ABI APK 16 KB checks. Record execution results separately from static alignment.
+1. [x] Build the native AAR from the pinned OpenCV source with reproducible script/configuration, SDK 34 packager settings, IPP disabled, the narrow camera-example exclusion in both Gradle templates, statically linked OCR modules, and retained upstream license notices.
+2. [x] Add a native-artifact check that rejects `RDVL` in the ARM64 OpenCV library and verifies every ELF `LOAD` alignment is at least 16 KB.
+3. [x] Replace the Maven AAR with the project-built artifact without changing PaddleOCR or ONNX model assets; retain upstream license notices and record dependency provenance.
+4. [x] Run the seven real-model OCR instrumentation tests on API 34, API 35 4 KB, and API 35 16 KB ARM64 AVDs. Bundled Chinese/English recognition, region coordinate mapping, bitmap ownership, and explicit failure behavior pass on all three.
+5. [x] Run JVM tests, all app/module compilation and debug assembly, then all four ABI APK 16 KB checks. Runtime execution and static alignment are recorded separately below.
 
 ## Acceptance
 
@@ -38,4 +38,8 @@ The supported target AVD must not require the SVE path. If a source build still 
 
 ## Current Status
 
-Investigation only. The existing instrumentation failure is reproducible. A source build produced the JNI wrapper and selected shared modules, but its first packaging attempt exposed an incomplete shared-library packaging shape. A subsequent static-module build confirmed that `build_sdk.py` also compiles the camera example in its intermediate Gradle project; both upstream Gradle templates must exclude `NativeCameraView.java`. With that exclusion, Java compilation passed, then AGP 7.3.1 failed to parse Android 35's `android.jar`; packager SDK 34 is now specified. ARMv7, ARM64, and x86_64 passed their intermediate packager builds, while x86 then failed at link time on OpenCV's bundled IPPICV note section; IPP is now specified off. The pinned build is not yet validated end to end. No production dependency or source has changed yet.
+The native runtime remediation is implemented and emulator-validated. `android/scripts/build_opencv_android.py` builds OpenCV commit `71d3237a093b60a27601c20e9ee6c3e52154e8b1` with NDK `28.2.13676358`; the committed AAR is 33 MB with SHA-256 `abbe71f57e31364ae9cb04d907ff50b4dc0a91306c5e35cfaf175cc79a51b060`. It contains all four configured ABIs. The ARM64 `libopencv_java4.so` and `libc++_shared.so` LOAD segments are all 16 KB aligned; JNI has no OpenCV-module `DT_NEEDED` entries; ARM64 disassembly has no `RDVL`.
+
+The seven OCR instrumentation tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB ARM64 AVDs. The complete app suite passes 71/71 on API 34 and 71/71 on API 35 / 16 KB. JVM tests, `assembleDebug`, `assembleDebugAndroidTest`, and all four APK 16 KB checks pass. A LaTeX drawable test's async wait was increased from 2 to 10 seconds after it timed out once under the full 16 KB suite; the isolated retry and subsequent complete suite pass.
+
+Not yet verified: the emulator's network was not explicitly disabled during OCR tests, and no physical ARM device has been tested. The larger Android migration goal remains in progress.
