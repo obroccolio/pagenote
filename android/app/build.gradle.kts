@@ -48,5 +48,8 @@ dependencies {
   implementation(platform("androidx.compose:compose-bom:2024.12.01"))
   implementation("androidx.compose.ui:ui")
   implementation("androidx.compose.material3:material3")
+  implementation("io.noties.markwon:core:4.6.2")
+  implementation("io.noties.markwon:editor:4.6.2")
+  implementation("io.noties.markwon:ext-tables:4.6.2")
   testImplementation("junit:junit:4.13.2")
 }

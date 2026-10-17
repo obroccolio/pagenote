@@ -12,6 +12,8 @@
 
 - Report only actual Android Agent page results, continue after ordinary page failures, and stop cleanly on rate limits. / 安卓 Agent 仅报告真实完成的目标页，普通页失败后继续处理，并在遇到限流时停止且明确未完成范围。
 
+- Add page-matched Android Markdown editing and preview with Markwon, SAF note writes, per-page revision conflict checks, and adaptive stacked/side-by-side reading layout. / 安卓端新增按页 Markdown 编辑与预览，使用 Markwon 和 SAF 保存笔记，按页 revision 检查冲突，并适配窄屏上下布局与宽屏并排阅读。
+
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
 - Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。
