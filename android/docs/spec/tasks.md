@@ -59,6 +59,7 @@
   - [x] 实现 annotation、AI review、handoff 数据模型、校验和本地 store 单测。
   - [x] 通用标注 SAF 数据边界已落地（`ProjectAnnotationStore` 全类型读写/删页，`AnnotationSafBoundary` 纯函数，与笔迹写共存；契约见 `features/annotation-saf-boundary.md`）。
   - [x] 文字批注创建/列表/删除 UI 已落地（批注模式点选落点、文本输入、全量页写回、非笔迹列表与删除；契约见 `features/annotation-text-ui.md`）。
+  - [ ] 6.6 Handwriting > Text 专用点选批注模式（桌面兼容 `type=text`；区别于通用文字/区域 Annotate 模式），契约见 `features/pdf-text-annotation-tool.md`，计划见 `pdf-text-annotation-tool-plan.md`。
   - [x] 区域批注创建/列表/删除 UI 已落地（批注模式 rect 对角落盘、零面积拒绝、空文本允许、列表可删；契约见 `features/annotation-region-ui.md`）。
   - [x] 6.1 PDF `rect`/`text` 批注按桌面宽度坐标叠加绘制，随页面缩放/平移并在创建/删除后刷新；兼容项目打开后新建的 `annotations.json`。两个聚焦 JVM 测试类、API 34 平板 AVD 两项仪器测试、Debug 应用与测试 APK 构建通过；仅目标 AVD 验证，实机仍待 task 12。契约见 `features/pdf-annotation-overlay.md`。
   - [x] 6.2 PDF `line`/`arrow`/`ellipse` 按桌面坐标绘制，箭头几何、反向椭圆边界、单点回退及异常坐标有覆盖；两个聚焦 JVM 测试类、API 34 平板 AVD 三项 overlay 仪器测试、Debug 应用与测试 APK 构建通过。实机仍待 task 12；契约见 `features/pdf-vector-annotation-overlay.md`。

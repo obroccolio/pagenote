@@ -6,7 +6,8 @@ Task 6 第一切片：只做 text 类型批注的创建、列表、删除 UI，�
 
 ## Interaction
 
-- 阅读器工具栏新增 `Annotate` 按钮（笔工具旁），点击进入批注模式：笔迹输入暂停，点页面即落一个文字锚点并弹文本输入框。
+- `Annotate` 工具进入通用批注模式：笔迹输入暂停，点页面即落一个锚点并弹文本/区域类型选择框。
+- 手写菜单中的独立 `Text` 工具只创建文字批注：点击后进入点选放置模式，点页面后弹纯文字输入框。它沿用相同坐标和保存路径，但不显示区域类型切换。具体菜单门控与测试见 `pdf-text-annotation-tool.md`。
 - 输入框确认后，经 `AnnotationTextDraft.toItem` 生成条目（type=text，当前笔色/笔宽，points 取落点单点，text 截断 10000），读最新页 items 追加后 `writePage` 全量写回。
 - 当前页批注列表入口在笔记头 `History` 旁（`Notes` 按钮）：弹窗列出该页全部非笔迹条目（text  shows 文本，其它类型 shows 类型名 + 不可编辑提示），每行可删除（二次确认）。
 - 删除经 `readPage` 滤掉目标 index 后 `writePage`；只有 text 类型可编辑（改文本后同样全量写回），其它类型只读展示。
