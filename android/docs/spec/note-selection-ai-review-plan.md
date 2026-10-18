@@ -109,3 +109,32 @@
 - [ ] Run focused selection/review instrumentation tests on API 34 and API 35 16 KB AVDs; verify observed page sizes and test counts.
 - [ ] Record physical-device and PDF/Office selection limitations without treating them as completed.
 - [ ] Update the Android SPEC checklist and root changelog, then commit and push the feature slice.
+
+### Task 6: Final Review Hardening
+
+**Files:**
+- Modify: `android/app/src/main/java/io/pagenote/android/MainActivity.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/NoteSelectionReview.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/ProjectReviewStore.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/ProjectAgentTools.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/RecoverableDocumentWrite.kt` only if needed to support accurate review-write errors
+- Modify: `android/app/src/main/res/values/strings.xml`
+- Modify: `android/app/src/main/res/values-zh-rCN/strings.xml`
+- Modify: `android/app/src/androidTest/java/io/pagenote/android/ExistingProjectSafTestProvider.java`
+- Modify: `android/app/src/androidTest/java/io/pagenote/android/ExistingProjectSafRoundTripTest.kt`
+- Modify: `android/app/src/androidTest/java/io/pagenote/android/NoteSelectionReviewUiTest.kt`
+- Modify: `android/app/src/test/java/io/pagenote/android/ProjectAgentToolsTest.kt`
+- Modify: `android/docs/spec/features/note-selection-ai-review.md`
+- Modify: `android/docs/spec/tasks.md`
+- Modify: `CHANGELOG.md`
+
+**Interfaces:**
+- Selection readiness distinguishes invalid/missing selection, oversized quote/context, and availability so the menu can show a localized size-limit explanation while preserving project/read-only/busy reasons.
+- Review store reads at most 64 MiB UTF-8; Agent detail output is at most 8 MiB UTF-8; list metadata is validated against the SPEC bounds before serialization.
+- Every review mutation supplies its original JSON snapshot to `RecoverableDocumentWrite`; providers that support sibling creation get a populated recovery copy, original-content recheck, and rollback on failed overwrite. An explicitly unsupported create capability retains best-effort overwrite behavior; inability to determine capabilities fails closed.
+
+- [ ] Add tests first for size-specific menu readiness/reason, review read/detail/metadata limits, and provider-driven partial-write restoration/retained-copy behavior; run them and observe the expected failures.
+- [ ] Implement localized selection-size feedback and bounded review data handling with tests passing.
+- [ ] Reuse the existing SAF recovery helper for review writes; test restoration and backup cleanup/retention through the real test provider. Keep messages accurate for review JSON rather than calling it a note write.
+- [ ] Run all app and Agent JVM tests, Android test Kotlin compilation, `assembleDebug`, and focused SAF/selection instrumentation tests on API 34 and API 35 16 KB AVDs.
+- [ ] Update task tracker/SPEC verification and changelog with only observed results; commit and push the implementation to the personal feature branch.
