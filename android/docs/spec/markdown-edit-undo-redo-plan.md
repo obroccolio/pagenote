@@ -71,5 +71,5 @@
   - 断言文本、按钮状态、当前页保存和邻页不变；不启动外部 UI。
 - [x] **Step 5: JVM, full app tests, Debug build and docs**
   - 运行 history 聚焦单测、`:app:testDebugUnitTest`、单项 AVD 仪器测试、`:app:assembleDebug` 与 `git diff --check`；更新 task 24 和变更日志。
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
   - 提交实现与测试并推送至 `fork/codex/android-port`。
