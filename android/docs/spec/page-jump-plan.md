@@ -27,4 +27,4 @@
 - [x] Run `python3 android/scripts/check_16kb_apks.py` on all four debug ABI APKs; ELF LOAD and ZIP alignment pass, and ARM64 OpenCV has no `RDVL`.
 - [x] Record exact AVD API levels/page sizes and test counts in `features/page-jump.md`; no physical-device claim is made.
 - [x] Obtain independent review; no actionable issues remain. Dedicated same-page and ordinary I/O-failure Activity tests were judged useful but optional and are not claimed by this slice.
-- [ ] Commit the SPEC/source/tests/changelog slice and push to the personal `codex/android-port` branch. No public binary release or PR is implied.
+- [x] Commit the SPEC/source/tests/changelog slice as `8cd47e1` and push to the personal fork's `codex/android-port` branch. No public binary release or PR was created.
