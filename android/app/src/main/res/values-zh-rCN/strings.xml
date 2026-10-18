@@ -51,6 +51,13 @@
   <string name="reader_menu_no_ink">本页没有笔迹。</string>
   <string name="reader_menu_pen_unavailable">当前项目无法保存手写笔迹。</string>
   <string name="reader_menu_recent_documents">最近文档</string>
+  <string name="recent_projects_title">最近文档</string>
+  <string name="recent_projects_empty_message">还没有最近打开的项目。</string>
+  <string name="recent_projects_last_opened">上次打开：%1$s</string>
+  <string name="recent_projects_remove">移除</string>
+  <string name="recent_projects_permission_not_persisted">项目已打开，但 Android 未保留“最近文档”所需的访问权限。</string>
+  <string name="recent_projects_save_failed">项目已打开，但无法更新最近文档列表。</string>
+  <string name="recent_projects_remove_failed">无法移除最近文档，请重试。</string>
   <string name="reader_menu_attachments">附件</string>
   <string name="reader_menu_import_notes">导入笔记</string>
   <string name="reader_menu_import_title">导入笔记</string>

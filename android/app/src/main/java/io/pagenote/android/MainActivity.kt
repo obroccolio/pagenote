@@ -13,6 +13,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Choreographer
 import android.view.Gravity
 import android.text.InputType
 import android.widget.EditText
@@ -306,6 +307,23 @@ private data class NoteImportWriteResult(
   val recoveryCopyName: String?,
 )
 
+private fun Bitmap.recycleAfterDrawFrames() {
+  if (isRecycled) return
+  val choreographer = Choreographer.getInstance()
+  var remainingFrames = 2
+  val callback = object : Choreographer.FrameCallback {
+    override fun doFrame(frameTimeNanos: Long) {
+      remainingFrames--
+      if (remainingFrames > 0) {
+        choreographer.postFrameCallback(this)
+      } else if (!isRecycled) {
+        recycle()
+      }
+    }
+  }
+  choreographer.postFrameCallback(callback)
+}
+
 @Composable
 private fun ReaderHome(
   settings: ReaderSettings,
@@ -314,6 +332,13 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
+  val recentProjects by produceState(
+    initialValue = emptyList<RecentProjectEntry>(),
+    key1 = recentProjectStore,
+  ) {
+    recentProjectStore.recentProjects.collect { value = it }
+  }
   val densityScale = LocalDensity.current.density
   val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
@@ -371,6 +396,7 @@ private fun ReaderHome(
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
+  var showRecentProjectsDialog by remember { mutableStateOf(false) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
@@ -633,19 +659,20 @@ private fun ReaderHome(
   }
 
   suspend fun saveCurrentNote(): Boolean {
-    val activeProject = project ?: return false
-    if (!noteWritable) {
+    val activeProject = readerSession.project.value ?: return false
+    val targetPage = readerSession.pageIndex.intValue + 1
+    val draftToSave = readerSession.noteDraft.value
+    val savedPage = NotePage.pageAt(readerSession.notesMarkdown.value, targetPage)
+    if (!readerSession.noteWritable.value) {
       noteStatus = context.getString(R.string.note_read_only)
       return false
     }
-    if (!hasUnsavedChanges) {
-      readerSession.clearCurrentDraftRecovery()
+    if (draftToSave == savedPage) {
+      readerSession.clearCurrentDraftRecovery(targetPage)
       return true
     }
 
-    val targetPage = pageIndex + 1
-    val draftToSave = noteDraft
-    val expectedRevision = noteBaseRevision
+    val expectedRevision = readerSession.noteBaseRevision.value
     return readerSession.asyncSessionTask {
       isSaving = true
       noteStatus = null
@@ -1602,6 +1629,30 @@ private fun ReaderHome(
       readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
       penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
       readerSession.rememberOpenedProject(target)
+      val hasPersistedReadGrant = runCatching {
+        context.contentResolver.persistedUriPermissions.any {
+          it.uri == target.accessTreeUri && it.isReadPermission
+        }
+      }.getOrDefault(false)
+      if (hasPersistedReadGrant) {
+        try {
+          recentProjectStore.record(
+            RecentProjectEntry(
+              accessTreeUri = target.accessTreeUri.toString(),
+              rootDocumentId = target.rootDocumentId,
+              projectId = loaded.project.manifest.id,
+              name = loaded.project.manifest.name.ifBlank { loaded.project.sourceName },
+              lastOpenedAtMillis = System.currentTimeMillis(),
+            ),
+          )
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          noteStatus = context.getString(R.string.recent_projects_save_failed)
+        }
+      } else {
+        noteStatus = context.getString(R.string.recent_projects_permission_not_persisted)
+      }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (error: Exception) {
@@ -1660,6 +1711,30 @@ private fun ReaderHome(
   ) { treeUri: Uri? ->
     if (treeUri != null) {
       readerSession.launchSessionTask { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
+    }
+  }
+
+  suspend fun saveCurrentPageBeforeSwitch(): Boolean {
+    if (readerSession.project.value == null) return true
+    val currentPage = readerSession.pageIndex.intValue + 1
+    val currentDraft = readerSession.noteDraft.value
+    val savedPage = NotePage.pageAt(readerSession.notesMarkdown.value, currentPage)
+    return currentDraft == savedPage || saveCurrentNote()
+  }
+
+  fun chooseProjectFromRecentDialog() {
+    scope.launch {
+      if (!saveCurrentPageBeforeSwitch()) return@launch
+      showRecentProjectsDialog = false
+      projectPicker.launch(null)
+    }
+  }
+
+  fun openRecentProject(entry: RecentProjectEntry) {
+    scope.launch {
+      if (!saveCurrentPageBeforeSwitch()) return@launch
+      showRecentProjectsDialog = false
+      readerSession.launchSessionTask { openProjectTree(entry.toProjectOpenTarget()) }
     }
   }
 
@@ -2217,7 +2292,7 @@ private fun ReaderHome(
   }
 
   DisposableEffect(Unit) {
-    onDispose { pageBitmap?.recycle() }
+    onDispose { pageBitmap?.recycleAfterDrawFrames() }
   }
   val ocrEngineToClose = ocrEngine
   DisposableEffect(ocrEngineToClose) {
@@ -2251,8 +2326,9 @@ private fun ReaderHome(
     try {
       val rendered = withContext(Dispatchers.IO) { activeRenderer.render(pageIndex) }
       if (renderer === activeRenderer) {
-        pageBitmap?.recycle()
+        val previous = pageBitmap
         pageBitmap = rendered
+        previous?.recycleAfterDrawFrames()
         errorMessage = null
       } else {
         rendered.recycle()
@@ -2722,16 +2798,16 @@ private fun ReaderHome(
           "open_project", R.string.open_project, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) {
-          scope.launch {
-            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
-            projectPicker.launch(null)
-          }
+          chooseProjectFromRecentDialog()
         },
         actionCommand(
           "new_project", R.string.new_project, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) { showNewProject = true },
-        pendingCommand("recent_documents", R.string.reader_menu_recent_documents),
+        actionCommand(
+          "recent_documents", R.string.reader_menu_recent_documents, canOpenProject,
+          disabledReason = commandReason(busy = !canOpenProject),
+        ) { showRecentProjectsDialog = true },
         pendingCommand("attachments", R.string.reader_menu_attachments),
         actionCommand(
           "import_notes", R.string.reader_menu_import_notes, canImportNotes,
@@ -3695,6 +3771,25 @@ private fun ReaderHome(
     AgentModelSettingsDialog(
       store = modelSettingsStore,
       onDismiss = { showAgentModelSettings = false },
+    )
+  }
+  if (showRecentProjectsDialog) {
+    RecentProjectsDialog(
+      projects = recentProjects,
+      onOpen = ::openRecentProject,
+      onRemove = { entry ->
+        scope.launch {
+          try {
+            recentProjectStore.remove(entry)
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            noteStatus = context.getString(R.string.recent_projects_remove_failed)
+          }
+        }
+      },
+      onOpenProjectPicker = ::chooseProjectFromRecentDialog,
+      onDismiss = { showRecentProjectsDialog = false },
     )
   }
   if (showNewProject) {

@@ -244,3 +244,9 @@
   - 13 个聚焦设置 JVM 测试和唯一 Android 14/API 34 平板 AVD Activity 用例（1/1）通过；覆盖桌面七档、持久化/非法值回退、取消与应用、只读/预览门控、编辑和预览字号及 Activity 重建恢复；`:app:assembleDebug` 通过。小米 Pad 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-note-font-size.md`，实施拆分见 `markdown-note-font-size-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
+
+- [x] 27. 最近文档（Android SAF 适配：显示最多 12 个最近成功打开的项目，按 tree URI + root document ID 去重）
+  - 私有 DataStore 保存项目元数据；重开前先保存当前脏页；移除只删历史记录，不触碰项目文件或 SAF 授权。PDF 页面替换时延后两个显示帧回收旧位图，避免仍被绘制的图片已回收。
+  - 7 个聚焦存储 JVM 用例、`RecentProjectsActivityTest` 在 `Pixel_Tablet_API34` 通过（1/1）；覆盖空状态、SAF Provider 重开、脏页先保存及移除后项目保留。`:app:assembleDebug` 与 `git diff --check` 通过；小米 Pad 5 Pro 真机验收仍属 task 12。
+  - 契约见 `features/recent-projects.md`，实施拆分见 `recent-projects-plan.md`。
+  - _Requirement: 桌面菜单分组一致、项目管理与数据兼容_

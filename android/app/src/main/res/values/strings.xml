@@ -51,6 +51,13 @@
   <string name="reader_menu_no_ink">There is no ink on this page.</string>
   <string name="reader_menu_pen_unavailable">Pen input cannot be saved in this project.</string>
   <string name="reader_menu_recent_documents">Recent documents</string>
+  <string name="recent_projects_title">Recent documents</string>
+  <string name="recent_projects_empty_message">No recently opened projects.</string>
+  <string name="recent_projects_last_opened">Last opened %1$s</string>
+  <string name="recent_projects_remove">Remove</string>
+  <string name="recent_projects_permission_not_persisted">Project opened, but Android did not retain access for Recent documents.</string>
+  <string name="recent_projects_save_failed">Project opened, but Recent documents could not be updated.</string>
+  <string name="recent_projects_remove_failed">Recent document could not be removed. Try again.</string>
   <string name="reader_menu_attachments">Attachments</string>
   <string name="reader_menu_import_notes">Import notes</string>
   <string name="reader_menu_import_title">Import notes</string>
