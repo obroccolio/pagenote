@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import io.pagenote.core.reader.PdfTextPoint
+
 data class PdfViewportBounds(
   val viewportWidthPx: Float,
   val viewportHeightPx: Float,
@@ -76,6 +78,54 @@ fun mapPdfSelectionToOcrRegion(
     bottom = kotlin.math.ceil(bottom).toInt().coerceIn(0, 1000),
   )
   return region.takeIf { it.right > it.left && it.bottom > it.top }
+}
+
+fun mapPdfTextSelectionToPagePoints(
+  start: PdfSelectionPoint,
+  end: PdfSelectionPoint,
+  bounds: PdfViewportBounds,
+  transform: PdfViewportTransform,
+  pageWidth: Double,
+  pageHeight: Double,
+): Pair<PdfTextPoint, PdfTextPoint>? {
+  if (listOf(
+      start.x, start.y, end.x, end.y,
+      bounds.viewportWidthPx, bounds.viewportHeightPx,
+      bounds.pageWidthPx, bounds.pageHeightPx,
+      transform.scale, transform.translationX, transform.translationY,
+    ).any { !it.isFinite() } ||
+    !pageWidth.isFinite() || !pageHeight.isFinite() ||
+    bounds.viewportWidthPx <= 0f || bounds.viewportHeightPx <= 0f ||
+    bounds.pageWidthPx <= 0f || bounds.pageHeightPx <= 0f || transform.scale <= 0f ||
+    pageWidth <= 0.0 || pageHeight <= 0.0
+  ) {
+    return null
+  }
+
+  fun toPage(point: PdfSelectionPoint) = PdfSelectionPoint(
+    x = (point.x - bounds.viewportWidthPx / 2f - transform.translationX) /
+      transform.scale + bounds.pageWidthPx / 2f,
+    y = (point.y - bounds.viewportHeightPx / 2f - transform.translationY) /
+      transform.scale + bounds.pageHeightPx / 2f,
+  )
+
+  val pageStart = toPage(start)
+  val pageEnd = toPage(end)
+  if (listOf(pageStart.x, pageStart.y, pageEnd.x, pageEnd.y).any { !it.isFinite() } ||
+    pageStart.x !in 0f..bounds.pageWidthPx || pageStart.y !in 0f..bounds.pageHeightPx
+  ) {
+    return null
+  }
+
+  fun toPdfPoint(x: Float, y: Float) = PdfTextPoint(
+    x = x / bounds.pageWidthPx * pageWidth,
+    y = y / bounds.pageHeightPx * pageHeight,
+  )
+
+  return toPdfPoint(pageStart.x, pageStart.y) to toPdfPoint(
+    pageEnd.x.coerceIn(0f, bounds.pageWidthPx),
+    pageEnd.y.coerceIn(0f, bounds.pageHeightPx),
+  )
 }
 
 /** Map a tap to desktop annotation coordinates; portrait-page Y may exceed 1000. */

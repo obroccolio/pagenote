@@ -123,6 +123,56 @@ try {
     await w.locator('.document-sheet[data-page="1"] .review-marker').count(),
     1,
   );
+  const fallbackState = await w.evaluate(() => window.pageNotes.getState());
+  const fallbackReview = await w.evaluate(async (documentId) => {
+    const response = await fetch(
+      '/api/documents/' + documentId + '/ai-reviews',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          side: 'document',
+          kind: 'selection',
+          page: 1,
+          instruction: 'Render the saved shape when text no longer matches.',
+          quote: 'text that is not present in this PDF',
+          context: 'stale PDF text layer quote',
+          anchor: {
+            coordinateSystem: 'width-1000',
+            text: 'text that is not present in this PDF',
+            shape: {
+              type: 'rect',
+              points: [
+                [100, 200],
+                [300, 240],
+              ],
+            },
+          },
+        }),
+      },
+    );
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+  }, fallbackState.document.id);
+  await w.evaluate(() => window.pageNotes.reloadReviews());
+  const fallbackHighlight = w.locator(
+    `.document-sheet[data-page="1"] .review-highlight[data-record-id="${fallbackReview.id}"]`,
+  );
+  await expect(fallbackHighlight).toHaveCount(1);
+  const fallbackGeometry = await fallbackHighlight.evaluate((mark) => {
+    const host = mark.parentElement.getBoundingClientRect();
+    const rect = mark.getBoundingClientRect();
+    return {
+      left: (rect.left - host.left) / host.width,
+      top: (rect.top - host.top) / host.width,
+      width: rect.width / host.width,
+      height: rect.height / host.width,
+    };
+  });
+  assert.ok(Math.abs(fallbackGeometry.left - 0.1) < 0.01);
+  assert.ok(Math.abs(fallbackGeometry.top - 0.2) < 0.01);
+  assert.ok(Math.abs(fallbackGeometry.width - 0.2) < 0.01);
+  assert.ok(Math.abs(fallbackGeometry.height - 0.04) < 0.01);
   const board = w.locator('.ai-workbench[data-side=note]');
   await board.locator('.board-add').click();
   await w.locator('#reviewInstruction').fill('整体减少公式，多讲直觉。');

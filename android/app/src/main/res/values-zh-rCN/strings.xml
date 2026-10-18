@@ -98,6 +98,9 @@
   <string name="reader_menu_delete_ink">删除所选笔迹</string>
   <string name="reader_menu_office_edit">编辑 Office 文档</string>
   <string name="reader_menu_selection_to_annotation">将选中文字转为 AI 批注</string>
+  <string name="pdf_text_selection_hint">在 PDF 文字上拖动以选择内容。</string>
+  <string name="pdf_text_selection_unavailable">此 PDF 页面没有可选文字，仍可使用区域 OCR。</string>
+  <string name="reader_menu_pdf_text_selection">选择 PDF 文字</string>
   <string name="reader_menu_selection_required">请在可写笔记中选择非空白文本。</string>
   <string name="reader_menu_selection_too_large">所选文本或页面过大，无法进行审阅。</string>
   <string name="reader_menu_save_return">保存并返回阅读</string>

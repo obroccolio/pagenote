@@ -48,7 +48,7 @@ class ExistingProjectSafRoundTripTest {
     assertEquals("Pattern recognition fixture", opened.manifest.name)
     assertEquals("pdf", opened.sourceExtension)
 
-    val session = PdfDocumentSession.open(resolver, opened.sourceUri, context.cacheDir)
+    val session = PdfDocumentSession.open(context, opened.sourceUri, context.cacheDir)
     try {
       assertEquals(69, session.pageCount)
       val expectedMarkers = mapOf(0 to Color.RED, 34 to Color.GREEN, 68 to Color.BLUE)

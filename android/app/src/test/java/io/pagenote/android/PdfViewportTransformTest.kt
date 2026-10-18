@@ -4,8 +4,41 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertNull
 import org.junit.Test
+import io.pagenote.core.reader.PdfTextPoint
 
 class PdfViewportTransformTest {
+  @Test
+  fun searchableTextSelection_mapsThroughZoomPanToPdfPagePoints() {
+    val points = mapPdfTextSelectionToPagePoints(
+      start = PdfSelectionPoint(550f, 300f),
+      end = PdfSelectionPoint(650f, 500f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform(2f, 50f, -100f),
+      pageWidth = 300.0,
+      pageHeight = 400.0,
+    )
+
+    requireNotNull(points)
+    assertEquals(150.0, points.first.x, 0.0001)
+    assertEquals(200.0, points.first.y, 0.0001)
+    assertEquals(175.0, points.second.x, 0.0001)
+    assertEquals(250.0, points.second.y, 0.0001)
+  }
+
+  @Test
+  fun searchableTextSelection_rejectsStartInLetterbox() {
+    val points = mapPdfTextSelectionToPagePoints(
+      start = PdfSelectionPoint(100f, 300f),
+      end = PdfSelectionPoint(500f, 400f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+      pageWidth = 300.0,
+      pageHeight = 400.0,
+    )
+
+    assertNull(points)
+  }
+
   @Test
   fun fitWidthLetterbox_mapsToFullPageCoordinates() {
     val region = mapPdfSelectionToOcrRegion(

@@ -46,6 +46,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_PAUSE_NEXT_NOTE_WRITE = "pauseNextNoteWrite";
   public static final String METHOD_WAIT_NOTE_WRITE = "waitNoteWrite";
   public static final String METHOD_RELEASE_NOTE_WRITE = "releaseNoteWrite";
+  public static final String METHOD_CHECK_NOTE_WRITE = "checkNoteWrite";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String METHOD_CREATE_DOCUMENT = "android:createDocument";
   private static final String METHOD_DELETE_DOCUMENT = "android:deleteDocument";
@@ -196,6 +197,12 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         }
         Bundle result = new Bundle();
         result.putBoolean("started", started);
+        return result;
+      }
+      if (METHOD_CHECK_NOTE_WRITE.equals(method)) {
+        NoteWritePause pause = noteWritePause;
+        Bundle result = new Bundle();
+        result.putBoolean("started", pause != null && pause.writeStarted.getCount() == 0);
         return result;
       }
       if (METHOD_RELEASE_NOTE_WRITE.equals(method)) {

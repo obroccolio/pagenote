@@ -193,6 +193,24 @@ class ProjectAgentToolsTest {
         listOf(ProjectReviewStore.ApplyExpectation(evidence.page, evidence.expectedRevision)),
       ),
     )
+
+    val documentReview = JsonObject(reviewRecord() + mapOf(
+      "side" to JsonPrimitive("document"),
+      "revision" to JsonPrimitive("pdf-page-revision"),
+      "targetNoteRevision" to JsonPrimitive("captured-revision"),
+    ))
+    assertTrue(
+      ProjectReviewStore.authorizesApplied(
+        documentReview,
+        listOf(ProjectReviewStore.ApplyExpectation(evidence.page, evidence.expectedRevision)),
+      ),
+    )
+    assertFalse(
+      ProjectReviewStore.authorizesApplied(
+        documentReview,
+        listOf(ProjectReviewStore.ApplyExpectation(evidence.page, "pdf-page-revision")),
+      ),
+    )
   }
 
   @Test

@@ -110,6 +110,9 @@ import io.pagenote.agent.ModelEndpoint
 import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
+import io.pagenote.core.reader.PdfPageText
+import io.pagenote.core.reader.PdfTextSelection
+import io.pagenote.core.reader.PdfTextSelectionMapper
 import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
@@ -295,6 +298,11 @@ private fun ReaderHome(
   var showOcrResult by remember { mutableStateOf(false) }
   var isOcrRunning by remember { mutableStateOf(false) }
   var readerOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var pdfTextSelectionMode by remember { mutableStateOf(false) }
+  var pdfTextSelection by remember { mutableStateOf<PdfTextSelection?>(null) }
+  var pdfSelectionReviewDraft by remember { mutableStateOf<PdfSelectionReviewDraft?>(null) }
+  var selectablePageText by remember(renderer, pageIndex) { mutableStateOf<PdfPageText?>(null) }
+  var isSelectablePageTextLoading by remember(renderer, pageIndex) { mutableStateOf(false) }
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var regionOcrContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var isOpening by readerSession.isOpening
@@ -631,7 +639,7 @@ private fun ReaderHome(
     val pageCount = renderer?.pageCount
       ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
       ?: 0
-    if (readerOcrState.inputLocked || nextPage !in 0 until pageCount) return false
+    if (readerOcrState.inputLocked || pdfTextSelectionMode || nextPage !in 0 until pageCount) return false
     if (nextPage == pageIndex) return true
     if (hasUnsavedChanges && !saveCurrentNote()) return false
     readerSession.clearCurrentDraftRecovery()
@@ -647,7 +655,7 @@ private fun ReaderHome(
   }
 
   fun recognizeCurrentPage() {
-    if (readerOcrState.inputLocked) return
+    if (readerOcrState.inputLocked || pdfTextSelectionMode) return
     if (isMarkdownReading) return
     val activeRenderer = renderer ?: return
     val targetPage = pageIndex
@@ -1303,7 +1311,7 @@ private fun ReaderHome(
         val pdf = if (isMarkdown) {
           null
         } else {
-          PdfDocumentSession.open(context.contentResolver, opened.sourceUri, context.cacheDir)
+          PdfDocumentSession.open(context, opened.sourceUri, context.cacheDir)
         }
         val savedCheckpoint = checkpoint?.takeIf { it.projectId == opened.manifest.id }
         val pageCount = pdf?.pageCount ?: markdownText?.let {
@@ -1512,6 +1520,7 @@ private fun ReaderHome(
   val activeRenderer = renderer
   val activeProject = project
   val activeMarkdown = markdownSource
+  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode
   LaunchedEffect(
     activeProject?.manifest?.id,
     activeProject?.sourceDirectoryUri,
@@ -1543,7 +1552,7 @@ private fun ReaderHome(
     else -> 0
   }
   val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || failedPenSave != null ||
-    isOcrRunning || readerOcrState.inputLocked || isAgentRunning || isPageTutorRunning
+    isOcrRunning || isSelectablePageTextLoading || readerInputLocked || isAgentRunning || isPageTutorRunning
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
 
@@ -1586,12 +1595,12 @@ private fun ReaderHome(
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
   val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving &&
-    failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked
+    failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canUsePdf = canReadDocument && !isMarkdownReading
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving &&
-    failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked
-  val canUsePen = canUsePdf && penWritable && !readerOcrState.inputLocked && !isAnnotationSaving
+    failedPenSave == null && !isOcrRunning && !readerInputLocked
+  val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
     NoteHistoryMirror.directory(context.filesDir, it) != null
   } == true
@@ -1632,9 +1641,50 @@ private fun ReaderHome(
       R.string.reader_menu_group_ai_annotations,
       listOf(
         actionCommand(
+          "pdf_text_selection", R.string.reader_menu_pdf_text_selection,
+          canUsePdf && !isSelectablePageTextLoading && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true, requirePdf = true) ?: when {
+            isSelectablePageTextLoading -> context.getString(R.string.reader_menu_busy)
+            else -> context.getString(R.string.reader_menu_unavailable_reason)
+          },
+        ) {
+          fun enterSelectionMode() {
+            readerOcrState = ReaderOcrState()
+            selectAnnotationDrawTool(null)
+            pdfTextSelection = null
+            pdfTextSelectionMode = true
+          }
+          val activePdf = activeRenderer
+          val targetPage = pageIndex
+          val pageText = selectablePageText
+          if (pageText != null) {
+            enterSelectionMode()
+          } else if (activePdf == null) {
+            noteStatus = context.getString(R.string.pdf_text_selection_unavailable)
+          } else {
+            isSelectablePageTextLoading = true
+            readerSession.launchSessionTask {
+              val extracted = withContext(Dispatchers.IO) {
+                runCatching { activePdf.extractSelectableText(targetPage) }.getOrNull()
+              }
+              if (
+                readerSession.renderer.value !== activePdf ||
+                readerSession.pageIndex.intValue != targetPage
+              ) return@launchSessionTask
+              selectablePageText = extracted
+              isSelectablePageTextLoading = false
+              if (extracted == null) {
+                noteStatus = context.getString(R.string.pdf_text_selection_unavailable)
+              } else {
+                enterSelectionMode()
+              }
+            }
+          }
+        },
+        actionCommand(
           "page_tutor", R.string.page_tutor_action,
           canReadDocument && !isRendering && !isSaving && !isPageTutorRunning && !isOcrRunning &&
-            !readerOcrState.inputLocked,
+            !readerInputLocked,
           disabledReason = commandReason(requireProject = true),
         ) {
           pageTutorRegionContext = null
@@ -1646,7 +1696,7 @@ private fun ReaderHome(
         actionCommand(
           "agent_task", R.string.agent_task_action,
           canReadDocument && !isRendering && !isSaving && !isAgentRunning && !isOcrRunning &&
-            !readerOcrState.inputLocked,
+            !readerInputLocked,
           disabledReason = commandReason(requireProject = true),
         ) {
           agentEvent = null
@@ -1654,19 +1704,20 @@ private fun ReaderHome(
           showAgentTask = true
         },
         actionCommand(
-          "annotations", R.string.annotations, activeProject != null && !readerOcrState.inputLocked,
-          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+          "annotations", R.string.annotations, activeProject != null && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerInputLocked),
         ) { showAnnotations = true },
         actionCommand(
-          "reviews", R.string.review_action, activeProject != null && !readerOcrState.inputLocked,
-          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+          "reviews", R.string.review_action, activeProject != null && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerInputLocked),
         ) {
           selectionReviewDraft = null
+          pdfSelectionReviewDraft = null
           showReviews = true
         },
         actionCommand(
-          "handoff", R.string.handoff_action, activeProject != null && !readerOcrState.inputLocked,
-          disabledReason = commandReason(requireProject = true, busy = readerOcrState.inputLocked),
+          "handoff", R.string.handoff_action, activeProject != null && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true, busy = readerInputLocked),
         ) { showHandoff = true },
       ),
     ),
@@ -1731,7 +1782,7 @@ private fun ReaderHome(
           ) { readerSession.launchSessionTask { changePage((pageIndex + 1).coerceAtMost(totalPages - 1)) } },
         actionCommand(
           "ocr", R.string.ocr,
-          canUsePdf && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
+          canUsePdf && !isRendering && !isOcrRunning && !readerInputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) {
           selectAnnotationDrawTool(null)
@@ -1739,7 +1790,7 @@ private fun ReaderHome(
         },
         actionCommand(
           "region_ocr", R.string.region_ocr_action,
-          canUsePdf && !isOcrRunning && !readerOcrState.inputLocked,
+          canUsePdf && !isOcrRunning && !readerInputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) {
           selectAnnotationDrawTool(null)
@@ -1747,24 +1798,24 @@ private fun ReaderHome(
         },
         actionCommand(
           "zoom_out", R.string.zoom_out,
-          canUsePdf && !readerOcrState.inputLocked &&
+          canUsePdf && !readerInputLocked &&
             viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
           disabledReason = commandReason(requireProject = true, requirePdf = true) ?:
             context.getString(R.string.reader_menu_min_zoom),
         ) { applyViewportZoom(0.8f) },
         actionCommand(
           "zoom_in", R.string.zoom_in,
-          canUsePdf && !readerOcrState.inputLocked &&
+          canUsePdf && !readerInputLocked &&
             viewportTransform.scale < PdfViewportTransform.MAX_SCALE,
           disabledReason = commandReason(requireProject = true, requirePdf = true) ?:
             context.getString(R.string.reader_menu_max_zoom),
         ) { applyViewportZoom(1.25f) },
         actionCommand(
-          "fit_width", R.string.fit_width, canUsePdf && !readerOcrState.inputLocked,
+          "fit_width", R.string.fit_width, canUsePdf && !readerInputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) { fitViewportWidth() },
         actionCommand(
-          "fit_page", R.string.fit_page, canUsePdf && !readerOcrState.inputLocked,
+          "fit_page", R.string.fit_page, canUsePdf && !readerInputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) { readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT },
       ),
@@ -1976,6 +2027,42 @@ private fun ReaderHome(
     }
 
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
+      if (pdfTextSelectionMode) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          PdfTextSelectionActions(
+            selection = pdfTextSelection,
+            onCreateReview = {
+              val pageText = selectablePageText ?: return@PdfTextSelectionActions
+              val selection = pdfTextSelection ?: return@PdfTextSelectionActions
+              readerSession.launchSessionTask {
+                if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
+                try {
+                  pdfSelectionReviewDraft = PdfSelectionReviewDraft.capture(
+                    page = pageIndex + 1,
+                    source = pageText,
+                    selection = selection,
+                    targetNoteRevision = noteBaseRevision,
+                  )
+                  pdfTextSelectionMode = false
+                  pdfTextSelection = null
+                  selectionReviewDraft = null
+                  showReviews = true
+                } catch (_: IllegalArgumentException) {
+                  noteStatus = context.getString(R.string.review_invalid_input)
+                }
+              }
+            },
+            onCancel = {
+              pdfTextSelection = null
+              pdfTextSelectionMode = false
+            },
+          )
+        }
+      }
       if (readerOcrState.mode != ReaderOcrMode.IDLE) {
         Row(
           modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
@@ -2042,7 +2129,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode &&
+                inputEnabled = penWritable && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
@@ -2050,7 +2137,11 @@ private fun ReaderHome(
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode &&
+                textSelectionEnabled = pdfTextSelectionMode,
+                pageText = selectablePageText,
+                textSelection = pdfTextSelection,
+                onTextSelectionChanged = { pdfTextSelection = it },
+                gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
@@ -2114,7 +2205,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode &&
+                inputEnabled = penWritable && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
@@ -2122,7 +2213,11 @@ private fun ReaderHome(
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode &&
+                textSelectionEnabled = pdfTextSelectionMode,
+                pageText = selectablePageText,
+                textSelection = pdfTextSelection,
+                onTextSelectionChanged = { pdfTextSelection = it },
+                gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
@@ -2450,9 +2545,11 @@ private fun ReaderHome(
       project = project!!,
       noteRevision = noteBaseRevision,
       selectionDraft = selectionReviewDraft,
+      pdfSelectionDraft = pdfSelectionReviewDraft,
       onDismiss = {
         showReviews = false
         selectionReviewDraft = null
+        pdfSelectionReviewDraft = null
       },
       onChanged = { noteStatus = it },
     )
@@ -2936,6 +3033,7 @@ internal fun ReviewListDialog(
   project: OpenedProject,
   noteRevision: String,
   selectionDraft: NoteSelectionReviewDraft? = null,
+  pdfSelectionDraft: PdfSelectionReviewDraft? = null,
   onDismiss: () -> Unit,
   onChanged: (String) -> Unit,
 ) {
@@ -2977,6 +3075,14 @@ internal fun ReviewListDialog(
       ) {
         loadError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         selectionDraft?.let { draft ->
+          Text(stringResource(R.string.review_selection_quote_label))
+          Text(
+            draft.quote,
+            modifier = Modifier.testTag("review_selection_quote"),
+            style = MaterialTheme.typography.bodyMedium,
+          )
+        }
+        pdfSelectionDraft?.let { draft ->
           Text(stringResource(R.string.review_selection_quote_label))
           Text(
             draft.quote,
@@ -3029,31 +3135,62 @@ internal fun ReviewListDialog(
               try {
                 val recoveryCopyName = withContext(Dispatchers.IO) {
                   val reviewStore = store()
-                  val draft = selectionDraft
-                  if (draft == null) {
+                  val noteDraft = selectionDraft
+                  val pdfDraft = pdfSelectionDraft
+                  if (noteDraft == null && pdfDraft == null) {
                     reviewStore.create("note", "overall", page, instruction, noteRevision)
-                  } else {
-                    val latestNotes = ProjectNoteStore(context.contentResolver, project.notesUri).read()
-                    val latestPage = NotePage.pageAt(latestNotes, page)
-                    try {
-                      require(draft.page == page) { "selection belongs to another page" }
-                      draft.requireCurrentPage(latestPage)
-                    } catch (_: IllegalArgumentException) {
-                      throw StaleNoteSelectionReviewException()
+                  } else if (noteDraft != null) {
+                    val noteStore = ProjectNoteStore(context.contentResolver, project.notesUri)
+                    noteStore.withRevisionLock {
+                      val latestNotes = noteStore.read()
+                      val latestPage = NotePage.pageAt(latestNotes, page)
+                      try {
+                        require(noteDraft.page == page) { "selection belongs to another page" }
+                        noteDraft.requireCurrentPage(latestPage)
+                      } catch (_: IllegalArgumentException) {
+                        throw StaleSelectionReviewException()
+                      }
+                      reviewStore.create(
+                        ReviewCreate(
+                          side = "note",
+                          kind = "selection",
+                          page = page,
+                          instruction = instruction,
+                          scope = "page",
+                          quote = noteDraft.quote,
+                          context = noteDraft.context,
+                          revision = noteDraft.revision,
+                          anchor = noteDraft.anchor,
+                        ),
+                      )
                     }
-                    reviewStore.create(
-                      ReviewCreate(
-                        side = "note",
-                        kind = "selection",
-                        page = page,
-                        instruction = instruction,
-                        scope = "page",
-                        quote = draft.quote,
-                        context = draft.context,
-                        revision = draft.revision,
-                        anchor = draft.anchor,
-                      ),
-                    )
+                  } else {
+                    val draft = requireNotNull(pdfDraft)
+                    val noteStore = ProjectNoteStore(context.contentResolver, project.notesUri)
+                    noteStore.withRevisionLock {
+                      val latestNotes = noteStore.read()
+                      val latestPage = NotePage.pageAt(latestNotes, page)
+                      try {
+                        require(draft.page == page) { "selection belongs to another page" }
+                        draft.requireCurrentNote(latestPage)
+                      } catch (_: IllegalArgumentException) {
+                        throw StaleSelectionReviewException()
+                      }
+                      reviewStore.create(
+                        ReviewCreate(
+                          side = "document",
+                          kind = "selection",
+                          page = page,
+                          instruction = instruction,
+                          scope = "page",
+                          quote = draft.quote,
+                          context = draft.context,
+                          revision = draft.revision,
+                          anchor = draft.anchor,
+                          targetNoteRevision = draft.targetNoteRevision,
+                        ),
+                      )
+                    }
                   }
                   reviewStore.lastRetainedRecoveryCopyName
                 }
@@ -3064,7 +3201,7 @@ internal fun ReviewListDialog(
                     context.getString(R.string.review_saved_recovery_copy, it)
                   } ?: context.getString(R.string.review_saved),
                 )
-              } catch (_: StaleNoteSelectionReviewException) {
+              } catch (_: StaleSelectionReviewException) {
                 onChanged(context.getString(R.string.review_selection_stale))
               } catch (error: Exception) {
                 onChanged(reviewCreateErrorMessage(context, error))
@@ -3132,7 +3269,7 @@ internal fun reviewCreateErrorMessage(context: Context, error: Throwable): Strin
   else -> context.getString(R.string.review_save_failed, error.message ?: "")
 }
 
-private class StaleNoteSelectionReviewException : Exception()
+private class StaleSelectionReviewException : Exception()
 
 internal fun selectionToAnnotationEnabled(
   selection: TextRange?,
@@ -3349,6 +3486,10 @@ internal fun PdfPageViewport(
   transform: PdfViewportTransform,
   onTransformChanged: (PdfViewportTransform) -> Unit,
   onBoundsChanged: (PdfViewportBounds) -> Unit,
+  pageText: PdfPageText? = null,
+  textSelectionEnabled: Boolean = false,
+  textSelection: PdfTextSelection? = null,
+  onTextSelectionChanged: (PdfTextSelection?) -> Unit = {},
   selectionEnabled: Boolean = false,
   gesturesEnabled: Boolean = true,
   selection: NormalizedOcrRegion? = null,
@@ -3362,12 +3503,13 @@ internal fun PdfPageViewport(
 ) {
   val latestTransform by rememberUpdatedState(transform)
   val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
+  val latestOnTextSelectionChanged by rememberUpdatedState(onTextSelectionChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
 
   BoxWithConstraints(
-    modifier = modifier.clipToBounds(),
+    modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),
     contentAlignment = Alignment.Center,
   ) {
     if (bitmap != null) {
@@ -3392,11 +3534,47 @@ internal fun PdfPageViewport(
 
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
-          page, bounds, selectionEnabled, gesturesEnabled, annotateTapEnabled, annotationDrawTool,
+          page, bounds, pageText, textSelectionEnabled, selectionEnabled, gesturesEnabled,
+          annotateTapEnabled, annotationDrawTool,
         ) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            if (annotationDrawTool != null && down.type != PointerType.Mouse) {
+            if (textSelectionEnabled && down.type != PointerType.Mouse) {
+              val start = PdfSelectionPoint(down.position.x, down.position.y)
+              down.consume()
+              var movedBeyondSlop = false
+              do {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change != null) {
+                  val end = PdfSelectionPoint(change.position.x, change.position.y)
+                  movedBeyondSlop = movedBeyondSlop ||
+                    kotlin.math.hypot(end.x - start.x, end.y - start.y) > viewConfiguration.touchSlop
+                  if (movedBeyondSlop) {
+                    val activePageText = pageText
+                    val points = activePageText?.let {
+                      mapPdfTextSelectionToPagePoints(
+                        start = start,
+                        end = end,
+                        bounds = bounds,
+                        transform = latestTransform,
+                        pageWidth = it.pageWidth,
+                        pageHeight = it.pageHeight,
+                      )
+                    }
+                    latestOnTextSelectionChanged(
+                      if (activePageText != null && points != null) {
+                        PdfTextSelectionMapper.select(activePageText, points.first, points.second)
+                      } else {
+                        null
+                      },
+                    )
+                  }
+                  if (change.pressed) change.consume()
+                }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+              if (!movedBeyondSlop) latestOnTextSelectionChanged(null)
+            } else if (annotationDrawTool != null && down.type != PointerType.Mouse) {
               val start = PdfSelectionPoint(down.position.x, down.position.y)
               var end = start
               down.consume()
@@ -3531,6 +3709,7 @@ internal fun PdfPageViewport(
             },
           )
           OcrSelectionOverlay(selection)
+          PdfTextSelectionOverlay(pageText, textSelection)
         }
       }
     } else if (loading) {

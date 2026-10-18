@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,8 +16,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.pagenote.core.reader.PageRegion
+import io.pagenote.core.reader.PdfPageText
+import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PreparedCache
 import io.pagenote.core.reader.PreparedManifest
 import io.pagenote.feature.ocr.OcrResult
@@ -132,6 +136,61 @@ internal fun OcrSelectionOverlay(
       size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
       style = Stroke(width = 2.dp.toPx()),
     )
+  }
+}
+
+@Composable
+internal fun PdfTextSelectionActions(
+  selection: PdfTextSelection?,
+  onCreateReview: () -> Unit,
+  onCancel: () -> Unit,
+) {
+  Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Text(
+      text = stringResource(R.string.pdf_text_selection_hint),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+    selection?.let {
+      Text(
+        text = it.quote,
+        modifier = Modifier.widthIn(max = 220.dp).testTag("pdf_text_selection_quote"),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+    Button(
+      modifier = Modifier.testTag("pdf_text_selection_review"),
+      enabled = selection != null,
+      onClick = onCreateReview,
+    ) { Text(stringResource(R.string.reader_menu_selection_to_annotation)) }
+    TextButton(
+      modifier = Modifier.testTag("pdf_text_selection_cancel"),
+      onClick = onCancel,
+    ) { Text(stringResource(R.string.cancel)) }
+  }
+}
+
+@Composable
+internal fun PdfTextSelectionOverlay(
+  pageText: PdfPageText?,
+  selection: PdfTextSelection?,
+  modifier: Modifier = Modifier,
+) {
+  if (pageText == null || selection == null || pageText.pageWidth <= 0.0 || pageText.pageHeight <= 0.0) return
+  val color = MaterialTheme.colorScheme.primary
+  Canvas(modifier = modifier.fillMaxSize()) {
+    selection.glyphBounds.forEach { bounds ->
+      val left = (bounds.left / pageText.pageWidth * size.width).toFloat()
+      val top = (bounds.top / pageText.pageHeight * size.height).toFloat()
+      val right = (bounds.right / pageText.pageWidth * size.width).toFloat()
+      val bottom = (bounds.bottom / pageText.pageHeight * size.height).toFloat()
+      drawRect(
+        color = color.copy(alpha = 0.24f),
+        topLeft = Offset(left, top),
+        size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+      )
+    }
   }
 }
 

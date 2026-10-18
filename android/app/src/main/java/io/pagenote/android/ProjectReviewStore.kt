@@ -65,13 +65,21 @@ class ProjectReviewStore(
     })
   }
 
-  fun create(side: String, kind: String, page: Int, instruction: String, revision: String?): JsonObject {
+  fun create(
+    side: String,
+    kind: String,
+    page: Int,
+    instruction: String,
+    revision: String?,
+    targetNoteRevision: String? = null,
+  ): JsonObject {
     return create(ReviewCreate(
       side = side,
       kind = kind,
       page = page,
       instruction = instruction,
       revision = revision,
+      targetNoteRevision = targetNoteRevision,
     ))
   }
 
@@ -162,7 +170,7 @@ class ProjectReviewStore(
 
   private fun buildRecord(input: ReviewCreate, number: Int): JsonObject {
     val trimmed = input.instruction.trim()
-    return buildJsonObjectHelper(mapOf(
+    val fields = mutableMapOf(
       "id" to JsonPrimitive(java.util.UUID.randomUUID().toString()),
       "number" to JsonPrimitive(number),
       "side" to JsonPrimitive(input.side),
@@ -175,10 +183,15 @@ class ProjectReviewStore(
       "anchor" to (input.anchor ?: JsonNull),
       "status" to JsonPrimitive("open"),
       "created" to JsonPrimitive(java.time.Instant.now().toString()),
-    ), input.revision)
+    )
+    input.targetNoteRevision?.let { fields["targetNoteRevision"] = JsonPrimitive(it) }
+    return buildJsonObjectHelper(fields, input.revision)
   }
 
-  private fun buildJsonObjectHelper(fields: Map<String, kotlinx.serialization.json.JsonElement>, revision: String?): JsonObject {
+  private fun buildJsonObjectHelper(
+    fields: Map<String, kotlinx.serialization.json.JsonElement>,
+    revision: String?,
+  ): JsonObject {
     val map = fields.toMutableMap()
     if (revision != null) map["revision"] = JsonPrimitive(revision)
     else map["revision"] = kotlinx.serialization.json.JsonNull
@@ -355,7 +368,15 @@ class ProjectReviewStore(
       expectations: Collection<ApplyExpectation>,
     ): Boolean {
       val page = (record["page"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: return false
-      val revision = (record["revision"] as? JsonPrimitive)?.contentOrNull
+      val revisionField = if (
+        (record["side"] as? JsonPrimitive)?.contentOrNull == "document" &&
+        record["targetNoteRevision"] != null && record["targetNoteRevision"] != JsonNull
+      ) {
+        "targetNoteRevision"
+      } else {
+        "revision"
+      }
+      val revision = (record[revisionField] as? JsonPrimitive)?.contentOrNull
         ?.takeIf { it.isNotBlank() } ?: return false
       return expectations.any { it.expectedPage == page && it.expectedRevision == revision }
     }

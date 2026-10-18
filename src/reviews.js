@@ -193,6 +193,44 @@ export function createReviews({
           host.querySelector('.markdown-page')
         : document.querySelector('#preview');
     if (!root) return [];
+    const shapeRect = () => {
+      const shape =
+        record.anchor?.coordinateSystem === 'width-1000' &&
+        record.anchor.shape?.type === 'rect'
+          ? record.anchor.shape.points
+          : null;
+      if (
+        !Array.isArray(shape) ||
+        shape.length < 2 ||
+        !shape.every(
+          (point) =>
+            Array.isArray(point) &&
+            point.length >= 2 &&
+            point.slice(0, 2).every(Number.isFinite),
+        )
+      )
+        return [];
+      const bounds = host.getBoundingClientRect(),
+        scale = bounds.width / 1000,
+        xs = shape.map((point) => point[0]),
+        ys = shape.map((point) => point[1]),
+        left = bounds.left + Math.min(...xs) * scale,
+        top = bounds.top + Math.min(...ys) * scale,
+        right = bounds.left + Math.max(...xs) * scale,
+        bottom = bounds.top + Math.max(...ys) * scale;
+      return right > left && bottom > top
+        ? [
+            {
+              left,
+              top,
+              right,
+              bottom,
+              width: right - left,
+              height: bottom - top,
+            },
+          ]
+        : [];
+    };
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) =>
         n.parentElement.closest(
@@ -209,14 +247,14 @@ export function createReviews({
       text += node.textContent;
     }
     const quote = record.anchor?.text || record.quote;
-    if (!quote) return [];
+    if (!quote) return shapeRect();
     let start = record.anchor?.textStart;
     if (
       !Number.isInteger(start) ||
       text.slice(start, start + quote.length) !== quote
     )
       start = text.indexOf(quote);
-    if (start < 0) return [];
+    if (start < 0) return shapeRect();
     const end = start + quote.length,
       a = nodes.find((n) => n.start + n.node.length > start),
       b = nodes.find((n) => n.start + n.node.length >= end);

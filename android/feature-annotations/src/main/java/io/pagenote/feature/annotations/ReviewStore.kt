@@ -22,6 +22,7 @@ data class ReviewCreate(
   val context: String? = null,
   val revision: String? = null,
   val anchor: kotlinx.serialization.json.JsonElement? = null,
+  val targetNoteRevision: String? = null,
 )
 
 /**
@@ -51,6 +52,7 @@ object ReviewStore {
     context: String? = null,
     revision: String? = null,
     anchor: kotlinx.serialization.json.JsonElement? = null,
+    targetNoteRevision: String? = null,
   ): JsonObject = createDetails(
     srcDir, ReviewCreate(
       side = side,
@@ -62,6 +64,7 @@ object ReviewStore {
       context = context,
       revision = revision,
       anchor = anchor,
+      targetNoteRevision = targetNoteRevision,
     ),
   )
 
@@ -99,6 +102,7 @@ object ReviewStore {
       else put("revision", JsonNull)
       if (input.anchor != null) put("anchor", input.anchor)
       else put("anchor", JsonNull)
+      input.targetNoteRevision?.let { put("targetNoteRevision", JsonPrimitive(it)) }
       put("status", JsonPrimitive("open"))
       put("created", JsonPrimitive(java.time.Instant.now().toString()))
     }

@@ -98,6 +98,9 @@
   <string name="reader_menu_delete_ink">Delete selected ink</string>
   <string name="reader_menu_office_edit">Edit Office document</string>
   <string name="reader_menu_selection_to_annotation">Selected text to AI annotation</string>
+  <string name="pdf_text_selection_hint">Drag across PDF text to select it.</string>
+  <string name="pdf_text_selection_unavailable">This PDF page has no selectable text. Region OCR is still available.</string>
+  <string name="reader_menu_pdf_text_selection">Select PDF text</string>
   <string name="reader_menu_selection_required">Select non-whitespace text in the writable note.</string>
   <string name="reader_menu_selection_too_large">The selection or page is too large to review.</string>
   <string name="reader_menu_save_return">Save and return to reading</string>

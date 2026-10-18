@@ -18,7 +18,7 @@ class PdfDocumentSessionTest {
     val source = File(context.cacheDir, "pdf-close-once-test.pdf")
     source.writeBytes(minimalPdf())
     try {
-      val session = PdfDocumentSession.open(context.contentResolver, Uri.fromFile(source), context.cacheDir)
+      val session = PdfDocumentSession.open(context, Uri.fromFile(source), context.cacheDir)
       assertEquals(1, session.pageCount)
 
       session.close()

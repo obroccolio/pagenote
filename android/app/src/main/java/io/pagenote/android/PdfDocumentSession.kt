@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import android.content.ContentResolver
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
@@ -15,6 +16,7 @@ import io.pagenote.core.reader.PdfTextExtractionResult
 import io.pagenote.core.reader.PdfTextExtractionStatus
 import io.pagenote.core.reader.PdfTextMapper
 import io.pagenote.core.reader.PdfTextRect
+import io.pagenote.core.reader.PdfPageText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.Closeable
@@ -25,10 +27,15 @@ data class PdfRenderedPage(val bitmap: Bitmap, val scale: Double)
 class PdfDocumentSession private constructor(
   private val descriptor: ParcelFileDescriptor,
   private val renderer: PdfRenderer,
+  private val applicationContext: Context,
   val sourceRevision: String?,
   private val snapshotFile: File?,
 ) : Closeable {
   private var closed = false
+  private val selectableTextCache = object : LinkedHashMap<Int, PdfPageText?>(3, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, PdfPageText?>?): Boolean =
+      size > 3
+  }
 
   val pageCount: Int get() = renderer.pageCount
 
@@ -49,6 +56,15 @@ class PdfDocumentSession private constructor(
       }
     }
     return PdfTextExtractionResult.unavailableForOcr()
+  }
+
+  @Synchronized
+  fun extractSelectableText(pageIndex: Int): PdfPageText? {
+    check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
+    if (selectableTextCache.containsKey(pageIndex)) return selectableTextCache[pageIndex]
+    val extracted = snapshotFile?.let { PdfBoxTextExtractor.extract(applicationContext, it, pageIndex) }
+    selectableTextCache[pageIndex] = extracted
+    return extracted
   }
 
   @Synchronized
@@ -78,6 +94,7 @@ class PdfDocumentSession private constructor(
   override fun close() {
     if (closed) return
     closed = true
+    selectableTextCache.clear()
     try {
       renderer.close()
     } finally {
@@ -110,7 +127,8 @@ class PdfDocumentSession private constructor(
   companion object {
     private const val TAG = "PdfDocumentSession"
 
-    suspend fun open(resolver: ContentResolver, uri: Uri, cacheDir: File): PdfDocumentSession {
+    suspend fun open(context: Context, uri: Uri, cacheDir: File): PdfDocumentSession {
+      val resolver: ContentResolver = context.contentResolver
       var snapshot: File? = null
       try {
         val (descriptor, revision, snapshotFile) = withContext(Dispatchers.IO) {
@@ -123,17 +141,18 @@ class PdfDocumentSession private constructor(
             ParcelFileDescriptor.open(created, ParcelFileDescriptor.MODE_READ_ONLY)
           Triple(createdDescriptor, copiedRevision, created)
         }
-        return createSession(descriptor, revision, snapshotFile)
+        return createSession(context.applicationContext, descriptor, revision, snapshotFile)
       } catch (error: Exception) {
         snapshot?.delete()
         Log.w(TAG, "PDF snapshot copy failed; using direct-SAF fallback", error)
         val descriptor = resolver.openFileDescriptor(uri, "r")
           ?: throw IllegalStateException("无法打开 PDF 文件")
-        return createSession(descriptor, sourceRevision = null, snapshotFile = null)
+        return createSession(context.applicationContext, descriptor, sourceRevision = null, snapshotFile = null)
       }
     }
 
     private fun createSession(
+      applicationContext: Context,
       descriptor: ParcelFileDescriptor,
       sourceRevision: String?,
       snapshotFile: File?,
@@ -144,7 +163,7 @@ class PdfDocumentSession private constructor(
           renderer.close()
           throw IllegalArgumentException("PDF 中没有页面")
         }
-        return PdfDocumentSession(descriptor, renderer, sourceRevision, snapshotFile)
+        return PdfDocumentSession(descriptor, renderer, applicationContext, sourceRevision, snapshotFile)
       } catch (error: Exception) {
         descriptor.close()
         snapshotFile?.delete()

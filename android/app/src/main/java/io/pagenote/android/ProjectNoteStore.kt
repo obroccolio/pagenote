@@ -5,14 +5,28 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+
+/** Coordinates this app process only; SAF cannot enlist writers in other apps. */
+internal object ProjectNoteMutationLocks {
+  private val locks = ConcurrentHashMap<String, Any>()
+
+  fun <T> withLock(uri: Uri, action: () -> T): T =
+    synchronized(locks.computeIfAbsent(uri.toString()) { Any() }) { action() }
+}
 
 class ProjectNoteStore(
   private val resolver: ContentResolver,
   private val uri: Uri,
 ) {
-  fun read(): String = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-    it.readText()
-  } ?: throw IOException("无法读取项目笔记")
+  fun read(): String = withRevisionLock {
+    resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+      it.readText()
+    } ?: throw IOException("无法读取项目笔记")
+  }
+
+  internal fun <T> withRevisionLock(action: () -> T): T =
+    ProjectNoteMutationLocks.withLock(uri, action)
 
   fun supportsWrite(): Boolean {
     val cursor = resolver.query(
@@ -31,17 +45,19 @@ class ProjectNoteStore(
   }
 
   fun write(markdown: String, expectedOriginal: String): String? {
-    return RecoverableDocumentWrite(
-      readTarget = ::read,
-      overwriteTarget = { content -> overwrite(uri, content) },
-      createBackup = ::createRecoveryCopy,
-      deleteBackup = { copy ->
-        if (!DocumentsContract.deleteDocument(resolver, copy.uri)) {
-          throw IOException("无法清理笔记恢复副本")
-        }
-      },
-      backupName = RecoveryCopy::displayName,
-    ).write(updated = markdown, expectedOriginal = expectedOriginal)
+    return withRevisionLock {
+      RecoverableDocumentWrite(
+        readTarget = ::read,
+        overwriteTarget = { content -> overwrite(uri, content) },
+        createBackup = ::createRecoveryCopy,
+        deleteBackup = { copy ->
+          if (!DocumentsContract.deleteDocument(resolver, copy.uri)) {
+            throw IOException("无法清理笔记恢复副本")
+          }
+        },
+        backupName = RecoveryCopy::displayName,
+      ).write(updated = markdown, expectedOriginal = expectedOriginal)
+    }
   }
 
   private fun overwrite(target: Uri, markdown: String) {

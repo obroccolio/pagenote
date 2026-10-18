@@ -39,7 +39,7 @@ class ReaderSessionRestorationTest {
       .apply { writeText("saved page one\n\n${PageNotes.SEPARATOR}\n\nsaved page two") }
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     val renderer = runBlocking {
-      PdfDocumentSession.open(context.contentResolver, Uri.fromFile(pdfFile), context.cacheDir)
+      PdfDocumentSession.open(context, Uri.fromFile(pdfFile), context.cacheDir)
     }
     val notes = PageNotes.join(listOf("saved page one", "saved page two"))
     val penPageStore = PenPageStore().apply {
