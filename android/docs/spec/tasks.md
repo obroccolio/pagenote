@@ -181,13 +181,13 @@
 - [x] 17. 笔记导出（`File > Export notes` 支持桌面 v1 整份 JSON 备份和当前页完整 Markdown，通过 SAF 选择输出位置；不写项目源文件）
   - 脏可写页先走既有 revision 保存；只读项目中的恢复草稿只覆盖导出快照，不写回项目。
   - 验证单个聚焦 JVM payload 测试、一个 Android 14/API 34 平板 AVD 导出闭环和 `:app:assembleDebug`；不扩展其他设备/API 矩阵。
-  - JSON 备份导入留作后续独立功能切片。
+  - 笔记导入独立切片已完成，契约见 `features/note-import.md`，实施记录见 `note-import-plan.md`。
   - 契约见 `features/note-export.md`，实施拆分见 `note-export-plan.md`。
   - _Requirement: 桌面菜单分组与数据导入/导出一致性_
 
-- [ ] 18. 笔记导入（`File > Import notes` 支持桌面兼容 JSON 按页导入和当前页 Markdown/TXT 插入；只写笔记文档）
+- [x] 18. 笔记导入（`File > Import notes` 支持桌面兼容 JSON 按页导入和当前页 Markdown/TXT 插入；只写笔记文档）
   - JSON 导入确认后跳过非法/越界条目，空字符串清空对应页；未列出的页面保持不变，整批以单次 revision-guarded SAF 写入提交。
   - Markdown/TXT 替换当前编辑选区；若处于预览模式，切换到编辑并插入当前页末。
-  - 仅运行一个聚焦 JVM 测试类、唯一 Android 14/API 34 平板 AVD 闭环和 `:app:assembleDebug`；不扩展设备/API 矩阵。
+  - 聚焦 JVM 测试、唯一 Android 14/API 34 平板 AVD 闭环和 `:app:assembleDebug`；不扩展设备/API 矩阵。
   - 契约见 `features/note-import.md`，实施拆分见 `note-import-plan.md`。
   - _Requirement: 桌面菜单分组与数据导入/导出一致性_

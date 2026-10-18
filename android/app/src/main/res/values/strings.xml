@@ -53,6 +53,13 @@
   <string name="reader_menu_recent_documents">Recent documents</string>
   <string name="reader_menu_attachments">Attachments</string>
   <string name="reader_menu_import_notes">Import notes</string>
+  <string name="reader_menu_import_title">Import notes</string>
+  <string name="reader_menu_import_confirm_message">The backup will overwrite notes on pages it contains. Other pages will stay unchanged.</string>
+  <string name="reader_menu_import_confirm">Import</string>
+  <string name="reader_menu_import_success">Notes imported.</string>
+  <string name="reader_menu_import_invalid_backup">This is not a valid pagenote notes backup.</string>
+  <string name="reader_menu_import_stale">The project, page, or note changed while choosing the file. Import was canceled.</string>
+  <string name="reader_menu_import_failed">Unable to import notes. Check project write access and try again.</string>
   <string name="reader_menu_export_notes">Export notes</string>
   <string name="reader_menu_export_title">Export notes</string>
   <string name="reader_menu_export_json">Full notes backup (JSON)</string>

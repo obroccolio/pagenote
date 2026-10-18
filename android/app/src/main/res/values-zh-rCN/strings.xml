@@ -53,6 +53,13 @@
   <string name="reader_menu_recent_documents">最近文档</string>
   <string name="reader_menu_attachments">附件</string>
   <string name="reader_menu_import_notes">导入笔记</string>
+  <string name="reader_menu_import_title">导入笔记</string>
+  <string name="reader_menu_import_confirm_message">备份将覆盖其中包含页面的笔记；未包含的页面保持不变。</string>
+  <string name="reader_menu_import_confirm">导入</string>
+  <string name="reader_menu_import_success">笔记已导入。</string>
+  <string name="reader_menu_import_invalid_backup">这不是有效的 pagenote 笔记备份。</string>
+  <string name="reader_menu_import_stale">选择文件期间项目、页面或笔记发生变化，已取消导入。</string>
+  <string name="reader_menu_import_failed">无法导入笔记，请检查项目写入权限后重试。</string>
   <string name="reader_menu_export_notes">导出笔记</string>
   <string name="reader_menu_export_title">导出笔记</string>
   <string name="reader_menu_export_json">完整笔记备份（JSON）</string>

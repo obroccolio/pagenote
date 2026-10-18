@@ -13,5 +13,9 @@
       android:name="io.pagenote.android.NoteExportSafTestProvider"
       android:authorities="io.pagenote.android.test.note-export"
       android:exported="true" />
+    <provider
+      android:name="io.pagenote.android.NoteImportSafTestProvider"
+      android:authorities="io.pagenote.android.test.note-import"
+      android:exported="true" />
   </application>
 </manifest>

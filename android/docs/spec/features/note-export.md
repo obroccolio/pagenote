@@ -2,7 +2,7 @@
 
 ## Scope
 
-Connect `File > Export notes` for the Android reader. The user can export either a complete pagenote-compatible v1 JSON notes backup or the current page as Markdown, using Android's system save-location picker. Import remains a separate future feature; the export does not include the source document, annotations, pen strokes, or image assets.
+Connect `File > Export notes` for the Android reader. The user can export either a complete pagenote-compatible v1 JSON notes backup or the current page as Markdown, using Android's system save-location picker. The export does not include the source document, annotations, pen strokes, or image assets. JSON and Markdown/text note import are specified separately in `note-import.md`.
 
 ## User Story
 

@@ -42,9 +42,9 @@
 - `NoteImportPayload.insertText(markdown, selectionStart, selectionEnd, text): NoteTextInsertion` with replacement range and resulting cursor.
 - `NoteImportPayload.isJson(displayName, mimeType): Boolean`.
 
-- [ ] Add focused tests for desktop-shaped JSON, metadata mismatch, ignored invalid/out-of-range/non-string entries, empty-value clearing, a missing notes object, merge preservation, and text insertion/selection replacement; run and observe the expected RED.
-- [ ] Implement the smallest pure parser/merge/insertion helper.
-- [ ] Run only `:app:testDebugUnitTest --tests io.pagenote.android.NoteImportPayloadTest` and confirm it passes.
+- [x] Add focused tests for desktop-shaped JSON, metadata mismatch, ignored invalid/out-of-range/non-string entries, empty-value clearing, a missing notes object, merge preservation, and text insertion/selection replacement; run and observe the expected RED.
+- [x] Implement the smallest pure parser/merge/insertion helper.
+- [x] Run only `:app:testDebugUnitTest --tests io.pagenote.android.NoteImportPayloadTest` and confirm it passes.
 
 ### Task 2: Reader Picker and Apply Flow
 
@@ -58,12 +58,12 @@
 
 **Produces:** A working File-menu import flow for JSON backups and Markdown/plain text.
 
-- [ ] Add one API 34 activity test for the real menu handler, picker cancellation, JSON confirmation and merge, malformed JSON, Markdown insertion, stale context, and unchanged unlisted pages; confirm it fails before implementation.
-- [ ] Connect OpenDocument for JSON/Markdown/text; capture project/page context and read selected URI content on `Dispatchers.IO`.
-- [ ] Confirm JSON overwrite, revision-save dirty page, read latest notes under the mutation lock, merge, perform one expected-original recoverable SAF write, then refresh page revision/history.
-- [ ] Insert text at the active editor selection or switch preview to Edit and insert at page end; preserve text as literal Markdown.
-- [ ] Localize success, malformed input, stale context, and failure feedback.
-- [ ] Run only the focused `NoteImportActivityTest` on the single Android 14/API 34 tablet AVD; confirm the one-page flow and that the other page/project files are unchanged.
+- [x] Add one API 34 activity test for the real menu handler, picker cancellation, JSON confirmation/apply/cancel, malformed JSON, Markdown insertion, stale context, and unchanged unlisted pages; confirm it fails before implementation.
+- [x] Connect OpenDocument for JSON/Markdown/text; capture project/page context and read selected URI content on `Dispatchers.IO`.
+- [x] Confirm JSON overwrite, revision-save dirty page, read latest notes under the mutation lock, merge, perform one expected-original recoverable SAF write, then refresh page revision/history.
+- [x] Insert text at the active editor selection or switch preview to Edit and insert at page end; preserve text as literal Markdown.
+- [x] Localize success, malformed input, stale context, and failure feedback.
+- [x] Run only the focused `NoteImportActivityTest` on the single Android 14/API 34 tablet AVD; confirm the one-page flow and that the other page/project files are unchanged.
 
 ### Task 3: Build and Tracking
 
@@ -72,7 +72,7 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] Run the focused JVM test class, focused API 34 activity test, and `:app:assembleDebug`; record exact results.
-- [ ] Mark task 18 complete while keeping Xiaomi hardware acceptance in task 12.
-- [ ] Run `git diff --check`; review the diff for project non-mutation, revision protection, and desktop import compatibility.
-- [ ] Commit the feature with the matching changelog entry and push to `fork/codex/android-port`.
+- [x] Run the focused JVM test class (5/5), focused API 34 activity test (1/1), and `:app:assembleDebug` (success); no other API/device matrix.
+- [x] Mark task 18 complete while keeping Xiaomi hardware acceptance in task 12.
+- [x] Run `git diff --check`; review the diff for project non-mutation, revision protection, and desktop import compatibility.
+- [x] Commit the feature with the matching changelog entry and push to `fork/codex/android-port`.

@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -152,6 +153,7 @@ class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
   internal var markdownImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
+  internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
 
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
@@ -268,6 +270,25 @@ private data class PendingMarkdownImageInsertion(
   val altTextOverride: String? = null,
 )
 
+private data class PendingNoteImportContext(
+  val projectId: String,
+  val sourceDirectoryUri: Uri,
+  val pageIndex: Int,
+  val markdown: String,
+  val selectionStart: Int,
+  val selectionEnd: Int,
+)
+
+private data class PendingNoteImportBackup(
+  val context: PendingNoteImportContext,
+  val pages: Map<Int, String>,
+)
+
+private data class NoteImportWriteResult(
+  val markdown: String,
+  val recoveryCopyName: String?,
+)
+
 @Composable
 private fun ReaderHome(
   settings: ReaderSettings,
@@ -360,6 +381,11 @@ private fun ReaderHome(
   val isPenSaving = pendingPenSaves > 0
   var errorMessage by readerSession.errorMessage
   var showNoteHistory by remember { mutableStateOf(false) }
+  var showNoteImportConfirmation by remember { mutableStateOf(false) }
+  var isImportingNotes by remember { mutableStateOf(false) }
+  var pendingNoteImportContext by remember { mutableStateOf<PendingNoteImportContext?>(null) }
+  var pendingNoteImportBackup by remember { mutableStateOf<PendingNoteImportBackup?>(null) }
+  var noteEditRequest by remember { mutableIntStateOf(0) }
   var showNoteExportDialog by remember { mutableStateOf(false) }
   var showPendingNoteExportRecoveryDialog by remember { mutableStateOf(false) }
   var isPreparingNoteExport by remember { mutableStateOf(false) }
@@ -1621,6 +1647,199 @@ private fun ReaderHome(
     onResult = ::handleMarkdownImageResult,
   )
 
+  fun noteImportContextIsCurrent(pending: PendingNoteImportContext): Boolean =
+    project?.manifest?.id == pending.projectId &&
+      project?.sourceDirectoryUri == pending.sourceDirectoryUri &&
+      pageIndex == pending.pageIndex &&
+      noteDraft == pending.markdown
+
+  fun currentSourcePageCount(): Int = renderer?.pageCount
+    ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
+    ?: 0
+
+  fun captureNoteImportContext(): PendingNoteImportContext? {
+    val activeProject = project ?: return null
+    if (!noteWritable) return null
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.text.toString() == noteDraft }
+    val markdown = editor?.text?.toString() ?: noteDraft
+    return PendingNoteImportContext(
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri,
+      pageIndex = pageIndex,
+      markdown = markdown,
+      selectionStart = editor?.selectionStart ?: markdown.length,
+      selectionEnd = editor?.selectionEnd ?: markdown.length,
+    )
+  }
+
+  suspend fun applyPendingNoteImport() {
+    val pending = pendingNoteImportBackup ?: return
+    showNoteImportConfirmation = false
+    try {
+      if (!noteImportContextIsCurrent(pending.context)) {
+        noteStatus = context.getString(R.string.reader_menu_import_stale)
+        return
+      }
+      if (hasUnsavedChanges && !saveCurrentNote()) return
+      if (!noteImportContextIsCurrent(pending.context)) {
+        noteStatus = context.getString(R.string.reader_menu_import_stale)
+        return
+      }
+      val activeProject = project ?: return
+      val pageCount = currentSourcePageCount()
+      if (pageCount <= 0) {
+        noteStatus = context.getString(R.string.reader_menu_import_failed)
+        return
+      }
+      val result = withContext(Dispatchers.IO) {
+        val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
+        store.withRevisionLock {
+          val original = store.read()
+          val merged = NoteImportPayload.merge(original, pageCount, pending.pages)
+          val changedPages = pending.pages.entries
+            .filter { (page, markdown) -> NotePage.pageAt(original, page) != markdown }
+            .map { it.key to it.value }
+          val recoveryCopyName = if (merged == original) null else {
+            store.write(merged, expectedOriginal = original)
+          }
+          changedPages.forEach { (page, markdown) ->
+            runCatching {
+              NoteHistoryMirror.snapshotPage(context.filesDir, pending.context.projectId, page, markdown)
+            }
+          }
+          NoteImportWriteResult(merged, recoveryCopyName)
+        }
+      }
+      val currentPage = pending.context.pageIndex + 1
+      val currentMarkdown = NotePage.pageAt(result.markdown, currentPage)
+      notesMarkdown = result.markdown
+      readerSession.setNoteDraft(currentMarkdown)
+      noteBaseRevision = PageNotes.revision(currentMarkdown)
+      readerSession.refreshDraftRecoveryAfterSave(currentPage, currentMarkdown)
+      noteStatus = result.recoveryCopyName?.let {
+        context.getString(R.string.note_saved_recovery_copy, it)
+      } ?: context.getString(R.string.reader_menu_import_success)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: NoteDocumentConflictException) {
+      noteStatus = context.getString(R.string.note_conflict)
+    } catch (_: Exception) {
+      noteStatus = context.getString(R.string.reader_menu_import_failed)
+    } finally {
+      isImportingNotes = false
+      pendingNoteImportContext = null
+      pendingNoteImportBackup = null
+    }
+  }
+
+  suspend fun finishNoteImport(uri: Uri?) {
+    val pending = pendingNoteImportContext
+    if (uri == null || pending == null) {
+      isImportingNotes = false
+      pendingNoteImportContext = null
+      pendingNoteImportBackup = null
+      noteStatus = null
+      return
+    }
+    try {
+      if (!noteImportContextIsCurrent(pending)) {
+        noteStatus = context.getString(R.string.reader_menu_import_stale)
+        return
+      }
+      val (displayName, mimeType, content) = withContext(Dispatchers.IO) {
+        val displayName = runCatching {
+          context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+              if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+              } else null
+            }
+        }.getOrNull()
+        val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+        val content = context.contentResolver.openInputStream(uri)
+          ?.bufferedReader(Charsets.UTF_8)
+          ?.use { it.readText() }
+          ?: throw IllegalStateException("无法读取所选文件")
+        Triple(displayName, mimeType, content)
+      }
+      if (NoteImportPayload.isJson(displayName, mimeType)) {
+        val currentPageCount = currentSourcePageCount()
+        val updates = withContext(Dispatchers.Default) {
+          NoteImportPayload.parseBackup(content, currentPageCount)
+        }
+        if (!noteImportContextIsCurrent(pending)) {
+          noteStatus = context.getString(R.string.reader_menu_import_stale)
+          return
+        }
+        pendingNoteImportBackup = PendingNoteImportBackup(pending, updates)
+        showNoteImportConfirmation = true
+        return
+      }
+      if (!noteImportContextIsCurrent(pending)) {
+        noteStatus = context.getString(R.string.reader_menu_import_stale)
+        return
+      }
+      val edit = NoteImportPayload.insertText(
+        markdown = pending.markdown,
+        selectionStart = pending.selectionStart,
+        selectionEnd = pending.selectionEnd,
+        text = content,
+      )
+      val updated = buildString(pending.markdown.length + content.length) {
+        append(pending.markdown, 0, edit.replaceStart)
+        append(edit.replacement)
+        append(pending.markdown, edit.replaceEnd, pending.markdown.length)
+      }
+      val editor = markdownEditor?.takeIf {
+        it.isEnabled && it.text.toString() == pending.markdown
+      }
+      if (editor != null) {
+        editor.requestFocus()
+        editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+        editor.setSelection(edit.cursor)
+      } else {
+        readerSession.setNoteDraft(updated)
+        noteEditRequest++
+      }
+      noteStatus = context.getString(R.string.reader_menu_import_success)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: NoteImportFormatException) {
+      noteStatus = context.getString(R.string.reader_menu_import_invalid_backup)
+    } catch (_: Exception) {
+      noteStatus = context.getString(R.string.reader_menu_import_failed)
+    } finally {
+      isImportingNotes = showNoteImportConfirmation
+      if (!showNoteImportConfirmation) pendingNoteImportContext = null
+    }
+  }
+
+  val noteImportPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument(),
+    onResult = { uri -> readerSession.launchSessionTask { finishNoteImport(uri) } },
+  )
+
+  fun beginNoteImport() {
+    val pending = captureNoteImportContext() ?: return
+    pendingNoteImportContext = pending
+    pendingNoteImportBackup = null
+    isImportingNotes = true
+    noteStatus = null
+    val mimeTypes = arrayOf("application/json", "text/markdown", "text/plain")
+    try {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.noteImportPickerForTesting
+      if (pickerForTesting == null) noteImportPicker.launch(mimeTypes)
+      else pickerForTesting(mimeTypes) { uri ->
+        readerSession.launchSessionTask { finishNoteImport(uri) }
+      }
+    } catch (_: Exception) {
+      isImportingNotes = false
+      pendingNoteImportContext = null
+      noteStatus = context.getString(R.string.reader_menu_import_failed)
+    }
+  }
+
   suspend fun finishNoteExport(uri: Uri?) {
     readerSession.isHandlingNoteExportResult.value = true
     showPendingNoteExportRecoveryDialog = false
@@ -1952,7 +2171,7 @@ private fun ReaderHome(
     activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
     else -> 0
   }
-  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting || isExportingNotes || failedPenSave != null ||
+  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting || isImportingNotes || isExportingNotes || failedPenSave != null ||
     isOcrRunning || isSelectablePageTextLoading || readerInputLocked || isAgentRunning || isPageTutorRunning
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
@@ -2068,15 +2287,17 @@ private fun ReaderHome(
     onSelect = {},
   )
 
+  val canImportNotes = activeProject != null && noteWritable && !menuBusy
+
   fun menuSection(group: ReaderMenuGroup, labelRes: Int, commands: List<ReaderMenuCommand>) =
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
-  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting && !isExportingNotes &&
+  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
-  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting && !isExportingNotes &&
+  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
@@ -2102,7 +2323,10 @@ private fun ReaderHome(
         ) { showNewProject = true },
         pendingCommand("recent_documents", R.string.reader_menu_recent_documents),
         pendingCommand("attachments", R.string.reader_menu_attachments),
-        pendingCommand("import_notes", R.string.reader_menu_import_notes),
+        actionCommand(
+          "import_notes", R.string.reader_menu_import_notes, canImportNotes,
+          disabledReason = commandReason(requireProject = true, requireWritable = true),
+        ) { beginNoteImport() },
         actionCommand(
           "export_notes", R.string.reader_menu_export_notes, canExportNotes,
           disabledReason = commandReason(requireProject = true),
@@ -2684,6 +2908,7 @@ private fun ReaderHome(
             )
             NotePanel(
               page = pageIndex + 1,
+              editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
               writable = noteWritable,
@@ -2764,6 +2989,7 @@ private fun ReaderHome(
             )
             NotePanel(
               page = pageIndex + 1,
+              editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
               writable = noteWritable,
@@ -3121,6 +3347,35 @@ private fun ReaderHome(
       sourceRevision = renderer?.sourceRevision.orEmpty(),
       onDismiss = { showHandoff = false },
       onChanged = { noteStatus = it },
+    )
+  }
+  if (showNoteImportConfirmation && pendingNoteImportBackup != null) {
+    AlertDialog(
+      onDismissRequest = {
+        showNoteImportConfirmation = false
+        isImportingNotes = false
+        pendingNoteImportContext = null
+        pendingNoteImportBackup = null
+      },
+      title = { Text(stringResource(R.string.reader_menu_import_title)) },
+      text = { Text(stringResource(R.string.reader_menu_import_confirm_message)) },
+      confirmButton = {
+        TextButton(onClick = { scope.launch { applyPendingNoteImport() } }) {
+          Text(stringResource(R.string.reader_menu_import_confirm))
+        }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            showNoteImportConfirmation = false
+            isImportingNotes = false
+            pendingNoteImportContext = null
+            pendingNoteImportBackup = null
+          },
+        ) {
+          Text(stringResource(R.string.cancel))
+        }
+      },
     )
   }
   if (showNoteExportDialog && project != null) {
@@ -4329,6 +4584,7 @@ internal fun PdfPageViewport(
 @Composable
 internal fun NotePanel(
   page: Int,
+  editRequest: Int = 0,
   markdown: String,
   dirty: Boolean,
   writable: Boolean,
@@ -4369,6 +4625,10 @@ internal fun NotePanel(
 
   LaunchedEffect(page, preview) {
     selectionCallback.value(null)
+  }
+
+  LaunchedEffect(editRequest) {
+    if (editRequest > 0) preview = false
   }
 
   DisposableEffect(executor) {
