@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import androidx.test.platform.app.InstrumentationRegistry
@@ -11,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.noties.markwon.image.AsyncDrawable
 import io.noties.markwon.image.AsyncDrawableSpan
 import io.noties.markwon.ext.latex.JLatexAsyncDrawableSpan
+import io.noties.markwon.ext.tasklist.TaskListSpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,6 +30,31 @@ import kotlin.concurrent.thread
 
 @RunWith(AndroidJUnit4::class)
 class NoteMarkdownRendererTest {
+  @Test
+  fun gfmBasicsRenderStrikethroughAndTaskStates() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val markdown = "~~retired~~\n\n- [ ] Open\n- [x] Started\n- [X] Done"
+    val renderer = NoteMarkdownRenderer.createPreview(context, null, Color.BLACK)
+    val rendered = renderer.render(renderer.parse(markdown)) as Spanned
+    val spans = rendered.getSpans(0, rendered.length, Any::class.java)
+    val taskSpans = rendered.getSpans(0, rendered.length, TaskListSpan::class.java)
+
+    assertTrue("GFM deletion must render as a native strike span", spans.any {
+      it is android.text.style.StrikethroughSpan
+    })
+    assertEquals("all task items must render as checkbox spans", 3, taskSpans.size)
+    assertEquals(
+      "unchecked, lowercase x, and uppercase X states must be preserved",
+      listOf(false, true, true),
+      taskSpans.sortedBy(rendered::getSpanStart).map(TaskListSpan::isDone),
+    )
+
+    val editorMarkdown = "~~editable strike~~\n\n- [ ] todo"
+    val editorSource = SpannableStringBuilder(editorMarkdown)
+    NoteMarkdownRenderer.createEditor(context, null).process(editorSource)
+    assertEquals("source editing must preserve GFM markers", editorMarkdown, editorSource.toString())
+  }
+
   @Test
   fun previewCreatesLatexDrawableAndPrismSyntaxSpans() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext

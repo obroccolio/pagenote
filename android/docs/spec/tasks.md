@@ -37,7 +37,7 @@
   - Markdown 源文档阅读（已落地，JVM 单测 + 仪器编译 + 238 任务全量构建与 16 KB 检查通过，真机待 task 12）。
   - _Requirement: 阅读与笔记，布局与适配_
 
-- [x] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格、公式/代码 span 与图片离线占位已实现；Mermaid 离线 SVG、语法诊断、异步布局和像素重叠回归由 API 34/35 AVD 验证；SAF `ContentResolver` 查询/打开成功及失败回退由 API 34/35 AVD 集成测试验证。原项目页面 1/35/69 现场抽查、真实系统持久授权与真机交互仍归 task 12）
+- [x] 5. 笔记渲染与轻量编辑（Markwon 编辑/预览、GFM 表格/删除线/任务列表、公式/代码 span 与图片离线占位已实现；Mermaid 离线 SVG、语法诊断、异步布局和像素重叠回归由 API 34/35 AVD 验证；SAF `ContentResolver` 查询/打开成功及失败回退由 API 34/35 AVD 集成测试验证。原项目页面 1/35/69 现场抽查、真实系统持久授权与真机交互仍归 task 12）
   - [x] 富块透出与附件图已落地：Mermaid 源码单次出现并保留状态，附件图经 `pagenote-asset://` + Markwon image 插件加载本地 `src/assets/`，未知语言与失败态不丢源码；契约见 `features/note-rich-render.md`。
   - [x] 5.1 API 34/35 AVD 已验证 LaTeX drawable span、Prism 高亮 span、页笔记/Markdown 源预览中的本地化诊断，以及有效公式真实像素绘制和无效 TeX 经 renderer 错误回退；JVM 覆盖多行/多反引号代码跨度和公式闭合符屏蔽。实施单见 `formula-preview-rendering-plan.md`。
   - [x] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；API 34/35 AVD 已验证缺图、损坏内联图片警告、解码期抛 I/O 的流仍显示 warning、HTTP/HTTPS 不连接，以及真实目标 `ContentResolver` 对 `DocumentsContract` 形状 URI 的查询/打开成功和查询拒绝/打开拒绝时的安全占位。此测试不证明系统 picker 或真实持久 URI grant；所有外链阻断独立于 Agent 联网权限。实施单见 `saf-image-contentresolver-plan.md`。
@@ -45,6 +45,7 @@
   - [x] 5.4 Mermaid 异步 SVG 重叠已由平板宽度 `NotePanel` 像素回归复现并修复：SVG 绘制裁剪到 drawable 边界，异步尺寸完成后重新测量正文。API 34/35 focused regression 与两版各 66 项 app instrumentation、app/notes JVM tests、`assembleDebug`、四 ABI 16 KB 检查通过；原项目 pages 1/35/69 现场抽查仍归 task 12。实施记录见 `mermaid-layout-regression-plan.md`。
   - [x] 5.5 新增单设备 Markdown 预览截图工具：在 Android 14/API 34 平板 AVD 复用真实 `NotePanel`，用一组富内容覆盖中英混排、表格、公式、代码、Mermaid 与离线图片占位。截图发现 SVG 在 Markwon 平移画布坐标下不可见，已改为宽度受限、最多 4,194,304 像素且单边不超过 16,384 像素的 `BitmapDrawable`。仅保留一个 focused instrumentation 测试和一张浅色截图；脚本先构建、再用显式 ADB serial 只安装到所选 arm64 API 34 AVD。目标小米实机验收仍待进行。详见 `features/markdown-visual-capture.md` 与 `markdown-visual-capture-plan.md`。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
+  - [x] 5.6 补齐删除线和 GFM 任务列表的 Android Markwon 预览渲染，并确认源码编辑保留标记；不实现点按勾选或写回。渲染器仪器类 12/12 在唯一 API 34 平板 AVD 通过，notes/app JVM 测试及 Debug 应用/测试 APK 构建通过。契约见 `features/markdown-gfm-basics.md`。
   - _Requirement: 阅读与笔记_
 
 - [x] 6. 标注与 AI 标注工作台（数据模型、SAF 边界、文字/区域批注、overall review、handoff、selection review 与同轮 Agent 应用授权已落地；验收限制见相关契约）

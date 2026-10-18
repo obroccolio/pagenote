@@ -65,10 +65,12 @@ dependencies {
   implementation("io.noties.markwon:editor:4.6.2")
   implementation("io.noties.markwon:ext-latex:4.6.2")
   implementation("io.noties.markwon:inline-parser:4.6.2")
+  implementation("io.noties.markwon:ext-strikethrough:4.6.2")
   implementation("io.noties.markwon:syntax-highlight:4.6.2") {
     exclude(group = "org.jetbrains", module = "annotations-java5")
   }
   implementation("io.noties.markwon:ext-tables:4.6.2")
+  implementation("io.noties.markwon:ext-tasklist:4.6.2")
   implementation("io.noties.markwon:image:4.6.2")
   implementation("io.noties:prism4j:2.0.0") {
     exclude(group = "org.jetbrains", module = "annotations-java5")
