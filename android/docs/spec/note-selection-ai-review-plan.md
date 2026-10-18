@@ -131,11 +131,11 @@
 **Interfaces:**
 - Selection readiness distinguishes invalid/missing selection, oversized quote/context, and availability so the menu can show a localized size-limit explanation while preserving project/read-only/busy reasons.
 - Review store reads at most 64 MiB UTF-8; Agent detail output is at most 8 MiB UTF-8; list metadata is validated against the SPEC bounds before serialization.
-- Every review mutation supplies its original JSON snapshot to `RecoverableDocumentWrite`; providers that support sibling creation get a populated recovery copy, original-content recheck, and rollback on failed overwrite. An explicitly unsupported create capability retains best-effort overwrite behavior; inability to determine capabilities fails closed.
+- Every review mutation supplies its original JSON snapshot to `RecoverableDocumentWrite`; providers that support sibling creation get a populated recovery copy, original-content recheck, and rollback on failed overwrite. An explicitly unsupported create capability retains best-effort overwrite behavior; inability to determine capabilities fails closed. Strict UTF-8 decoding rejects malformed source bytes before mutation. Oversized selections are rejected before text materialization, first-time empty review files are initialized without an unnecessary backup, and cleanup failures are surfaced/localized without misreporting successful mutations.
 
 - [x] Add tests first for size-specific menu readiness/reason, review read/detail/metadata limits, and provider-driven partial-write restoration/retained-copy behavior; expected failures were observed before implementation.
 - [x] Implement localized selection-size feedback and bounded review data handling with tests passing.
-- [x] Reuse the existing SAF recovery helper for review writes; the real test provider verifies restoration and backup cleanup/retention. Error messages identify review JSON rather than calling it a note write.
-- [x] Run all app and Agent JVM tests, Android test Kotlin compilation, `assembleDebug`, and focused SAF/selection instrumentation tests on API 34 and API 35 16 KB AVDs.
+- [x] Reuse the existing SAF recovery helper for review writes; the real test provider verifies restoration and backup cleanup/retention, strict UTF-8 rejection, and surfacing a backup retained after successful target write. Error messages identify review JSON rather than calling it a note write.
+- [x] Run all app and Agent JVM tests (175/175 and 56/56), Android test Kotlin compilation, `assembleDebug`, and focused instrumentation tests: four classes 33/33 on API 34 4 KB, API 35 4 KB, and API 35 16 KB AVDs.
 - [x] Update task tracker/SPEC verification and changelog with observed results.
-- [ ] Commit implementation and push the personal feature branch after review.
+- [ ] Commit implementation and push the personal feature branch after independent review (review complete; no remaining findings).

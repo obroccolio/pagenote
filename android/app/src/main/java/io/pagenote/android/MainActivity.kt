@@ -2540,7 +2540,7 @@ internal fun ReviewListDialog(
           onClick = {
             scope.launch {
               try {
-                withContext(Dispatchers.IO) {
+                val recoveryCopyName = withContext(Dispatchers.IO) {
                   val reviewStore = store()
                   val draft = selectionDraft
                   if (draft == null) {
@@ -2568,10 +2568,15 @@ internal fun ReviewListDialog(
                       ),
                     )
                   }
+                  reviewStore.lastRetainedRecoveryCopyName
                 }
                 instruction = ""
                 refresh()
-                onChanged(context.getString(R.string.review_saved))
+                onChanged(
+                  recoveryCopyName?.let {
+                    context.getString(R.string.review_saved_recovery_copy, it)
+                  } ?: context.getString(R.string.review_saved),
+                )
               } catch (_: StaleNoteSelectionReviewException) {
                 onChanged(context.getString(R.string.review_selection_stale))
               } catch (error: Exception) {
@@ -2592,9 +2597,17 @@ internal fun ReviewListDialog(
   pendingDismiss?.let { id ->
     scope.launch {
       try {
-        withContext(Dispatchers.IO) { store().transition(id, "dismissed") }
+        val recoveryCopyName = withContext(Dispatchers.IO) {
+          val reviewStore = store()
+          reviewStore.transition(id, "dismissed")
+          reviewStore.lastRetainedRecoveryCopyName
+        }
         refresh()
-        onChanged(context.getString(R.string.review_dismissed))
+        onChanged(
+          recoveryCopyName?.let {
+            context.getString(R.string.review_updated_recovery_copy, it)
+          } ?: context.getString(R.string.review_dismissed),
+        )
       } catch (error: Exception) {
         onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
       } finally {
@@ -2605,9 +2618,17 @@ internal fun ReviewListDialog(
   pendingDelete?.let { id ->
     scope.launch {
       try {
-        withContext(Dispatchers.IO) { store().delete(id) }
+        val recoveryCopyName = withContext(Dispatchers.IO) {
+          val reviewStore = store()
+          reviewStore.delete(id)
+          reviewStore.lastRetainedRecoveryCopyName
+        }
         refresh()
-        onChanged(context.getString(R.string.review_deleted))
+        onChanged(
+          recoveryCopyName?.let {
+            context.getString(R.string.review_updated_recovery_copy, it)
+          } ?: context.getString(R.string.review_deleted),
+        )
       } catch (error: Exception) {
         onChanged(context.getString(R.string.review_save_failed, error.message ?: ""))
       } finally {
@@ -2617,12 +2638,12 @@ internal fun ReviewListDialog(
   }
 }
 
-internal fun reviewCreateErrorMessage(context: Context, error: Throwable): String =
-  if (error is IllegalArgumentException) {
-    context.getString(R.string.review_invalid_input)
-  } else {
-    context.getString(R.string.review_save_failed, error.message ?: "")
-  }
+internal fun reviewCreateErrorMessage(context: Context, error: Throwable): String = when (error) {
+  is IncompleteReviewFileInitializationException ->
+    context.getString(R.string.review_incomplete_file_may_remain)
+  is IllegalArgumentException -> context.getString(R.string.review_invalid_input)
+  else -> context.getString(R.string.review_save_failed, error.message ?: "")
+}
 
 private class StaleNoteSelectionReviewException : Exception()
 

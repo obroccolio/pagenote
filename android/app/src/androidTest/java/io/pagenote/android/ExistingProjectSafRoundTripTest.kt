@@ -158,6 +158,20 @@ class ExistingProjectSafRoundTripTest {
   }
 
   @Test
+  fun malformedUtf8ReviewJsonIsRejectedBeforeAnyWrite() {
+    val malformed = "[{\"id\":\"bad\",\"instruction\":\"before ".toByteArray() +
+      byteArrayOf(0xFF.toByte()) + " after\"}]".toByteArray()
+    installFixture(reviewBytes = malformed)
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, opened.reviewsUri)
+
+    val error = org.junit.Assert.assertThrows(IOException::class.java) { store.list() }
+
+    assertTrue(error.message.orEmpty().contains("UTF-8"))
+    assertEquals(0, reviewWriteCount())
+  }
+
+  @Test
   fun partialReviewWriteRestoresOriginalAndRemovesRecoveryCopy() {
     installFixture()
     val opened = ProjectDocumentOpener(resolver).open(treeUri)
@@ -202,6 +216,62 @@ class ExistingProjectSafRoundTripTest {
   }
 
   @Test
+  fun successfulReviewWriteReportsRecoveryCopyWhenCleanupFails() {
+    installFixture()
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val reviewsUri = requireNotNull(opened.reviewsUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, reviewsUri)
+    configureRecoveryDeleteFailure(1)
+
+    val created = store.create(selectionReviewInput())
+
+    val recoveryName = requireNotNull(store.lastRetainedRecoveryCopyName)
+    val id = created["id"]!!.jsonPrimitive.content
+    assertEquals(created, store.find(id))
+    assertTrue(recoveryName.startsWith("pagenote-recovery-"))
+    assertEquals(listOf(recoveryName), recoveryCopyNames())
+  }
+
+  @Test
+  fun firstReviewCreationReportsOnlyTheRetainedMutationRecoveryCopy() {
+    installFixture(omitReviews = true)
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    assertNull(opened.reviewsUri)
+    val isolatedSource = opened.sourceDirectoryUri.buildUpon()
+      .appendQueryParameter("testState", java.util.UUID.randomUUID().toString())
+      .build()
+    val store = ProjectReviewStore(resolver, isolatedSource, opened.reviewsUri)
+    configureRecoveryDeleteFailure(1)
+
+    val created = store.create(selectionReviewInput())
+
+    val recoveryName = requireNotNull(store.lastRetainedRecoveryCopyName)
+    val id = created["id"]!!.jsonPrimitive.content
+    assertEquals(created, store.find(id))
+    assertEquals(listOf(recoveryName), recoveryCopyNames())
+  }
+
+  @Test
+  fun failedInitialReviewFileCleanupExplainsThatTheIncompleteFileMayRemain() {
+    installFixture(omitReviews = true)
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val isolatedSource = opened.sourceDirectoryUri.buildUpon()
+      .appendQueryParameter("testState", java.util.UUID.randomUUID().toString())
+      .build()
+    val store = ProjectReviewStore(resolver, isolatedSource, opened.reviewsUri)
+    configureReviewWriteFailures(1)
+    configureRecoveryDeleteFailure(1)
+
+    val error = org.junit.Assert.assertThrows(IOException::class.java) {
+      store.create(selectionReviewInput())
+    }
+
+    assertTrue(error.message.orEmpty().contains("incomplete ai-reviews.json may remain"))
+    val residualUri = requireNotNull(ProjectDocumentOpener(resolver).open(treeUri).reviewsUri)
+    assertEquals("[", readReviews(residualUri))
+  }
+
+  @Test
   fun oversizedQuoteIsRejectedBeforeAnySafWrite() {
     assertRejectedBeforeWrite(selectionReviewInput(quote = "q".repeat(100_001)))
   }
@@ -217,7 +287,7 @@ class ExistingProjectSafRoundTripTest {
     assertRejectedBeforeWrite(selectionReviewInput(anchor = oversizedAnchor))
   }
 
-  private fun installFixture() {
+  private fun installFixture(reviewBytes: ByteArray? = null, omitReviews: Boolean = false) {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"a".repeat(64)}","name":"Pattern recognition fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
@@ -237,7 +307,8 @@ class ExistingProjectSafRoundTripTest {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
         putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, pdf)
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, reviews)
+        putBoolean(ExistingProjectSafTestProvider.EXTRA_OMIT_REVIEWS, omitReviews)
+        if (!omitReviews) putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, reviewBytes ?: reviews)
       },
     )
   }
@@ -303,6 +374,15 @@ class ExistingProjectSafRoundTripTest {
     resolver.call(
       ExistingProjectSafTestProvider.AUTHORITY,
       ExistingProjectSafTestProvider.METHOD_CONFIGURE_REVIEW_WRITE_FAILURE,
+      null,
+      Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, count) },
+    )
+  }
+
+  private fun configureRecoveryDeleteFailure(count: Int) {
+    resolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE,
       null,
       Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, count) },
     )

@@ -199,6 +199,9 @@
   <string name="review_save">保存审阅</string>
   <string name="review_empty">这一页还没有审阅。</string>
   <string name="review_saved">已保存审阅。</string>
+  <string name="review_saved_recovery_copy">审阅已保存，项目文件夹中仍保留恢复副本：%1$s</string>
+  <string name="review_updated_recovery_copy">审阅已更新，项目文件夹中仍保留恢复副本：%1$s</string>
+  <string name="review_incomplete_file_may_remain">审阅文件初始化失败，项目文件夹中可能残留不完整的 ai-reviews.json。请删除该文件后重试。</string>
   <string name="review_save_failed">无法保存审阅：%1$s</string>
   <string name="review_invalid_input">审阅内容无效或超出支持的大小限制。</string>
   <string name="review_applied">已标为已处理。</string>

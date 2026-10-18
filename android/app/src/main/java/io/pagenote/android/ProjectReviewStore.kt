@@ -6,6 +6,9 @@ import android.provider.DocumentsContract
 import io.pagenote.feature.annotations.ReviewCreate
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.CharacterCodingException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
@@ -19,6 +22,18 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+internal class IncompleteReviewFileInitializationException(
+  cause: Throwable,
+  cleanupFailure: Throwable,
+) : IOException(
+  "Unable to initialize review JSON file; incomplete ai-reviews.json may remain in the project folder",
+  cause,
+) {
+  init {
+    cause.addSuppressed(cleanupFailure)
+  }
+}
+
 /** App-process store instances share a URI-keyed lock. SAF has no generic cross-app compare-and-swap. */
 class ProjectReviewStore(
   private val resolver: ContentResolver,
@@ -29,6 +44,10 @@ class ProjectReviewStore(
 
   private val json = Json { ignoreUnknownKeys = true }
   private val state = states.computeIfAbsent(sourceDirectoryUri.toString()) { StoreState(reviewsUri) }
+
+  @Volatile
+  internal var lastRetainedRecoveryCopyName: String? = null
+    private set
 
   internal data class ApplyExpectation(val expectedPage: Int, val expectedRevision: String)
 
@@ -171,8 +190,20 @@ class ProjectReviewStore(
     val created = DocumentsContract.createDocument(
       resolver, sourceDirectoryUri, "application/json", "ai-reviews.json",
     ) ?: throw IOException("无法创建项目 JSON 文件")
+    try {
+      overwrite(created, "[]")
+    } catch (error: Exception) {
+      val cleanupError = runCatching {
+        if (!DocumentsContract.deleteDocument(resolver, created)) {
+          throw IOException("Unable to remove incomplete review JSON file")
+        }
+      }.exceptionOrNull()
+      if (cleanupError != null) {
+        throw IncompleteReviewFileInitializationException(error, cleanupError)
+      }
+      throw IOException("Unable to initialize review JSON file", error)
+    }
     state.reviewsUri = created
-    writeRecords(created, JsonArray(emptyList()), readRaw(created))
     return created
   }
 
@@ -208,7 +239,15 @@ class ProjectReviewStore(
         total += count
       }
     }
-    return output.toByteArray().toString(Charsets.UTF_8)
+    return try {
+      Charsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+        .decode(ByteBuffer.wrap(output.toByteArray()))
+        .toString()
+    } catch (error: CharacterCodingException) {
+      throw IOException("project review JSON contains invalid UTF-8", error)
+    }
   }
 
   private fun writeRecords(uri: Uri, records: JsonArray, expectedOriginal: String) {
@@ -216,7 +255,7 @@ class ProjectReviewStore(
     if (encoded.toByteArray(Charsets.UTF_8).size > MAX_REVIEW_JSON_BYTES) {
       throw IOException("project review JSON exceeds the 64 MiB UTF-8 write limit")
     }
-    RecoverableDocumentWrite(
+    lastRetainedRecoveryCopyName = RecoverableDocumentWrite(
       readTarget = { readRaw(uri) },
       overwriteTarget = { content -> overwrite(uri, content) },
       createBackup = ::createRecoveryCopy,

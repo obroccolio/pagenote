@@ -14,7 +14,7 @@ internal enum class SelectionReviewReadiness {
 internal fun selectionReviewReadiness(
   start: Int?,
   end: Int?,
-  markdown: String,
+  markdown: CharSequence,
 ): SelectionReviewReadiness {
   if (start == null || end == null) return SelectionReviewReadiness.SELECTION_REQUIRED
   val selectionStart = minOf(start, end)
@@ -22,10 +22,20 @@ internal fun selectionReviewReadiness(
   if (selectionStart < 0 || selectionStart >= selectionEnd || selectionEnd > markdown.length) {
     return SelectionReviewReadiness.SELECTION_REQUIRED
   }
-  if (markdown.substring(selectionStart, selectionEnd).isBlank()) {
+  if (selectionEnd - selectionStart > 100_000) {
+    return SelectionReviewReadiness.TOO_LARGE
+  }
+  var containsNonWhitespace = false
+  for (index in selectionStart until selectionEnd) {
+    if (!markdown[index].isWhitespace()) {
+      containsNonWhitespace = true
+      break
+    }
+  }
+  if (!containsNonWhitespace) {
     return SelectionReviewReadiness.SELECTION_REQUIRED
   }
-  if (markdown.length > 1_000_000 || selectionEnd - selectionStart > 100_000) {
+  if (markdown.length > 1_000_000) {
     return SelectionReviewReadiness.TOO_LARGE
   }
   return SelectionReviewReadiness.AVAILABLE
@@ -48,7 +58,7 @@ class NoteSelectionReviewDraft private constructor(
     private const val MAX_QUOTE_LENGTH = 100_000
     private const val MAX_CONTEXT_LENGTH = 1_000_000
 
-    fun capture(page: Int, context: String, start: Int, end: Int): NoteSelectionReviewDraft {
+    fun capture(page: Int, context: CharSequence, start: Int, end: Int): NoteSelectionReviewDraft {
       require(page >= 1) { "page must be one-based" }
       require(context.length <= MAX_CONTEXT_LENGTH) { "note page context is too large" }
 
@@ -56,10 +66,11 @@ class NoteSelectionReviewDraft private constructor(
       val selectionEnd = maxOf(start, end)
       require(selectionStart >= 0 && selectionEnd <= context.length) { "selection is outside note page" }
       require(selectionStart < selectionEnd) { "selection must not be empty" }
+      require(selectionEnd - selectionStart <= MAX_QUOTE_LENGTH) { "selection is too large" }
 
-      val quote = context.substring(selectionStart, selectionEnd)
+      val contextText = context.toString()
+      val quote = contextText.substring(selectionStart, selectionEnd)
       require(!quote.isBlank()) { "selection must contain non-whitespace text" }
-      require(quote.length <= MAX_QUOTE_LENGTH) { "selection is too large" }
 
       val anchor = buildJsonObject {
         put("coordinateSystem", JsonPrimitive("markdown-source-utf16"))
@@ -68,9 +79,9 @@ class NoteSelectionReviewDraft private constructor(
       }
       return NoteSelectionReviewDraft(
         quote = quote,
-        context = context,
+        context = contextText,
         page = page,
-        revision = PageNotes.revision(context),
+        revision = PageNotes.revision(contextText),
         anchor = anchor,
       )
     }

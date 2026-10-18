@@ -36,6 +36,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_REPLACE_NOTES = "replaceNotes";
   public static final String METHOD_GET_REVIEW_WRITE_COUNT = "getReviewWriteCount";
   public static final String METHOD_CONFIGURE_REVIEW_WRITE_FAILURE = "configureReviewWriteFailure";
+  public static final String METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE = "configureRecoveryDeleteFailure";
   public static final String METHOD_WRITE_OVERSIZED_REVIEWS = "writeOversizedReviews";
   public static final String METHOD_PAUSE_NEXT_REVIEW_READ = "pauseNextReviewRead";
   public static final String METHOD_WAIT_REVIEW_SNAPSHOT = "waitReviewSnapshot";
@@ -50,6 +51,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String EXTRA_PDF = "pdf";
   public static final String EXTRA_NOTES = "notes";
   public static final String EXTRA_REVIEWS = "reviews";
+  public static final String EXTRA_OMIT_REVIEWS = "omit_reviews";
   public static final String EXTRA_COUNT = "count";
   public static final String EXTRA_FAILURES = "failures";
   public static final String EXTRA_SIZE = "size";
@@ -61,6 +63,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private static final String REVIEWS_FILE = "ai-reviews.json";
   private int reviewWriteCount;
   private int reviewWriteFailuresRemaining;
+  private int recoveryDeleteFailuresRemaining;
   private final Map<String, String> recoveryFiles = new HashMap<>();
   private static volatile ReviewReadPause reviewReadPause;
 
@@ -84,9 +87,15 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         writeFixtureFile(MANIFEST_FILE, requiredBytes(extras, EXTRA_MANIFEST));
         writeFixtureFile(PDF_FILE, requiredBytes(extras, EXTRA_PDF));
         writeFixtureFile(NOTES_FILE, requiredBytes(extras, EXTRA_NOTES));
-        writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
+        File reviewsFile = new File(fixtureDir(), REVIEWS_FILE);
+        if (extras != null && extras.getBoolean(EXTRA_OMIT_REVIEWS, false)) {
+          reviewsFile.delete();
+        } else {
+          writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
+        }
         reviewWriteCount = 0;
         reviewWriteFailuresRemaining = 0;
+        recoveryDeleteFailuresRemaining = 0;
         releaseReviewReadPause();
         return Bundle.EMPTY;
       }
@@ -102,6 +111,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       }
       if (METHOD_CONFIGURE_REVIEW_WRITE_FAILURE.equals(method)) {
         reviewWriteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
+        return Bundle.EMPTY;
+      }
+      if (METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE.equals(method)) {
+        recoveryDeleteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
         return Bundle.EMPTY;
       }
       if (METHOD_WRITE_OVERSIZED_REVIEWS.equals(method)) {
@@ -129,6 +142,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         return result;
       }
       if (METHOD_DELETE_DOCUMENT.equals(method)) {
+        if (recoveryDeleteFailuresRemaining > 0) {
+          recoveryDeleteFailuresRemaining--;
+          throw new IllegalStateException("injected recovery-copy delete failure");
+        }
         Uri documentUri = extras == null ? null : extras.getParcelable(EXTRA_URI);
         if (documentUri == null || !deleteRecoveryFile(DocumentsContract.getDocumentId(documentUri))) {
           throw new FileNotFoundException("recovery copy not found");
@@ -196,7 +213,8 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (ROOT_ID.equals(parentDocumentId)) {
       children = Arrays.asList(MANIFEST_ID, SRC_ID);
     } else if (SRC_ID.equals(parentDocumentId)) {
-      children = new ArrayList<>(Arrays.asList(PDF_ID, NOTES_ID, REVIEWS_ID));
+      children = new ArrayList<>(Arrays.asList(PDF_ID, NOTES_ID));
+      if (new File(fixtureDir(), REVIEWS_FILE).exists()) children.add(REVIEWS_ID);
       children.addAll(recoveryFiles.keySet());
     } else {
       throw new FileNotFoundException(parentDocumentId);
@@ -360,8 +378,13 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         PDF_ID, "pattern-recognition.pdf", "application/pdf", 0, PDF_FILE);
     if (NOTES_ID.equals(documentId)) return fileValues(
         NOTES_ID, "notes.md", "text/markdown", DocumentsContract.Document.FLAG_SUPPORTS_WRITE, NOTES_FILE);
-    if (REVIEWS_ID.equals(documentId)) return fileValues(
-        REVIEWS_ID, "ai-reviews.json", "application/json", DocumentsContract.Document.FLAG_SUPPORTS_WRITE, REVIEWS_FILE);
+    if (REVIEWS_ID.equals(documentId)) {
+      File reviewsFile = new File(fixtureDir(), REVIEWS_FILE);
+      return reviewsFile.exists()
+          ? fileValues(REVIEWS_ID, "ai-reviews.json", "application/json",
+              DocumentsContract.Document.FLAG_SUPPORTS_WRITE, REVIEWS_FILE)
+          : null;
+    }
     String recoveryName = recoveryFiles.get(documentId);
     if (recoveryName != null) return fileValues(
         documentId, recoveryName, "application/json",

@@ -51,7 +51,7 @@
   - [x] 文字批注创建/列表/删除 UI 已落地（批注模式点选落点、文本输入、全量页写回、非笔迹列表与删除；契约见 `features/annotation-text-ui.md`）。
   - [x] 区域批注创建/列表/删除 UI 已落地（批注模式 rect 对角落盘、零面积拒绝、空文本允许、列表可删；契约见 `features/annotation-region-ui.md`）。
   - [x] AI review 列表与 overall 创建、dismiss、删除已落地；`applied` 受同轮实际改写授权，见 `features/review-handoff-ui.md`。
-  - [x] 当前页 Markdown 编辑区可创建带 quote/context/revision/UTF-16 anchor 的 selection review，Agent 可读且仅在同轮成功修改目标页后应用。最终审查硬化已落地：超限选区显示本地化原因，Agent review JSON/详情/列表元数据均有限额，SAF 在支持时使用恢复副本与回滚。新鲜 app/Agent JVM 测试 173/173、56/56；25 项聚焦仪器测试在 API 34 4 KB 与 API 35 16 KB AVD 均通过，Android 测试源码编译和 debug APK 构建通过。完整 Activity 打开项目和 dirty-save 失败交互未端到端测试，PDF/Office 文字选择未实现，实体设备/手写笔未测试。SAF 仅应用进程内串行化，不提供跨进程 CAS；未保存草稿进程回收恢复已在 task 15 单独实现并测试。契约与结果见 `features/note-selection-ai-review.md` 及实施计划 `note-selection-ai-review-plan.md`。
+  - [x] 当前页 Markdown 编辑区可创建带 quote/context/revision/UTF-16 anchor 的 selection review，Agent 可读且仅在同轮成功修改目标页后应用。最终审查硬化已落地：超限选区显示本地化原因并在扫描/物化文本前快速拒绝；畸形 UTF-8 在写入前拒绝；Agent review JSON/详情/列表元数据均有限额；SAF 在支持时恢复部分写入，成功写入后清理失败会报告保留副本名，首次初始化清理双重失败会提示不完整文件残留风险。新鲜 app/Agent JVM 测试 175/175、56/56；四个聚焦仪器测试类在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过 33/33；Android 测试源码编译和 debug APK 构建通过，独立审查无遗留 findings。完整 Activity 打开项目和 dirty-save 失败交互未端到端测试，PDF/Office 文字选择未实现，实体设备/手写笔未测试。SAF 仅应用进程内串行化，不提供跨进程 CAS；未保存草稿进程回收恢复已在 task 15 单独实现并测试。契约与结果见 `features/note-selection-ai-review.md` 及实施计划 `note-selection-ai-review-plan.md`。
   - [x] 交接读写 UI 与 stale 处理已落地（本页交接预览、stale 警告、过期 revision 拒绝覆盖；契约见 `features/review-handoff-ui.md`）。
   - _Requirement: 标注_
 

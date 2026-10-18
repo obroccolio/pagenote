@@ -134,6 +134,18 @@ class ProjectAgentToolsTest {
   }
 
   @Test
+  fun reviewStatusSuccessIncludesRetainedRecoveryCopyName() {
+    assertEquals(
+      "review=review-1 status=dismissed recoveryCopy=pagenote-recovery-1.json",
+      ProjectAgentTools.formatReviewStatusSuccess(
+        id = "review-1",
+        status = "dismissed",
+        recoveryCopyName = "pagenote-recovery-1.json",
+      ),
+    )
+  }
+
+  @Test
   fun reviewDetailFormattingRejectsJsonOverEightMiBUtf8() {
     val record = buildJsonObject {
       put("quote", JsonPrimitive("界".repeat(2_800_000)))

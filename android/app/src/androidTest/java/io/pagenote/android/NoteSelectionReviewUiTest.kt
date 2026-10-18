@@ -262,6 +262,26 @@ class NoteSelectionReviewUiTest {
   }
 
   @Test
+  fun oversizedSelectionReadinessDoesNotCreateSubstring() {
+    val text = SubsequenceForbiddenText("q".repeat(100_001))
+
+    assertEquals(
+      SelectionReviewReadiness.TOO_LARGE,
+      selectionReviewReadiness(0, text.length, text),
+    )
+  }
+
+  @Test
+  fun oversizedSelectionReadinessRejectsBeforeReadingCharacters() {
+    val text = IndexForbiddenText(100_001)
+
+    assertEquals(
+      SelectionReviewReadiness.TOO_LARGE,
+      selectionReviewReadiness(0, text.length, text),
+    )
+  }
+
+  @Test
   fun selectionReviewDialogShowsQuoteAndCancelDoesNotWrite() {
     val project = installProject()
     val draft = selectionDraft()
@@ -299,6 +319,25 @@ class NoteSelectionReviewUiTest {
     assertEquals("markdown-source-utf16", (record["anchor"] as JsonObject)["coordinateSystem"]?.jsonPrimitive?.content)
     assertEquals(4, (record["anchor"] as JsonObject)["start"]?.jsonPrimitive?.content?.toInt())
     assertEquals(10, (record["anchor"] as JsonObject)["end"]?.jsonPrimitive?.content?.toInt())
+  }
+
+  @Test
+  fun successfulReviewSaveShowsRetainedRecoveryCopyName() {
+    val project = installProject()
+    configureRecoveryDeleteFailure(1)
+    val status = mutableStateOf("")
+    showSelectionDialog(project, selectionDraft(), status) {}
+    enterInstructionAndSave()
+
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      status.value.contains("pagenote-recovery-")
+    }
+    assertTrue(
+      status.value.startsWith(
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.review_saved),
+      ),
+    )
+    assertEquals(1, reviewWriteCount())
   }
 
   @Test
@@ -435,12 +474,37 @@ class NoteSelectionReviewUiTest {
     null,
   )?.getInt(ExistingProjectSafTestProvider.EXTRA_COUNT) ?: -1
 
+  private fun configureRecoveryDeleteFailure(count: Int) {
+    testResolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE,
+      null,
+      Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, count) },
+    )
+  }
+
   private val testResolver get() = InstrumentationRegistry.getInstrumentation().context.contentResolver
   private val treeUri: Uri
     get() = DocumentsContract.buildTreeDocumentUri(
       ExistingProjectSafTestProvider.AUTHORITY,
       ExistingProjectSafTestProvider.ROOT_ID,
     )
+}
+
+private class SubsequenceForbiddenText(private val value: String) : CharSequence {
+  override val length: Int get() = value.length
+
+  override fun get(index: Int): Char = value[index]
+
+  override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+    error("selection readiness must not allocate a text slice")
+}
+
+private class IndexForbiddenText(override val length: Int) : CharSequence {
+  override fun get(index: Int): Char = error("oversized selection must be rejected before scanning")
+
+  override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+    error("oversized selection must be rejected before slicing")
 }
 
 private fun findEditableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {

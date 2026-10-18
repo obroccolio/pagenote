@@ -199,6 +199,9 @@
   <string name="review_save">Save review</string>
   <string name="review_empty">No reviews on this page yet.</string>
   <string name="review_saved">Review saved.</string>
+  <string name="review_saved_recovery_copy">Review saved. A recovery copy remains in the project folder: %1$s</string>
+  <string name="review_updated_recovery_copy">Review updated. A recovery copy remains in the project folder: %1$s</string>
+  <string name="review_incomplete_file_may_remain">The review file could not be initialized, and an incomplete ai-reviews.json may remain in the project folder. Remove it before retrying.</string>
   <string name="review_save_failed">Unable to save review: %1$s</string>
   <string name="review_invalid_input">The review content is invalid or exceeds the supported size limits.</string>
   <string name="review_applied">Review marked applied.</string>

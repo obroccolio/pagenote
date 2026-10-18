@@ -89,6 +89,15 @@ object ProjectAgentTools {
     return detail
   }
 
+  internal fun formatReviewStatusSuccess(
+    id: String,
+    status: String,
+    recoveryCopyName: String?,
+  ): String {
+    val result = "review=$id status=$status"
+    return recoveryCopyName?.let { "$result recoveryCopy=$it" } ?: result
+  }
+
   internal fun rewriteEvidenceFrom(
     args: Map<String, String>,
     result: ToolResult,
@@ -320,7 +329,14 @@ private suspend fun writeReviewStatus(
     } else {
       store.transition(id, status)
     }
-    ToolResult(ok = true, detail = "review=$id status=$status")
+    ToolResult(
+      ok = true,
+      detail = ProjectAgentTools.formatReviewStatusSuccess(
+        id,
+        status,
+        store.lastRetainedRecoveryCopyName,
+      ),
+    )
   } catch (error: Exception) {
     ToolResult(ok = false, detail = error.message ?: "write_review_status failed")
   }

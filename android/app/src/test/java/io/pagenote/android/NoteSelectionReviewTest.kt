@@ -4,6 +4,7 @@ import io.pagenote.core.project.PageNotes
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NoteSelectionReviewTest {
@@ -100,6 +101,17 @@ class NoteSelectionReviewTest {
   }
 
   @Test
+  fun captureRejectsOversizedSelectionBeforeMaterializingText() {
+    val context = MaterializationForbiddenText(100_001)
+
+    val error = assertThrows(IllegalArgumentException::class.java) {
+      NoteSelectionReviewDraft.capture(page = 1, context = context, start = 0, end = context.length)
+    }
+
+    assertTrue(error.message.orEmpty().contains("selection is too large"))
+  }
+
+  @Test
   fun requireCurrentPageRejectsAChangedContextRevision() {
     val context = "captured page"
     val draft = NoteSelectionReviewDraft.capture(page = 1, context = context, start = 0, end = 8)
@@ -110,4 +122,13 @@ class NoteSelectionReviewTest {
       draft.requireCurrentPage("externally edited page")
     }
   }
+}
+
+private class MaterializationForbiddenText(override val length: Int) : CharSequence {
+  override fun get(index: Int): Char = error("oversized selection must be rejected before reading")
+
+  override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+    error("oversized selection must be rejected before slicing")
+
+  override fun toString(): String = error("oversized selection must be rejected before materializing")
 }

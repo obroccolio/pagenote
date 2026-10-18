@@ -39,6 +39,23 @@ class ReviewUiErrorMessageTest {
     )
   }
 
+  @Test
+  fun incompleteReviewFileWarningUsesLocalizedFeedback() {
+    val error = IncompleteReviewFileInitializationException(
+      IOException("provider write failed"),
+      IOException("provider delete failed"),
+    )
+
+    listOf("en", "zh-CN").forEach { languageTag ->
+      val context = contextFor(languageTag)
+
+      assertEquals(
+        context.getString(R.string.review_incomplete_file_may_remain),
+        reviewCreateErrorMessage(context, error),
+      )
+    }
+  }
+
   private fun contextFor(languageTag: String): Context {
     val configuration = Configuration(targetContext.resources.configuration).apply {
       setLocale(Locale.forLanguageTag(languageTag))
