@@ -209,3 +209,9 @@
   - `pasteMarkdownUsesClipboardReplacesSelectionAndInsertsAtCaret` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖空剪贴板、反向 UTF-16 选区替换、光标插入、草稿 watcher 和两页保存；`:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-clipboard-paste.md`，实施拆分见 `markdown-clipboard-paste-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
+
+- [ ] 22. Markdown 编辑器插入链接（沿用桌面源码模式 `[标签](https://example.com)`；空选区插入本地化标签占位词并选中）
+  - 插入只改当前页草稿；保存仍按 revision 保护，预览复用现有 Markdown renderer。
+  - 验收覆盖无项目/预览门控、反向选区、空选区占位词、标签 selection、两页保存和链接 span；JVM 与唯一 API 34 平板 AVD 聚焦测试后执行 Debug 构建。
+  - 契约见 `features/markdown-link-insertion.md`，实施拆分见 `markdown-link-insertion-plan.md`。
+  - _Requirement: 桌面菜单语义一致、阅读与笔记_
