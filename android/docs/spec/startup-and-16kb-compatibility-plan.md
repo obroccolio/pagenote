@@ -12,7 +12,7 @@
 
 - [x] Add an app instrumentation test that launches `MainActivity` and waits for the localized home screen.
 - [x] Reproduce the current APK crash from device logcat: `No ActivityResultRegistryOwner` from `ReaderHome` during settings-backed composition.
-- [ ] Run the instrumentation test itself. The runner compiled, but device installation returned `INSTALL_FAILED_USER_RESTRICTED` before any test executed.
+- [x] Run `MainActivityLaunchTest#localizedReaderHome_remainsAvailableAfterSettingsLoad` on `Pixel_Tablet_API34`; 1/1 passes and the localized home is displayed. This API 34 AVD result is a platform proxy, not Xiaomi hardware acceptance.
 - [x] Commit the test and test-dependency change with an Unreleased changelog entry.
 
 ## Task 2: Preserve the Activity Result Owner
@@ -20,7 +20,7 @@
 - [x] Capture the hosting `ActivityResultRegistryOwner` before constructing the locale-specific configuration context.
 - [x] Provide that owner alongside the localized `LocalContext` at the reader composition root.
 - [x] Run app JVM tests, compile the instrumentation test, and build all configured APKs.
-- [ ] Install and launch the built app on the connected device and verify the crash is gone; device policy currently cancels APK installation.
+- [x] Install the ARM64 debug APK and launch `MainActivity` on `Pixel_Tablet_API34`; the home remains visible and no app fatal exception is present. Xiaomi Pad 5 Pro hardware remains unverified.
 - [x] Commit the implementation and its changelog entry separately from the regression-test commit.
 
 ## Task 3: Replace Misaligned OpenCV Binaries
@@ -34,7 +34,8 @@
 
 ## Task 4: Device Smoke Check and Sync
 
-- [ ] Install the new ARM64 debug APK on the connected device, launch it, confirm the home screen remains visible, and open then dismiss the SAF project picker without selecting a project. `adb install -r` returned `INSTALL_FAILED_USER_RESTRICTED` and no emulator is configured.
+- [x] On `Pixel_Tablet_API34`, install and launch the ARM64 debug APK; confirm the home screen and launch the SAF tree picker from `Open project`. The picker was closed by force-stopping DocumentsUI after Back did not exit its root view; Pagenote returned to foreground. This does not verify normal picker cancellation callback behavior.
+- [ ] On Xiaomi Pad 5 Pro / Android 14, verify the app returns normally after dismissing the SAF picker; this remains part of task 12 hardware acceptance.
 - [x] Record that the connected device uses 4 KB pages; it does not validate 16 KB runtime behavior.
 - [x] Run `testDebugUnitTest`, `assembleDebug`, and `compileDebugAndroidTestKotlin`; `connectedDebugAndroidTest` stopped before executing tests because device installation was cancelled.
 - [ ] Push reviewed feature commits to `fork/codex/android-port` only after all relevant checks and ensure the pushed range includes the Unreleased changelog updates.
