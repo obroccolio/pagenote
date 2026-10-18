@@ -51,6 +51,7 @@
   - [x] 5.9 接通标题 1–3、无序/有序列表和引用源码前缀格式化；继续禁用字号和有损占位式任务列表。按桌面源码编辑模式回退语义处理多行选区、保留 UTF-16 光标并只更新当前页草稿。8 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 标题/列表/引用/保存/预览仪器流程 1/1 及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-paragraph-formatting.md`，实施见 `markdown-paragraph-formatting-plan.md`。
   - [x] 5.10 接通 Insert > Code block：复用桌面源码模式的 `python` fenced block，保留正文并选中围栏内部；折叠选区插入本地化 `Code`/`代码` 占位词，更新草稿但不自动保存。5 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 阅读/保存/预览仪器流程 1/1 及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-code-block-insertion.md`，实施见 `markdown-code-block-insertion-plan.md`。
   - [x] 5.11 接通 Insert > Formula：精确复用桌面源码模式 `$$` 块公式，保留所选 TeX 并选中正文；折叠选区插入并选中 `E=mc^2`，草稿仅更新当前页。5 个聚焦 JVM 用例、唯一 API 34 平板 AVD 编辑/保存/真实 LaTeX 预览仪器流程 1/1 及 `:app:assembleDebug` 通过；AVD 仅作代理，小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-formula-insertion.md`，实施见 `markdown-formula-insertion-plan.md`。
+  - [ ] 5.12 接通 Insert > Table：沿用桌面源码模式双列表格模板，以模板替换选区并把光标置于末尾；草稿只更新当前页，通过 GFM renderer 预览。契约见 `features/markdown-table-insertion.md`，实施见 `markdown-table-insertion-plan.md`。
   - _Requirement: 阅读与笔记_
 
 - [x] 6. 标注与 AI 标注工作台（数据模型、SAF 边界、文字/区域批注、overall review、handoff、selection review 与同轮 Agent 应用授权已落地；验收限制见相关契约）
