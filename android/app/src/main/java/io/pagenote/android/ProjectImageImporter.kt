@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.Locale
 import java.util.UUID
 
 internal data class ImportedProjectImage(val assetName: String, val altText: String, val documentUri: Uri)
@@ -22,13 +23,17 @@ internal class ProjectImageImporter(
   private val cacheDirectory: File,
   private val sourceDirectoryUri: Uri,
 ) {
-  fun import(sourceUri: Uri): ImportedProjectImage {
+  fun import(
+    sourceUri: Uri,
+    fallbackDisplayName: String? = null,
+    altTextOverride: String? = null,
+  ): ImportedProjectImage {
     val temporaryFile = File.createTempFile("pagenote-image-", ".tmp", cacheDirectory)
     var assetUri: Uri? = null
     var assetName: String? = null
     var createdAssetsUri: Uri? = null
     try {
-      val imageInfo = resolveImageInfo(sourceUri)
+      val imageInfo = resolveImageInfo(sourceUri, fallbackDisplayName, altTextOverride)
       copySourceToTemporaryFile(sourceUri, temporaryFile)
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       BitmapFactory.decodeFile(temporaryFile.absolutePath, bounds)
@@ -81,15 +86,21 @@ internal class ProjectImageImporter(
   fun deleteImported(documentUri: Uri): Boolean =
     runCatching { DocumentsContract.deleteDocument(resolver, documentUri) }.getOrDefault(false)
 
-  private fun resolveImageInfo(sourceUri: Uri): SourceImageInfo {
+  private fun resolveImageInfo(
+    sourceUri: Uri,
+    fallbackDisplayName: String?,
+    altTextOverride: String?,
+  ): SourceImageInfo {
     val mimeType = resolver.getType(sourceUri)
       ?.substringBefore(';')
       ?.trim()
       ?.lowercase()
       ?: throw IOException("The selected image has no supported media type")
-    val mimeExtension = EXTENSION_BY_MIME[mimeType]
+    val mimeExtension = extensionForMimeType(mimeType)
       ?: throw IOException("The selected image type is not supported")
-    val displayName = queryDisplayName(sourceUri)
+    val displayName = queryDisplayNameOrNull(sourceUri)
+      ?: fallbackDisplayName?.takeIf(String::isNotBlank)
+      ?: throw IOException("The selected image name is unavailable")
     val declaredExtension = displayName.substringAfterLast('.', "").lowercase()
     val extension = if (declaredExtension.isEmpty()) {
       mimeExtension
@@ -101,7 +112,8 @@ internal class ProjectImageImporter(
       throw IOException("The selected image type and extension do not match")
     }
     val altText = truncateCodePoints(
-      displayName.substringBeforeLast('.', displayName),
+      altTextOverride?.takeIf(String::isNotBlank)
+        ?: displayName.substringBeforeLast('.', displayName),
       MAX_ALT_TEXT_LENGTH,
     ).ifBlank { "image" }
     return SourceImageInfo(extension, altText)
@@ -173,11 +185,20 @@ internal class ProjectImageImporter(
     return null
   }
 
-  private fun queryDisplayName(uri: Uri): String {
-    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-      if (it.moveToFirst()) return it.getString(it.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)).orEmpty()
+  private fun queryDisplayName(uri: Uri): String = queryDisplayNameOrNull(uri)
+    ?: throw IOException("The selected image name is unavailable")
+
+  private fun queryDisplayNameOrNull(uri: Uri): String? {
+    val cursor = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+      ?: return null
+    return cursor.use {
+      val nameColumn = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+      if (nameColumn >= 0 && it.moveToFirst()) {
+        it.getString(nameColumn)?.takeIf(String::isNotBlank)
+      } else {
+        null
+      }
     }
-    throw IOException("The selected image name is unavailable")
   }
 
   private fun querySize(uri: Uri): Long? = resolver.query(
@@ -219,7 +240,10 @@ internal class ProjectImageImporter(
 
   private data class SourceImageInfo(val extension: String, val altText: String)
 
-  private companion object {
+  internal companion object {
+    fun extensionForMimeType(mimeType: String): String? =
+      EXTENSION_BY_MIME[mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)]
+
     const val ASSETS_DIRECTORY = "assets"
     const val BUFFER_SIZE = 8 * 1024
     const val MAX_ALT_TEXT_LENGTH = 160

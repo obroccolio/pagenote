@@ -9,7 +9,7 @@ The feature reuses the existing image importer and note editor flow. Supported i
 ## Behavior
 
 - The command is enabled only for a writable Markdown note editor when the reader is not busy. It shares the existing image insertion disabled reason.
-- Clipboard contents are inspected only after the user taps the command. Select the first clipboard item with a `content://` URI and a supported image MIME type. Ignore text, HTML, file URIs, unsupported MIME types, and items without a URI.
+- Clipboard contents are inspected only after the user taps the command. Select the first clipboard item with a hierarchical `content://` URI, a nonempty authority, and a supported image MIME type. Do not query other URI schemes or later items after a supported image is found. Ignore text, HTML, file/opaque URIs, unsupported MIME types, and items without a URI.
 - If no supported image is available, show a localized status and leave the editor, project assets, selection, and draft unchanged.
 - Capture the active project identity/source directory, page, editor instance, Markdown snapshot, and UTF-16 selection before importing. Consume the clipboard URI immediately; never persist it.
 - Reuse `ProjectImageImporter` validation, private temporary staging, UUID asset naming, and SAF cleanup. When the clipboard provider has no display name, derive a safe fallback extension from its validated MIME type and use a generic `clipboard image` alt label.

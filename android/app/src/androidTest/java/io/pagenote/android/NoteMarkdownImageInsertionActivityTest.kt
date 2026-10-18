@@ -1,11 +1,14 @@
 package io.pagenote.android
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.text.Spanned
 import android.view.View
 import android.view.ViewGroup
@@ -26,6 +29,7 @@ import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -102,12 +106,113 @@ class NoteMarkdownImageInsertionActivityTest {
     assertProjectAssetRenders(reopened.sourceDirectoryUri, NotePage.pageAt(reopenedNotes, 1))
   }
 
+  @Test
+  fun pastesClipboardImageIntoCurrentPageOnly() {
+    val savedPages = listOf("Lead Selected tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    val clipboard = composeRule.activity.getSystemService(ClipboardManager::class.java)
+    try {
+      clipboard.setPrimaryClip(ClipData.newPlainText("text only", "ordinary clipboard text"))
+      pasteImageCommand().assertIsEnabled().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.noteStatus.value != null }
+      assertEquals(
+        composeRule.activity.getString(R.string.reader_menu_paste_image_no_image),
+        session.noteStatus.value,
+      )
+      assertEquals(savedPages[0], session.noteDraft.value)
+      assertEquals(0, imageCount())
+
+      selectWord("Selected")
+      testResolver.call(
+        NoteAssetSafTestProvider.AUTHORITY,
+        NoteAssetSafTestProvider.METHOD_SET_HIDE_IMAGE_DISPLAY_NAME,
+        null,
+        Bundle().apply {
+          putBoolean(NoteAssetSafTestProvider.EXTRA_HIDE_IMAGE_DISPLAY_NAME, true)
+        },
+      )
+      val sourceNameCursor = testResolver.query(
+        selectedImageUri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null,
+      )
+      assertNotNull(sourceNameCursor)
+      sourceNameCursor!!.use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertNull(cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)))
+      }
+      clipboard.setPrimaryClip(
+        ClipData.newUri(composeRule.activity.contentResolver, "copied image", selectedImageUri),
+      )
+      pasteImageCommand().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        session.noteDraft.value.contains("![")
+      }
+
+      val insertedDraft = session.noteDraft.value
+      val assetName = ProjectAssetRefs.scan(insertedDraft).single()
+      assertTrue(assetName.endsWith(".png"))
+      assertEquals(1, imageCount())
+      val clipboardAlt = composeRule.activity.getString(R.string.reader_menu_paste_image_alt)
+      assertEquals("Lead \n![$clipboardAlt](assets/$assetName)\n tail", insertedDraft)
+      val referenceEnd = insertedDraft.indexOf(')', insertedDraft.indexOf("![")) + 1
+      assertEquals(referenceEnd + 1, requireNotNull(findNoteEditor()).selectionStart)
+      assertProjectAssetRenders(project.sourceDirectoryUri, insertedDraft)
+
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == insertedDraft
+      }
+      val reopened = ProjectDocumentOpener(testResolver).open(treeUri)
+      val reopenedNotes = ProjectNoteStore(testResolver, reopened.notesUri).read()
+      assertEquals(insertedDraft, NotePage.pageAt(reopenedNotes, 1))
+      assertEquals(savedPages[1], NotePage.pageAt(reopenedNotes, 2))
+      assertProjectAssetRenders(reopened.sourceDirectoryUri, NotePage.pageAt(reopenedNotes, 1))
+    } finally {
+      clipboard.clearPrimaryClip()
+      testResolver.call(
+        NoteAssetSafTestProvider.AUTHORITY,
+        NoteAssetSafTestProvider.METHOD_SET_HIDE_IMAGE_DISPLAY_NAME,
+        null,
+        Bundle().apply {
+          putBoolean(NoteAssetSafTestProvider.EXTRA_HIDE_IMAGE_DISPLAY_NAME, false)
+        },
+      )
+    }
+  }
+
   private fun imageCommand() = run {
     val tag = "reader_menu_command_image"
     if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(tag).performScrollTo()
+  }
+
+  private fun pasteImageCommand() = run {
+    val tag = "reader_menu_command_paste_image"
+    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
+      } else if (
+        composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()
+      ) {
+        composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }

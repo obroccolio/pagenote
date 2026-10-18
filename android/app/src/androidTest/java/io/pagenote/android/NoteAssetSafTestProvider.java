@@ -21,6 +21,8 @@ public final class NoteAssetSafTestProvider extends ContentProvider {
   public static final String AUTHORITY = "io.pagenote.android.test.note-assets";
   public static final String METHOD_RESET = "reset";
   public static final String METHOD_STATS = "stats";
+  public static final String METHOD_SET_HIDE_IMAGE_DISPLAY_NAME = "setHideImageDisplayName";
+  public static final String EXTRA_HIDE_IMAGE_DISPLAY_NAME = "hideImageDisplayName";
   public static final String EXTRA_FAILURE_MODE = "failureMode";
   public static final String EXTRA_QUERY_COUNT = "queryCount";
   public static final String EXTRA_OPEN_COUNT = "openCount";
@@ -39,6 +41,7 @@ public final class NoteAssetSafTestProvider extends ContentProvider {
   private final AtomicInteger queryCount = new AtomicInteger();
   private final AtomicInteger openCount = new AtomicInteger();
   private volatile String failureMode = FAILURE_NONE;
+  private volatile boolean hideImageDisplayName;
 
   @Override
   public boolean onCreate() {
@@ -51,6 +54,11 @@ public final class NoteAssetSafTestProvider extends ContentProvider {
       queryCount.set(0);
       openCount.set(0);
       failureMode = extras == null ? FAILURE_NONE : extras.getString(EXTRA_FAILURE_MODE, FAILURE_NONE);
+      hideImageDisplayName = false;
+      return new Bundle();
+    }
+    if (METHOD_SET_HIDE_IMAGE_DISPLAY_NAME.equals(method)) {
+      hideImageDisplayName = extras != null && extras.getBoolean(EXTRA_HIDE_IMAGE_DISPLAY_NAME, false);
       return new Bundle();
     }
     if (METHOD_STATS.equals(method)) {
@@ -87,7 +95,7 @@ public final class NoteAssetSafTestProvider extends ContentProvider {
           row[index] = IMAGE_DOCUMENT_ID;
         } else if (DocumentsContract.Document.COLUMN_DISPLAY_NAME.equals(columns[index]) ||
             OpenableColumns.DISPLAY_NAME.equals(columns[index])) {
-          row[index] = IMAGE_NAME;
+          row[index] = hideImageDisplayName ? null : IMAGE_NAME;
         } else if (DocumentsContract.Document.COLUMN_MIME_TYPE.equals(columns[index])) {
           row[index] = "image/png";
         } else if (OpenableColumns.SIZE.equals(columns[index])) {

@@ -22,6 +22,7 @@
 ## Review Focus
 
 - Clipboard has only text/HTML, an unsupported image type, a `file://` URI, or no URI: command reports no supported image and leaves draft/assets unchanged.
+- Clipboard has an opaque `content:` URI or missing authority: skip it without querying its MIME type.
 - Clipboard URI exposes MIME but no display name: importer uses a MIME-derived safe filename without weakening bitmap/MIME validation.
 - Clipboard/provider access is revoked or SAF writes fail: no Markdown reference is inserted; partial assets are deleted or reported by generated name.
 - Editor/project/page/draft changes while the URI is copied: insertion is rejected and the new asset is removed when possible.
@@ -34,23 +35,26 @@
 **Files:**
 
 - Create: `android/app/src/main/java/io/pagenote/android/ClipboardImageSelection.kt`
+- Modify: `android/app/src/main/java/io/pagenote/android/ProjectImageImporter.kt`
 - Test: `android/app/src/test/java/io/pagenote/android/ClipboardImageSelectionTest.kt`
 
 **Interface:**
 
 - `data class ClipboardImageCandidate(val uri: String?, val mimeType: String?)`.
-- `ClipboardImageSelection.firstSupported(candidates): ClipboardImageCandidate?` selects the first nonblank `content://` URI whose normalized MIME is supported by the existing importer.
+- `ProjectImageImporter.extensionForMimeType(mimeType): String?` exposes the existing normalized MIME map as the single support source.
+- `ClipboardImageSelection.isContentUri(uri): Boolean` accepts only hierarchical `content://` URIs with a nonempty authority; use it before any resolver query.
+- `ClipboardImageSelection.firstSupported(candidates): ClipboardImageCandidate?` selects the first content URI whose normalized MIME maps through `ProjectImageImporter.extensionForMimeType`.
 - `ClipboardImageSelection.fallbackDisplayName(mimeType): String?` returns `clipboard-image.<validated extension>` or null for unsupported MIME.
 
-- [ ] **Step 1: Write focused failing JVM tests**
+- [x] **Step 1: Write focused failing JVM tests**
   - Verify first supported candidate wins, MIME parameters/case normalize, and unsupported/file/no-URI items are skipped.
   - Verify `image/jpeg` and `image/jpg` use `.jpg`, and unsupported MIME yields null.
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.ClipboardImageSelectionTest`
   - Expected: compilation fails because the helper does not exist.
-- [ ] **Step 3: Implement the minimal pure Kotlin helper**
-  - Keep URI and MIME filtering deterministic; do not perform clipboard, resolver, or SAF I/O in this helper.
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 3: Implement the minimal pure Kotlin helper**
+  - Keep URI filtering deterministic; reuse the importer's MIME map for support checks and fallback names. Do not perform clipboard, resolver, or SAF I/O in this helper.
+- [x] **Step 4: Verify GREEN**
   - Repeat the focused JVM command; all selection-policy tests pass.
 
 ### Task 2: MainActivity Clipboard-to-Asset Flow
@@ -61,26 +65,29 @@
 - Modify: `android/app/src/main/java/io/pagenote/android/ProjectImageImporter.kt`
 - Modify: `android/app/src/main/res/values/strings.xml`
 - Modify: `android/app/src/main/res/values-zh-rCN/strings.xml`
+- Modify: `android/app/src/androidTest/java/io/pagenote/android/NoteAssetSafTestProvider.java`
 - Test: `android/app/src/androidTest/java/io/pagenote/android/NoteMarkdownImageInsertionActivityTest.kt`
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
 **Consumes:** `ClipboardImageSelection.firstSupported` and `fallbackDisplayName` from Task 1; existing `PendingMarkdownImageInsertion`, `ProjectImageImporter`, and `MarkdownImageInsertion` contracts.
 
-- [ ] **Step 1: Write one failing API 34 reader/SAF integration test**
+**Produces:** `ProjectImageImporter.import(sourceUri, fallbackDisplayName, altTextOverride)` applies MIME-derived fallback metadata only for clipboard insertion; the existing picker path continues to call `import(sourceUri)`.
+
+- [x] **Step 1: Write one failing API 34 reader/SAF integration test**
   - Install the existing two-page SAF fixture and open the writable note editor.
   - Put text-only content in the real system clipboard; tapping `Paste image` must leave draft/assets unchanged and show the localized no-image status.
-  - Put a supported image `content://` URI in clipboard `ClipData`; tapping the command must import, insert at the selected text, render offline, save, and reopen page 1 while page 2 remains unchanged.
-- [ ] **Step 2: Verify RED on the single API 34 tablet AVD**
+  - Put a supported image `content://` URI without a provider display name in clipboard `ClipData`; tapping the command must import with the MIME-derived filename, insert at the selected text, render offline, save, and reopen page 1 while page 2 remains unchanged.
+- [x] **Step 2: Verify RED on the single API 34 tablet AVD**
   - Use `ANDROID_SERIAL=emulator-5554` and an explicit test-method filter.
   - Expected: the test cannot find or use the new `Paste image` action before implementation.
-- [ ] **Step 3: Implement guarded clipboard handling**
-  - Read `ClipboardManager.primaryClip` only inside the action handler and use `ContentResolver.getType` to build candidates.
-  - Reuse the existing captured editor context and image import completion path; use a validated MIME-derived fallback name only when the source display name is missing.
+- [x] **Step 3: Implement guarded clipboard handling**
+  - Read `ClipboardManager.primaryClip` only inside the action handler; reject non-hierarchical/no-authority URIs before resolver access and stop lazily at the first supported item.
+  - Reuse the existing captured editor context and image import completion path; use a validated MIME-derived fallback name only when the source display name is missing, and a localized generic alt label for clipboard content.
   - Localize the command and no-supported-image status in English and Simplified Chinese; keep the note draft unsaved until the existing Save action.
-- [ ] **Step 4: Verify the focused API 34 flow**
+- [x] **Step 4: Verify the focused API 34 flow**
   - Repeat only the filtered instrumentation method; expected: no-image no-op and successful local import/preview/save/reopen all pass.
-- [ ] **Step 5: Verify focused JVM tests and compile**
+- [x] **Step 5: Verify focused JVM tests and compile**
   - Run the helper JVM test and `:app:assembleDebug` offline.
   - Expected: all focused tests pass and Gradle reports `BUILD SUCCESSFUL`.
 - [ ] **Step 6: Update tracking, check, review, commit, and push**

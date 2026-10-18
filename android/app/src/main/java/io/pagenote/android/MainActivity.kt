@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import android.content.Context
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -262,6 +263,8 @@ private data class PendingMarkdownImageInsertion(
   val markdown: String,
   val selectionStart: Int,
   val selectionEnd: Int,
+  val fallbackDisplayName: String? = null,
+  val altTextOverride: String? = null,
 )
 
 @Composable
@@ -1506,6 +1509,26 @@ private fun ReaderHome(
       noteDraft == pending.markdown &&
       pending.editor.text.toString() == pending.markdown
 
+  fun captureMarkdownImageInsertion(): PendingMarkdownImageInsertion? {
+    val activeProject = project ?: return null
+    val editor = markdownEditor ?: return null
+    if (isImageImporting || isOpening || isCreatingProject || isRendering || isSaving || isPenSaving ||
+      isOcrRunning || isAgentRunning || isPageTutorRunning || !noteWritable || !editor.isEnabled
+    ) return null
+    val markdown = editor.text.toString()
+    if (markdown != noteDraft) return null
+    return PendingMarkdownImageInsertion(
+      project = activeProject,
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri,
+      pageIndex = pageIndex,
+      editor = editor,
+      markdown = markdown,
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+    )
+  }
+
   fun handleMarkdownImageResult(sourceUri: Uri?) {
     val pending = pendingMarkdownImageInsertion
     pendingMarkdownImageInsertion = null
@@ -1526,7 +1549,11 @@ private fun ReaderHome(
           return@launch
         }
         val imported = withContext(NonCancellable + Dispatchers.IO) {
-          importer.import(sourceUri).also { importedForCleanup = it }
+          importer.import(
+            sourceUri,
+            fallbackDisplayName = pending.fallbackDisplayName,
+            altTextOverride = pending.altTextOverride,
+          ).also { importedForCleanup = it }
         }
         if (!imageInsertionContextIsCurrent(pending)) {
           val removed = withContext(Dispatchers.IO) { importer.deleteImported(imported.documentUri) }
@@ -1583,23 +1610,8 @@ private fun ReaderHome(
   )
 
   fun chooseMarkdownImage() {
-    val activeProject = project ?: return
-    val editor = markdownEditor ?: return
-    if (isImageImporting || isOpening || isCreatingProject || isRendering || isSaving || isPenSaving ||
-      isOcrRunning || isAgentRunning || isPageTutorRunning || !noteWritable || !editor.isEnabled
-    ) return
-    val markdown = editor.text.toString()
-    if (markdown != noteDraft) return
-    pendingMarkdownImageInsertion = PendingMarkdownImageInsertion(
-      project = activeProject,
-      projectId = activeProject.manifest.id,
-      sourceDirectoryUri = activeProject.sourceDirectoryUri,
-      pageIndex = pageIndex,
-      editor = editor,
-      markdown = markdown,
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
-    )
+    val pending = captureMarkdownImageInsertion() ?: return
+    pendingMarkdownImageInsertion = pending
     isImageImporting = true
     try {
       val pickerForTesting = (activityResultOwner as? MainActivity)?.markdownImagePickerForTesting
@@ -1612,6 +1624,60 @@ private fun ReaderHome(
       pendingMarkdownImageInsertion = null
       isImageImporting = false
       noteStatus = context.getString(R.string.reader_menu_image_import_failed)
+    }
+  }
+
+  fun pasteMarkdownImage() {
+    val pending = captureMarkdownImageInsertion() ?: return
+    val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
+    if (clip == null || clip.itemCount == 0) {
+      noteStatus = context.getString(R.string.reader_menu_paste_image_no_image)
+      return
+    }
+    pendingMarkdownImageInsertion = pending
+    isImageImporting = true
+    scope.launch {
+      try {
+        val candidate = withContext(Dispatchers.IO) {
+          ClipboardImageSelection.firstSupported(
+            sequence {
+              for (index in 0 until clip.itemCount) {
+                val uri = clip.getItemAt(index).uri ?: continue
+                val uriString = uri.toString()
+                if (!ClipboardImageSelection.isContentUri(uriString)) continue
+                val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+                yield(ClipboardImageCandidate(uriString, mimeType))
+              }
+            }.asIterable(),
+          )
+        }
+        if (pendingMarkdownImageInsertion !== pending) return@launch
+        if (candidate == null) {
+          pendingMarkdownImageInsertion = null
+          isImageImporting = false
+          noteStatus = context.getString(R.string.reader_menu_paste_image_no_image)
+          return@launch
+        }
+        val mimeType = requireNotNull(candidate.mimeType)
+        val fallbackName = requireNotNull(ClipboardImageSelection.fallbackDisplayName(mimeType))
+        pendingMarkdownImageInsertion = pending.copy(
+          fallbackDisplayName = fallbackName,
+          altTextOverride = context.getString(R.string.reader_menu_paste_image_alt),
+        )
+        handleMarkdownImageResult(Uri.parse(requireNotNull(candidate.uri)))
+      } catch (cancelled: CancellationException) {
+        if (pendingMarkdownImageInsertion === pending) {
+          pendingMarkdownImageInsertion = null
+          isImageImporting = false
+        }
+        throw cancelled
+      } catch (_: Exception) {
+        if (pendingMarkdownImageInsertion === pending) {
+          pendingMarkdownImageInsertion = null
+          isImageImporting = false
+          noteStatus = context.getString(R.string.reader_menu_image_import_failed)
+        }
+      }
     }
   }
 
@@ -2011,6 +2077,10 @@ private fun ReaderHome(
           "image", R.string.reader_menu_image,
           canInsertMarkdownImage, markdownImageDisabledReason,
         ) { chooseMarkdownImage() },
+        actionCommand(
+          "paste_image", R.string.reader_menu_paste_image,
+          canInsertMarkdownImage, markdownImageDisabledReason,
+        ) { pasteMarkdownImage() },
         pendingCommand("paste_markdown", R.string.reader_menu_paste_markdown),
       ),
     ),
