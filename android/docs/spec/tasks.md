@@ -69,6 +69,7 @@
   - [x] 7.1 手写菜单颜色/宽度已接入：支持 8 个色板、有效 `#RRGGBB` 自定义色与桌面四档宽度，应用于新建笔/荧光笔及 PDF 线条、形状、文字/区域批注。聚焦 style/vector/text/region JVM 类通过；API 34 平板 AVD 上单项 Compose 测试通过；Debug 应用/测试 APK 构建通过。小米 Pad 5 Pro 实体笔体验仍待 task 12；契约见 `features/pen-style-controls.md`。
   - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
   - [x] 原生 View 仪器测试覆盖合成笔迹坐标/压力、取消/禁用输入和侧键 generic-motion 橡皮擦；3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过。该结果只验证应用事件逻辑，实体手写笔的压力、误触和延迟仍待 task 12。
+  - [ ] 7.2 保留被修改页面中仍存在的笔迹对象未知扩展字段；删除/清空笔迹时随对象一并删除，不允许扩展字段覆盖标准笔迹字段。契约见 `features/pen-project-integration.md`，实施见 `pen-extension-field-preservation-plan.md`。
   - _Requirement: 笔迹，布局与适配_
 
 - [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通；此项不生成 Mermaid PNG 缓存，笔记预览实际绘图仍归 task 5）
