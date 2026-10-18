@@ -109,6 +109,7 @@
   <string name="reader_menu_paste_image_no_image">No supported image is available in the clipboard.</string>
   <string name="reader_menu_paste_image_alt">clipboard image</string>
   <string name="reader_menu_paste_markdown">Paste as Markdown</string>
+  <string name="reader_menu_paste_markdown_empty">Clipboard has no plain text to paste.</string>
   <string name="reader_menu_select_tool">Select tool</string>
   <string name="reader_menu_line">Line</string>
   <string name="reader_menu_arrow">Arrow</string>

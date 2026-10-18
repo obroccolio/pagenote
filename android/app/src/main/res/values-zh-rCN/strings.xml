@@ -109,6 +109,7 @@
   <string name="reader_menu_paste_image_no_image">剪贴板中没有受支持的图片。</string>
   <string name="reader_menu_paste_image_alt">剪贴板图片</string>
   <string name="reader_menu_paste_markdown">按 Markdown 粘贴</string>
+  <string name="reader_menu_paste_markdown_empty">剪贴板中没有可粘贴的纯文本。</string>
   <string name="reader_menu_select_tool">选择工具</string>
   <string name="reader_menu_line">直线</string>
   <string name="reader_menu_arrow">箭头</string>

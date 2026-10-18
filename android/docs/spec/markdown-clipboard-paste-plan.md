@@ -40,17 +40,17 @@
 
 **Interface:** 复用 `NoteImportPayload.insertText(markdown, selectionStart, selectionEnd, text)` 和现有 `canFormatMarkdown`；不新增跨模块 API。
 
-- [ ] **Step 1: Write the failing reader test**
+- [x] **Step 1: Write the failing reader test**
   - 新增 `pasteMarkdownUsesClipboardReplacesSelectionAndInsertsAtCaret`：两页 SAF fixture；无项目时命令禁用；可写编辑器下空剪贴板点击后提示且 draft 不变；反向选区 `replace me` 被 `**fresh**` 替换，光标移至插入末尾；再次粘贴 `!` 于折叠光标处插入；保存重读后只第一页变化，第二页不变。
-- [ ] **Step 2: Verify RED on the sole API 34 tablet AVD**
+- [x] **Step 2: Verify RED on the sole API 34 tablet AVD**
   - 显式指定 `emulator-5554` 和单方法过滤器；预期当前 `pendingCommand` 仍禁用时失败。
-- [ ] **Step 3: Implement the guarded paste handler**
+- [x] **Step 3: Implement the guarded paste handler**
   - 只有命令被显式点击时读 `primaryClip` 第一项 `text`；空值/空串设置本地化状态并返回。
   - 用 `NoteImportPayload.insertText` 计算插入范围，聚焦编辑器后更新 `Editable` 并设置返回的折叠光标；不直接写 draft、不自动保存。
   - 只替换 `pendingCommand("paste_markdown", ...)`，复用可写编辑器 gate 和相应 disabled reason。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - 重跑相同 API 34 AVD 单项仪器用例，确认提示、选区替换、光标插入和按页保存闭环。
-- [ ] **Step 5: Verify JVM tests, build and diff**
+- [x] **Step 5: Verify JVM tests, build and diff**
   - 运行 `:app:testDebugUnitTest`, `:app:assembleDebug` 和 `git diff --check`；更新父 task 21 与 CHANGELOG。
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
   - 提交实现与测试、CHANGELOG、任务状态；推送至 `fork/codex/android-port`。

@@ -2407,6 +2407,31 @@ private fun ReaderHome(
     editor.setSelection(0, editor.text.length)
   }
 
+  fun pasteMarkdownFromClipboard() {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val text = context.getSystemService(ClipboardManager::class.java)
+      ?.primaryClip
+      ?.takeIf { it.itemCount > 0 }
+      ?.getItemAt(0)
+      ?.text
+      ?.toString()
+    if (text.isNullOrEmpty()) {
+      noteStatus = context.getString(R.string.reader_menu_paste_markdown_empty)
+      return
+    }
+    val edit = NoteImportPayload.insertText(
+      markdown = editor.text.toString(),
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+      text = text,
+    )
+    editor.requestFocus()
+    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setSelection(edit.cursor)
+    noteStatus = null
+  }
+
   fun pendingCommand(id: String, labelRes: Int) = actionCommand(
     id = id,
     labelRes = labelRes,
@@ -2641,7 +2666,10 @@ private fun ReaderHome(
           "paste_image", R.string.reader_menu_paste_image,
           canInsertMarkdownImage, markdownImageDisabledReason,
         ) { pasteMarkdownImage() },
-        pendingCommand("paste_markdown", R.string.reader_menu_paste_markdown),
+        actionCommand(
+          "paste_markdown", R.string.reader_menu_paste_markdown,
+          canFormatMarkdown, markdownClipboardDisabledReason,
+        ) { pasteMarkdownFromClipboard() },
       ),
     ),
     menuSection(

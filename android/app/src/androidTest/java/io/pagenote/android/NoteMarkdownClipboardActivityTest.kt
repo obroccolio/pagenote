@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
@@ -92,12 +93,85 @@ class NoteMarkdownClipboardActivityTest {
     }
   }
 
+  @Test
+  fun pasteMarkdownUsesClipboardReplacesSelectionAndInsertsAtCaret() {
+    val savedPages = listOf("Lead replace me tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+    pasteMarkdownCommand().assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    val clipboard = requireNotNull(composeRule.activity.getSystemService(ClipboardManager::class.java))
+    val editor = requireNotNull(findNoteEditor())
+
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      clipboard.clearPrimaryClip()
+    }
+    pasteMarkdownCommand().assertIsEnabled().performClick()
+    assertEquals(
+      composeRule.activity.getString(R.string.reader_menu_paste_markdown_empty),
+      session.noteStatus.value,
+    )
+    assertEquals(savedPages.first(), session.noteDraft.value)
+
+    val selectedText = "replace me"
+    val selectedStart = savedPages.first().indexOf(selectedText)
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectedStart + selectedText.length, selectedStart)
+      clipboard.setPrimaryClip(ClipData.newPlainText("Markdown", "**fresh**"))
+    }
+    pasteMarkdownCommand().assertIsEnabled().performClick()
+    val replacedDraft = "Lead **fresh** tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == replacedDraft }
+    val replacedEditor = requireNotNull(findNoteEditor())
+    val caretAfterReplacement = "Lead **fresh**".length
+    assertEquals(caretAfterReplacement, replacedEditor.selectionStart)
+    assertEquals(caretAfterReplacement, replacedEditor.selectionEnd)
+    assertEquals(null, session.noteStatus.value)
+
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      clipboard.setPrimaryClip(ClipData.newPlainText("Markdown", "!"))
+    }
+    pasteMarkdownCommand().assertIsEnabled().performClick()
+    val expectedDraft = "Lead **fresh**! tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
+    val finalEditor = requireNotNull(findNoteEditor())
+    assertEquals("Lead **fresh**!".length, finalEditor.selectionStart)
+    assertEquals(finalEditor.selectionStart, finalEditor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expectedDraft, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+  }
+
   private fun editCommand(id: String) = run {
     val commandTag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun pasteMarkdownCommand() = run {
+    val commandTag = "reader_menu_command_paste_markdown"
+    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }

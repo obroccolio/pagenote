@@ -204,8 +204,8 @@
   - 契约见 `features/markdown-clipboard-editing.md`，实施拆分见 `markdown-clipboard-editing-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
 
-- [ ] 21. Markdown 编辑器按 Markdown 粘贴（显式点击读取剪贴板纯文本，替换选区或插入光标处；剪贴板 HTML/图片不属于此命令）
+- [x] 21. Markdown 编辑器按 Markdown 粘贴（显式点击读取剪贴板纯文本，替换选区或插入光标处；剪贴板 HTML/图片不属于此命令）
   - 空剪贴板显示提示且草稿不变；编辑操作沿用原生 watcher、页级 revision 保存和相邻页隔离。
-  - 一个 Android 14/API 34 平板 AVD 仪器用例覆盖空内容、选区替换、光标插入和两页保存；app JVM 测试与 `:app:assembleDebug` 通过。
+  - `pasteMarkdownUsesClipboardReplacesSelectionAndInsertsAtCaret` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖空剪贴板、反向 UTF-16 选区替换、光标插入、草稿 watcher 和两页保存；`:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-clipboard-paste.md`，实施拆分见 `markdown-clipboard-paste-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
