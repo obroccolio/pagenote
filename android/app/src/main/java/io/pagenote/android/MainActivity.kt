@@ -313,6 +313,8 @@ private fun ReaderHome(
   var annotateText by remember { mutableStateOf("") }
   var annotateIsRegion by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
+  var annotationOverlayItems by remember { mutableStateOf(emptyList<PdfAnnotationOverlayItem>()) }
+  var annotationOverlayReload by remember { mutableIntStateOf(0) }
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
@@ -1418,6 +1420,30 @@ private fun ReaderHome(
   val activeRenderer = renderer
   val activeProject = project
   val activeMarkdown = markdownSource
+  LaunchedEffect(
+    activeProject?.manifest?.id,
+    activeProject?.sourceDirectoryUri,
+    activeProject?.annotationsUri,
+    activeRenderer,
+    activeMarkdown,
+    pageIndex,
+    annotationOverlayReload,
+  ) {
+    annotationOverlayItems = emptyList()
+    val currentProject = activeProject
+    if (currentProject != null && activeRenderer != null) {
+      annotationOverlayItems = withContext(Dispatchers.IO) {
+        runCatching {
+          val page = ProjectAnnotationStore(
+            context.contentResolver,
+            currentProject.sourceDirectoryUri,
+            currentProject.annotationsUri,
+          ).readPage("document", pageIndex + 1)
+          PdfAnnotationOverlayItem.fromPage(page)
+        }.getOrElse { emptyList() }
+      }
+    }
+  }
   val totalPages = when {
     activeProject == null -> 0
     activeRenderer != null -> activeRenderer.pageCount
@@ -1891,6 +1917,7 @@ private fun ReaderHome(
                 bitmap = pageBitmap,
                 sourceName = activeProject.sourceName,
                 page = pageIndex,
+                annotations = annotationOverlayItems,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -1906,7 +1933,7 @@ private fun ReaderHome(
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
-                  val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                  val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
                   if (point != null) {
                     annotateDraft = point
                     annotateText = ""
@@ -1953,6 +1980,7 @@ private fun ReaderHome(
                 bitmap = pageBitmap,
                 sourceName = activeProject.sourceName,
                 page = pageIndex,
+                annotations = annotationOverlayItems,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -1968,7 +1996,7 @@ private fun ReaderHome(
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
-                  val point = mapPdfTapToPagePoint(tap, viewportBounds, viewportTransform)
+                  val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
                   if (point != null) {
                     annotateDraft = point
                     annotateText = ""
@@ -2202,6 +2230,7 @@ private fun ReaderHome(
                 store.writePage("document", pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
               }
             }
+            annotationOverlayReload += 1
             noteStatus = context.getString(R.string.annotation_saved)
           } catch (error: Exception) {
             noteStatus = context.getString(R.string.annotation_save_failed, error.message ?: "")
@@ -2239,6 +2268,7 @@ private fun ReaderHome(
             store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(current))
           }
         }
+        annotationOverlayReload += 1
       },
     )
   }
@@ -2988,6 +3018,7 @@ internal fun PdfPageViewport(
   bitmap: Bitmap?,
   sourceName: String,
   page: Int,
+  annotations: List<PdfAnnotationOverlayItem> = emptyList(),
   loading: Boolean,
   strokes: List<PenStroke>,
   tool: PenCanvasTool,
@@ -3143,6 +3174,7 @@ internal fun PdfPageViewport(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
           )
+          PdfAnnotationOverlay(annotations)
           AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { viewContext -> PenCanvasView(viewContext) },

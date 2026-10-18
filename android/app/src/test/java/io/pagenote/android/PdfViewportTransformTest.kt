@@ -19,6 +19,19 @@ class PdfViewportTransformTest {
   }
 
   @Test
+  fun annotationTapUsesPageWidthScaleForBothAxes() {
+    val point = mapPdfTapToAnnotationPoint(
+      tap = PdfSelectionPoint(500f, 400f),
+      bounds = PdfViewportBounds(1000f, 800f, 600f, 800f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    requireNotNull(point)
+    assertEquals(500.0, point.first, 0.0001)
+    assertEquals(2000.0 / 3.0, point.second, 0.0001)
+  }
+
+  @Test
   fun zoomPan_mapsSelectionThroughInverseTransform() {
     val region = mapPdfSelectionToOcrRegion(
       start = PdfSelectionPoint(350f, 200f),

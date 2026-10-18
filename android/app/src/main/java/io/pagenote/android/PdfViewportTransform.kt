@@ -78,8 +78,8 @@ fun mapPdfSelectionToOcrRegion(
   return region.takeIf { it.right > it.left && it.bottom > it.top }
 }
 
-/** Map a single tap to 0..1000 page coordinates; null when outside the rendered page. */
-fun mapPdfTapToPagePoint(
+/** Map a tap to desktop annotation coordinates; portrait-page Y may exceed 1000. */
+fun mapPdfTapToAnnotationPoint(
   tap: PdfSelectionPoint,
   bounds: PdfViewportBounds,
   transform: PdfViewportTransform,
@@ -104,7 +104,7 @@ fun mapPdfTapToPagePoint(
   ) {
     return null
   }
-  return (pageX / bounds.pageWidthPx * 1000.0) to (pageY / bounds.pageHeightPx * 1000.0)
+  return (pageX / bounds.pageWidthPx * 1000.0) to (pageY / bounds.pageWidthPx * 1000.0)
 }
 
 data class PdfViewportPointer(val id: Long, val x: Float, val y: Float)

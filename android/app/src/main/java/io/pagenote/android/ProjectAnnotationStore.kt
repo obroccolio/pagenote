@@ -25,7 +25,7 @@ class ProjectAnnotationStore(
   fun readPage(side: String, page: Int): JsonArray {
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
-    val uri = annotationsUri ?: return JsonArray(emptyList())
+    val uri = resolveAnnotationsUri() ?: return JsonArray(emptyList())
     val root = readRoot(uri)
     val sideObj = root[side]
     if (sideObj !is JsonObject) return JsonArray(emptyList())
@@ -37,7 +37,7 @@ class ProjectAnnotationStore(
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
     AnnotationValidation.validateItems(items)
-    var uri = annotationsUri
+    var uri = resolveAnnotationsUri()
     if (uri == null && !AnnotationSafBoundary.shouldCreateFile(false, items)) return false
     var createdUri: Uri? = null
     try {
@@ -74,7 +74,7 @@ class ProjectAnnotationStore(
   fun deletePage(side: String, page: Int): Boolean {
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
-    val uri = annotationsUri ?: return false
+    val uri = resolveAnnotationsUri() ?: return false
     val current = readKotlinRoot(uri)
     val sidePages = current[side]
     if (sidePages !is Map<*, *> || !sidePages.containsKey(page.toString())) return false
@@ -83,6 +83,35 @@ class ProjectAnnotationStore(
       ?: throw IOException("无法写入项目 annotations.json")
     output.bufferedWriter(Charsets.UTF_8).use { it.write(updated.toJsonObject().toString()) }
     return true
+  }
+
+  private fun resolveAnnotationsUri(): Uri? {
+    annotationsUri?.let { return it }
+    val parentId = DocumentsContract.getDocumentId(sourceDirectoryUri)
+    val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(sourceDirectoryUri, parentId)
+    val cursor = resolver.query(
+      childrenUri,
+      arrayOf(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+      ),
+      null,
+      null,
+      null,
+    ) ?: throw IOException("无法列出项目 src 目录")
+    cursor.use {
+      val idColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+      val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+      while (it.moveToNext()) {
+        if (it.getString(nameColumn) == "annotations.json") {
+          return DocumentsContract.buildDocumentUriUsingTree(
+            sourceDirectoryUri,
+            it.getString(idColumn),
+          ).also { uri -> annotationsUri = uri }
+        }
+      }
+    }
+    return null
   }
 
   private fun emptyRoot(): Map<String, Any?> {
