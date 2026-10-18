@@ -90,7 +90,7 @@
 - [x] **Step 5: Verify focused JVM tests and compile**
   - Run the helper JVM test and `:app:assembleDebug` offline.
   - Expected: all focused tests pass and Gradle reports `BUILD SUCCESSFUL`.
-- [ ] **Step 6: Update tracking, check, review, commit, and push**
+- [x] **Step 6: Update tracking, check, review, commit, and push**
   - Mark task 5.13 complete with the single API 34 proxy flow; retain Xiaomi hardware validation in task 12.
   - Run `git diff --check` and Prettier on the new SPEC, plan, and task list.
   - Run one independent code review; resolve Critical/Important findings, record deferred minors.
