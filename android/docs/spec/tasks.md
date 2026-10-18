@@ -3,6 +3,7 @@
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
 > `features/desktop-ui-and-office-parity.md` 的菜单分组/自适应侧栏方向已确认，导航按 `adaptive-menu-navigation-plan.md` 实施；Office 引擎仍需单独验证，桌面 Office 终态尚未完成。
+> 当前设备范围收敛为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；后续不再对 API 35、16 KB 或其他机型做常规适配矩阵。旧任务中的多设备记录仅保留为历史验证证据。
 
 ## Implementation Plan
 
@@ -42,6 +43,7 @@
   - [x] 5.2 图片严格离线：已覆盖 Markwon 默认 http/https handler；API 34/35 AVD 已验证缺图、损坏内联图片警告、解码期抛 I/O 的流仍显示 warning、HTTP/HTTPS 不连接，以及真实目标 `ContentResolver` 对 `DocumentsContract` 形状 URI 的查询/打开成功和查询拒绝/打开拒绝时的安全占位。此测试不证明系统 picker 或真实持久 URI grant；所有外链阻断独立于 Agent 联网权限。实施单见 `saf-image-contentresolver-plan.md`。
   - [x] 5.3 Mermaid 围栏由 APK 内固定 Mermaid/DOMPurify renderer 离线绘制；隐藏 WebView 仅加载白名单 APK 资源，SVG 转原生 Drawable；空/错误/超长源码、并发、JSON 安全传递与无网络由 Pixel Tablet API 35 AVD 验证。全量 JVM、56 项 AVD 仪器测试、四 ABI 构建和 16 KB ELF/ZIP 检查通过；真机交互待 task 12。
   - [x] 5.4 Mermaid 异步 SVG 重叠已由平板宽度 `NotePanel` 像素回归复现并修复：SVG 绘制裁剪到 drawable 边界，异步尺寸完成后重新测量正文。API 34/35 focused regression 与两版各 66 项 app instrumentation、app/notes JVM tests、`assembleDebug`、四 ABI 16 KB 检查通过；原项目 pages 1/35/69 现场抽查仍归 task 12。实施记录见 `mermaid-layout-regression-plan.md`。
+  - [x] 5.5 新增单设备 Markdown 预览截图工具：在 Android 14/API 34 平板 AVD 复用真实 `NotePanel`，用一组富内容覆盖中英混排、表格、公式、代码、Mermaid 与离线图片占位。截图发现 SVG 在 Markwon 平移画布坐标下不可见，已改为宽度受限、最多 4,194,304 像素且单边不超过 16,384 像素的 `BitmapDrawable`。仅保留一个 focused instrumentation 测试和一张浅色截图；脚本先构建、再用显式 ADB serial 只安装到所选 arm64 API 34 AVD。目标小米实机验收仍待进行。详见 `features/markdown-visual-capture.md` 与 `markdown-visual-capture-plan.md`。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - _Requirement: 阅读与笔记_
 
@@ -95,11 +97,11 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 自动化与设备验收（API 34/35 AVD 构建、JVM/仪器测试及 16 KB 运行时验证通过；严格离线 OCR 与用户 69 页项目的 SAF 打开验收通过。完整功能交互矩阵及真机仍待验收；已解决的 OpenCV SIGILL 不再作为待办）
-  - 契约回归、单元、集成、模型真接口（本地中转）测试。
-  - 手机与平板走通阅读、笔记、标注、Agent、笔迹闭环。
-  - 飞行模式 OCR、超大页、限流、冲突、缺模型配置异常用例。
-  - [ ] 安卓启动与 16 KB 页面兼容性修复，契约见 `features/startup-and-16kb-compatibility.md`，实施拆分见 `startup-and-16kb-compatibility-plan.md`。
+- [ ] 12. 小米目标设备验收（当前只支持 Android 14/API 34 小米平板 5 Pro 骁龙 870；API 34 AVD 仅作平台代理。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
+  - [ ] 在小米平板 5 Pro 实机走通阅读、按页笔记保存/重载、标注与 Agent、离线 OCR 和手写笔工作流；实体笔硬件行为单独记录。
+  - API 34 AVD 只跑当前代码改动所需的聚焦仪器回归；Markdown 预览当前为一项测试和一张截图，见 task 5.5。
+  - 机型无关契约/JVM 测试按受影响模块运行；不再运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。
+  - 16 KB 页大小及公开商店合规检查移出当前验收；如目标 SDK 或商店发布政策触发，再作为独立发布门禁启用。
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到项目自建 OpenCV 4.10.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查；原 4.14.0 `RDVL`/SIGILL 已解决。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
@@ -108,7 +110,6 @@
   - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
   - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
   - [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
-  - [ ] 手机/平板上的笔记完整交互矩阵、手写笔、OCR 与 Agent 闭环以及实体设备仍待验收；单页 SAF 保存/重载不替代这些检查。
   - [x] 最新完整 JVM 回归 370/370 通过，`assembleDebug` 成功；四 ABI debug APK 的 ELF LOAD 与 ZIP alignment 16 KB 检查通过，arm64 OpenCV 不含 RDVL。该构建验证不关闭本任务中的手动设备验收。
   - [x] 最新 `:app:connectedDebugAndroidTest` 完整仪器套件 107/107 通过：Android 14 AVD (4 KB)、Android 15 Pixel Tablet AVD (4 KB)、Android 15 AVD (16 KB) 均为 0 failures / 0 skipped。覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件、自适应菜单及后续 Activity 闭环回归；SAF fixture 不等同于系统 picker/真实持久授权，也不覆盖实体手写笔、真模型服务或全部手动交互验收。设备页大小由 `getconf PAGESIZE` 核实；本轮未修改 USB/安装安全设置。
   - [x] `:feature-pen:connectedDebugAndroidTest` 原生 View 笔迹测试 3/3 在 API 34 4 KB、API 35 4 KB、API 35 16 KB AVD 全部通过；包括 generic-motion 侧键橡皮擦。该项不替代实体笔硬件验收。

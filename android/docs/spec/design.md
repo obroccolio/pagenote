@@ -33,7 +33,7 @@ Mermaid 只在需要表达 Agent 循环与页面准备状态机时使用，本�
 - 语言与 UI：Kotlin + Jetpack Compose。理由是手写笔低延迟与双栏自适应必须走原生；代价是不能直接复用桌面 Web 前端。
 - PDF：首选 Pdfium/MuPDF 系开源方案，兜底系统 `PdfRenderer`。原生文字走 PDF 文本抽取，位图页走渲染加 OCR。超大页限制像素并记录实际比例。
 - Markdown：复用桌面渲染约定（GFM、公式、代码高亮、Mermaid、表格、图片），优先用 Android 原生 renderer；仅 Mermaid 可在隔离、离线的图表 surface 使用 APK 内资源。轻量 Markdown 编辑器保持可编辑源码和桌面命令语义。
-- Office：通过 `OfficeEditorAdapter` 隔离开源本地 Office 引擎和 pagenote 项目存储；首选评估 Collabora/LibreOfficeKit Android。集成前必须做独立可行性验证：本地离线构建、Activity/view 集成、SAF 授权下原子保存、`.doc/.docx/.ppt/.pptx` 导入/读写、预览 PDF 导出、API 34 与 16 KB ABI、许可证和 NOTICE。Collabora 官方 Android 构建材料说明 native 部分需在 Linux 构建，且代码位于其 online monorepo；这不是一个可直接加入 Gradle 的轻量 UI 依赖。若无法嵌入到 pagenote 或无法可靠保存，先提交技术决策与替代候选供确认，不退化为仅启动外部 Office 应用。ONLYOFFICE Android mobile integration 依赖配置的 Document Server URL，不满足本规格的离线本机编辑约束。
+- Office：通过 `OfficeEditorAdapter` 隔离开源本地 Office 引擎和 pagenote 项目存储；首选评估 Collabora/LibreOfficeKit Android。集成前必须做独立可行性验证：本地离线构建、Activity/view 集成、SAF 授权下原子保存、`.doc/.docx/.ppt/.pptx` 导入/读写、预览 PDF 导出、许可证和 NOTICE；16 KB ABI 检查只在未来商店发布政策触发时作为发布门禁。Collabora 官方 Android 构建材料说明 native 部分需在 Linux 构建，且代码位于其 online monorepo；这不是一个可直接加入 Gradle 的轻量 UI 依赖。若无法嵌入到 pagenote 或无法可靠保存，先提交技术决策与替代候选供确认，不退化为仅启动外部 Office 应用。ONLYOFFICE Android mobile integration 依赖配置的 Document Server URL，不满足本规格的离线本机编辑约束。
 - OCR：选用 PaddleOCR PP-OCRv6 tiny + ONNX Runtime Mobile，模型随 APK 离线提供。保留原生与 OCR 双通道、坐标、置信度、警告、原图，失败明确标记。
 - 模型：只做 OpenAI 兼容 `/v1/chat/completions` 客户端，支持自定义 BaseURL/Key/模型名。软件不内置模型，不硬编码密钥。默认可配本地中转 `http://127.0.0.1:3457/v1` 与 `cline-free/mimo-v2.6-flash`，仅作默认配置项，不作为代码常量密钥。
 - 并发：Agent 按页独立请求，携带当前页与相邻源页材料；不支持后台批量全章生成。
@@ -94,8 +94,8 @@ MyProject/
 ### 4.1 app
 
 - 职责：导航、项目列表、阅读页、设置页、模型配置页。
-- 手机竖屏上下页对照，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
-- 根据 Compose `WindowSizeClass` 自适应导航：紧凑窗口使用应用栏 + 模态抽屉；扩展窗口使用可收起侧栏/导航栏。平板侧栏展开时呈现完整桌面分组；收起时以图标导航并提供语义化标签和 tooltip。尺寸变化期间保留当前文档、页码、滚动位置、编辑器选择和笔迹草稿。
+- 当前目标小米平板 5 Pro 原文/笔记对照；缩放、平移、适应宽度、重置缩放。手机布局暂缓。
+- 当前支持的小米平板 5 Pro 使用扩展窗口与可收起侧栏；侧栏呈现完整桌面分组，收起时以图标导航并提供语义化标签和 tooltip。WindowSizeClass 紧凑窗口/手机抽屉路径保留为未来适配，不纳入当前设备验收。
 - 桌面分组映射为 Android 可达命令组：文件、AI 批注、编辑、段落、格式、插入、阅读、手写批注、Word 编辑、设置、帮助。只显示当前内容类型/模式支持的命令；禁用态必须说明原因，不移除桌面已有能力。
 - 主阅读区保持原文与逐页笔记为第一视觉层级，侧栏不遮挡正在阅读的两栏。紧凑宽度下切换原文/笔记 pane 或上下堆叠；扩展宽度左右并列并提供可调分界线。
 - 视觉 token 对齐桌面 `src/theme.css` / `src/desktop.css`：浅色 accent `#185abd`、页面 `#eef1f5`、surface `#ffffff`、title surface `#f5f8fd`、text `#253247`；深色 accent `#8bb8ff`、页面 `#17191d`、surface `#22252b`、text `#e7eaf0`。Android 字体采用系统 sans-serif fallback（桌面 Segoe UI / Microsoft YaHei 字形不在所有 Android 镜像内）；字号层级、粗细、分隔线、图标含义、密度和圆角延续桌面语言，触控目标与手写笔悬停适配 Android。
@@ -169,10 +169,11 @@ MyProject/
 - 契约测试：项目解析、分页、revision、标注、准备缓存与桌面语义一致，用 `shared-tests` 夹具回归。
 - 单元测试：core-project、core-reader、feature-ocr、agent 循环。
 - 集成测试：本地中转模型跑逐页讲解与批注改写，mock 与真接口两层。
-- 真机测试：手机与平板各走阅读、笔记、标注、Agent、笔迹闭环；飞行模式验 OCR。
-- UI parity：Phone compact 与 Tablet expanded/collapsed 三种窗口类做 Compose 仪器测试和截图核对；逐项验证每个桌面菜单组均可到达、命令状态与当前文档一致、方向/宽度切换不丢编辑状态。
+- 当前设备测试：聚焦 Android 14/API 34 平板 AVD；目标小米 Pad 5 Pro 实机只验目标工作流与 MIUI/手写笔行为。不运行 API 35、16 KB、其他 OEM 或手机形态矩阵。
+- 当前 UI 回归：只覆盖目标平板横屏双栏、菜单侧栏和一组富内容 Markdown（表格、LaTeX、代码、Mermaid、图片）；不为手机抽屉或其他窗口类新增测试点。
+- 机型无关契约和 JVM 测试继续运行；每个功能切片只增加能直接验证该切片的聚焦仪器断言。
 - Office：使用具备已知文本、表格、图片、公式和多页内容的 DOCX/PPTX fixture；离线导入、预览、编辑、保存、重新打开、PDF 预览页数与源 revision 必须一致。另覆盖 `.doc`/`.ppt` 支持或明确的无损转换路径、SAF provider 错误、保存冲突、取消/放弃和未保存退出。
-- 发布检查：APK/AAB 的每个 ABI 做 16 KB ELF LOAD 与 ZIP alignment 检查；Office 引擎本地 native libraries 也必须纳入检查，API 34 设备和 API 35+ AVD 分别执行启动/基础编辑 smoke。
+- 发布检查：当前本地 Android 14 目标验收以 arm64 APK 为主；若提交公开商店版本或目标 SDK 政策触发 16 KB 要求，再单独执行所有发布 ABI 的 ELF/ZIP 检查并更新发布门禁。
 - 构建隔离：改安卓不跑桌面 Electron 测试；改桌面不跑安卓构建，但契约变更两边都要回归。
 
 ## 8. UI / Office 参考依据

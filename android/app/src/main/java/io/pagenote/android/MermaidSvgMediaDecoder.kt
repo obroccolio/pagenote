@@ -1,18 +1,18 @@
 package io.pagenote.android
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.ColorFilter
-import android.graphics.PixelFormat
-import android.graphics.RectF
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import com.caverock.androidsvg.SVG
 import io.noties.markwon.image.MediaDecoder
 import java.io.InputStream
-import kotlin.math.roundToInt
+import kotlin.math.min
+import kotlin.math.sqrt
 
 internal class MermaidSvgMediaDecoder(
-  context: Context,
+  private val context: Context,
   private val maxWidthPx: () -> Int,
 ) : MediaDecoder() {
   private val fallbackWidthPx = context.resources.displayMetrics.widthPixels.coerceAtLeast(1)
@@ -29,42 +29,26 @@ internal class MermaidSvgMediaDecoder(
     val svgHeight = svg.documentHeight.takeIf { it.isFinite() && it > 0f }
       ?: viewBox?.height()?.takeIf { it.isFinite() && it > 0f }
       ?: svgWidth * 0.6f
-    return MermaidSvgDrawable(svg, svgWidth, svgHeight, maxWidthPx().takeIf { it > 0 } ?: fallbackWidthPx)
+    val maxWidth = maxWidthPx().takeIf { it > 0 } ?: fallbackWidthPx
+    val svgWidthPx = svgWidth.toDouble()
+    val svgHeightPx = svgHeight.toDouble()
+    val widthScale = min(1.0, maxWidth.toDouble() / svgWidthPx)
+    val pixelScale = sqrt(MAX_RASTER_PIXELS / svgWidthPx / svgHeightPx)
+    val dimensionScale = min(MAX_RASTER_DIMENSION / svgWidthPx, MAX_RASTER_DIMENSION / svgHeightPx)
+    val rasterScale = min(widthScale, min(pixelScale, dimensionScale))
+    val bitmapWidth = (svgWidthPx * rasterScale).toInt().coerceIn(1, MAX_RASTER_DIMENSION.toInt())
+    val bitmapHeight = (svgHeightPx * rasterScale).toInt().coerceIn(1, MAX_RASTER_DIMENSION.toInt())
+    val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+    Canvas(bitmap).apply {
+      scale(bitmapWidth / svgWidth, bitmapHeight / svgHeight)
+      svg.renderToCanvas(this)
+    }
+    return BitmapDrawable(context.resources, bitmap).apply { setFilterBitmap(true) }
   }
 
   companion object {
     const val CONTENT_TYPE = "image/svg+xml"
+    private const val MAX_RASTER_PIXELS = 4_194_304.0
+    private const val MAX_RASTER_DIMENSION = 16_384.0
   }
-}
-
-private class MermaidSvgDrawable(
-  private val svg: SVG,
-  private val svgWidth: Float,
-  private val svgHeight: Float,
-  maxWidthPx: Int,
-) : Drawable() {
-  private val intrinsicWidth = minOf(svgWidth, maxWidthPx.toFloat()).roundToInt().coerceAtLeast(1)
-  private val intrinsicHeight = (svgHeight * intrinsicWidth / svgWidth).roundToInt().coerceAtLeast(1)
-
-  override fun getIntrinsicWidth(): Int = intrinsicWidth
-
-  override fun getIntrinsicHeight(): Int = intrinsicHeight
-
-  override fun draw(canvas: Canvas) {
-    val bounds = bounds
-    if (bounds.width() <= 0 || bounds.height() <= 0) return
-    canvas.save()
-    canvas.clipRect(bounds)
-    canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
-    canvas.scale(bounds.width() / svgWidth, bounds.height() / svgHeight)
-    svg.renderToCanvas(canvas)
-    canvas.restore()
-  }
-
-  override fun setAlpha(alpha: Int) = Unit
-
-  override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-
-  @Deprecated("Deprecated in Android")
-  override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }

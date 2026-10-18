@@ -2,6 +2,8 @@
 
 **Goal:** Remove the reader's reproducible launch crash and package 16 KB-compatible 64-bit native libraries.
 
+> Device-scope update: completed 16 KB/API 35 work below is historical evidence. It is not a current Xiaomi Pad 5 Pro / Android 14 acceptance gate; repeat it only if a future store release policy requires it. Real-device workflow acceptance remains tracked in tasks.md.
+
 **SPEC:** `android/docs/spec/features/startup-and-16kb-compatibility.md`.
 
 **Constraints:** Keep all Android-only planning under `android/docs/spec/`; preserve SAF picker behavior and the existing OpenCV API surface; verify actual ELF and APK alignment; include a matching Unreleased changelog entry in every pushed implementation commit.
@@ -44,7 +46,7 @@
 - [x] Build/install the current ARM64 debug APK and launch `MainActivity`; no startup fatal crash was observed. OCR's lazily loaded native runtime is validated separately below.
 - [x] Run the full app instrumentation suite on the 16 KB AVD; the latest recorded run passes all 71 tests, including reader/PDF instrumentation.
 - [x] Run `feature-ocr` instrumentation with a nonzero test count and require successful bundled Chinese/English recognition. Seven tests pass on API 34 / 4 KB, API 35 / 4 KB, and API 35 / 16 KB; strict offline execution on the 16 KB AVD also passes with no active default network.
-- [ ] Verify the app can open the SAF picker and render a representative project page on the 16 KB AVD.
+- Deferred: opening the SAF picker and rendering a project page on the 16 KB AVD is outside the current device target; revisit only for a release gate requiring 16 KB support.
 - [x] Record runtime results separately from ELF/ZIP alignment checks and physical-device validation; root Unreleased changelog is updated before pushing.
 
 **Outcome:** The Android 15 16 KB AVD reports a 16,384-byte page size; app startup and the full 71-test app suite pass. Seven OCR model-integration tests pass, including a strict offline run with no active default network. Real SAF picker interaction and representative user-project rendering remain separate task 12 acceptance items. A zero-test Gradle task is not acceptance evidence.

@@ -1,6 +1,7 @@
 # Android 桌面功能区与 Office 编辑对齐
 
 > 状态：桌面菜单分组和自适应侧栏方向已由发起人确认；导航实施契约见 `adaptive-menu-navigation.md`。本文记录完整桌面功能/Office 终态，Office 引擎实现仍需单独完成可行性验证，不视为已批准或已实现。
+> 当前设备仅为小米平板 5 Pro（Android 14/API 34）。手机布局、其他机型和 API 35/16 KB 测试不是当前验收门槛；本文件中的完整 Office 矩阵仅在相应功能进入实施时执行。
 
 ## 1. 目标与边界
 
@@ -93,17 +94,16 @@ Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只�
 
 ### Compose / UI
 
-- Compact phone：抽屉打开/关闭、滚动、TalkBack 节点、每个分组进入、系统返回、选择命令后状态保留。
-- Expanded tablet：侧栏展开/收起、各菜单组命令、横竖窗口变化、宽度阈值往返、笔记编辑和笔迹草稿不丢失。
-- 桌面功能清单按 §2 表格逐项追踪到 Android command/action 和测试 ID；不能只测按钮存在，还要测命令效果与禁用条件。
-- 在平板虚拟设备和手机小屏分别进行截图/实际触控检查；测试系统状态栏/导航栏/insets、不遮挡 PDF 和笔迹层。
+- 当前目标小米平板 5 Pro：横屏双栏、侧栏展开/收起、当前菜单命令和阅读/笔记状态保留。
+- 手机抽屉、其他窗口类别和不同机型的整机视觉/触控矩阵暂缓；已有 API 35 AVD 结果只作历史证据。
+- 桌面功能清单按 §2 表格逐项追踪到 Android command/action 和测试 ID；只在对应功能切片实施时验证命令效果与禁用条件。
 
 ### Office
 
 - Fixture 覆盖 `.doc`/`.docx`/`.ppt`/`.pptx`、多页/多幻灯片、常见字体、表格、图片、公式、页眉页脚和大文件。
 - 飞行模式执行导入 → 阅读 → 编辑一处文字/对象 → 保存 → 关闭 → 重开；断言源格式、内容、revision、预览和页码关系。
 - 验证未保存退出、外部修改冲突、SAF 只读/权限撤回、Provider 不支持 rename、磁盘空间不足和引擎崩溃恢复。
-- 验证 Office native libraries 的 16 KB ELF LOAD 与 APK/AAB ZIP 对齐，Android 14(API 34) 上启动/读写，当前目标 API 上做全流程回归。
+- 当前 Xiaomi/Android 14 本地验收以 arm64 APK 为主；若未来商店目标触发 16 KB 政策，再对 Office native libraries 与 APK/AAB 执行 ELF/ZIP 门禁。
 
 ## 7. 关联
 

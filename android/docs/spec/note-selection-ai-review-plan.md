@@ -4,6 +4,8 @@
 
 **Goal:** Create a revision-bound AI review from selected Markdown note source and expose it safely to the Android Agent.
 
+> Device-scope update: current support is Xiaomi Pad 5 Pro on Android 14/API 34. Previously completed API 35/16 KB matrix results are historical evidence; future device reruns use the current API 34 target proxy only.
+
 **Architecture:** Track the native note editor's UTF-16 selection, build a validated immutable review draft, and pass the existing shared `ReviewCreate` contract through the SAF store. Agent review reads expose bounded list summaries and one-record details; applied status is authorized only after a successful changed-page note write in the same dispatcher run.
 
 **Tech Stack:** Kotlin, Jetpack Compose, Android `EditText`/`AndroidView`, kotlinx.serialization JSON, JUnit, AndroidX Compose instrumentation, Gradle.
@@ -106,7 +108,7 @@
 - Modify: `CHANGELOG.md`
 
 - [ ] Run full JVM tests, `:app:compileDebugAndroidTestKotlin`, and `:app:assembleDebug`.
-- [ ] Run focused selection/review instrumentation tests on API 34 and API 35 16 KB AVDs; verify observed page sizes and test counts.
+- [x] Historical focused selection/review matrix completed on API 34 and API 35 16 KB AVDs; this is evidence only, not a current testing gate.
 - [ ] Record physical-device and PDF/Office selection limitations without treating them as completed.
 - [ ] Update the Android SPEC checklist and root changelog, then commit and push the feature slice.
 

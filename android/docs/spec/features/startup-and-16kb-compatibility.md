@@ -2,7 +2,9 @@
 
 ## Scope
 
-Keep the Android reader launchable when it applies a user-selected locale through a configuration context, and package 16 KB-compatible native libraries for 64-bit Android devices. This Android-only SPEC belongs under `android/docs/spec/`. Desktop builds and data formats remain unchanged.
+> Current device scope is Xiaomi Pad 5 Pro (Snapdragon 870, Android 14/API 34). The startup-owner fix remains applicable; 16 KB alignment/runtime records below are historical and are not a current debug or device-acceptance gate. Re-enable them only when a future store target/policy requires 16 KB support.
+
+Keep the Android reader launchable when it applies a user-selected locale through a configuration context on the supported Xiaomi Pad 5 Pro / Android 14 target. The historical 16 KB native-library contract below is conditional on a future store policy or target that requires it. This Android-only SPEC belongs under `android/docs/spec/`. Desktop builds and data formats remain unchanged.
 
 ## Startup Owner Contract
 
@@ -14,28 +16,23 @@ Keep the Android reader launchable when it applies a user-selected locale throug
 ## Native Library Contract
 
 - Android Gradle Plugin remains at least 8.5.1 so uncompressed native libraries are ZIP-aligned for 16 KB devices.
-- Every `arm64-v8a` and `x86_64` shared library packaged in each produced APK has all ELF `LOAD` segments aligned to at least `2**14` bytes.
-- The produced APK passes `zipalign -c -P 16 -v 4`.
-- The OpenCV dependency and its `libc++_shared.so` must be validated from the resolved AAR and again from the final APK; a version number alone is not evidence of alignment.
+- For a future store submission whose target/policy requires 16 KB support, every `arm64-v8a` and `x86_64` library must have ELF `LOAD` segments aligned to at least `2**14` bytes and the APK must pass 16 KB ZIP alignment.
+- For that same release gate, validate OpenCV and `libc++_shared.so` from the resolved AAR and final APK; a version number alone is not evidence of alignment.
 - Android 32-bit ABI libraries are retained only as build targets; page-size acceptance is based on the 64-bit ABIs supported by Android 16 KB kernels.
 
 ## Acceptance (EARS)
 
 - When the app loads saved reader settings and applies a localized configuration context, the Android reader shall retain the hosting activity's result registry and render its home screen without an uncaught exception.
 - When the user selects a project, the reader shall continue to launch the SAF tree picker through its registered activity-result launcher.
-- When an ABI APK is assembled, the Android build shall package the pinned OpenCV API-compatible artifact and its matching C++ runtime without any unaligned 64-bit native library.
-- When a debug or release APK is inspected, every `arm64-v8a` and `x86_64` ELF `LOAD` segment shall have an alignment of at least `2**14`, and 16 KB ZIP alignment verification shall pass.
-- When the app runs on a 4 KB device, existing reader launch behavior shall remain functional; the 16 KB ELF check remains independently mandatory.
+- When a future public artifact is subject to a 16 KB store policy, the Android build shall package compatible OpenCV/C++ libraries and pass ELF/ZIP alignment checks.
+- When the app runs on the supported Xiaomi Pad 5 Pro Android 14 device, reader startup and the SAF picker shall remain functional.
 
 ## Verification
 
 - Instrumentation coverage launches the actual `MainActivity`, waits for the localized reader home screen, and fails on the previous `ActivityResultRegistryOwner` crash.
 - JVM tests and Android app compilation pass after the context-owner change and OpenCV dependency update.
-- Each 64-bit APK is extracted and checked with NDK `llvm-objdump -p`; no `LOAD` line may report an alignment below `2**14`.
-- Each APK passes SDK Build Tools `zipalign -c -P 16 -v 4`.
-- Device smoke testing confirms launch and SAF project-picker interaction on the connected device. A 4 KB device does not substitute for a 16 KB runtime emulator/device when one is available.
-- Runtime acceptance on Android 15+ uses an official 16 KB system image and verifies `getconf PAGESIZE == 16384`, debug APK launch, native-library loading, SAF picker, and a representative reader page; artifact alignment checks alone are insufficient evidence of runtime compatibility.
-- The 16 KB runtime suite includes app instrumentation and the feature OCR instrumentation that loads the bundled ONNX/OpenCV models and recognizes its Chinese/English fixture; the executed test count must be nonzero.
+- Current device smoke testing is limited to launch and project-picker interaction on Xiaomi Pad 5 Pro / Android 14; an API 34 AVD is only a platform proxy.
+- ELF/ZIP inspection and Android 15+ 16 KB runtime/OCR suites are future release gates, not routine development tests for the current device target.
 
 ## Runtime Evidence (2026-10-18)
 
