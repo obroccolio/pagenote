@@ -120,6 +120,24 @@ class PageTutorSourceLoaderTest {
     assertEquals("neighbor text", loader.loadNeighbor(1)?.text)
   }
 
+  @Test
+  fun agentNeighborFallsBackToOcrWhenNativeTextIsUnavailable() = runBlocking {
+    var ocrCalls = 0
+    val loader = PageTutorSourceLoader(
+      nativeText = { PdfTextExtractionResult.unavailableForOcr() },
+      ocrText = {
+        ocrCalls += 1
+        recognizedText("recognized neighbor")
+      },
+    )
+
+    val source = loader.loadNeighborForAgent(1)
+
+    assertEquals(1, ocrCalls)
+    assertEquals("recognized neighbor", source.text)
+    assertTrue(source.usedOcr)
+  }
+
   private fun availableText(text: String) = PdfTextExtractionResult(
     status = PdfTextExtractionStatus.AVAILABLE,
     fullText = text,

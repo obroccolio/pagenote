@@ -330,6 +330,20 @@ private fun ReaderHome(
     readerSession.viewportBookmark.value = PdfViewportBookmark.fromTransform(transform, bounds)
   }
 
+  fun createPdfSourceLoader(activeRenderer: PdfDocumentSession) = PageTutorSourceLoader(
+    nativeText = { page ->
+      withContext(Dispatchers.IO) { activeRenderer.extractText(page) }
+    },
+    ocrText = { page ->
+      val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+      withIoOwnedResource(
+        render = { activeRenderer.render(page) },
+        dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
+        use = { bitmap -> withContext(Dispatchers.Default) { engine.recognize(bitmap) } },
+      )
+    },
+  )
+
   fun applyViewportZoom(zoomChange: Float) {
     val bounds = viewportBounds
     updateViewportTransform(PdfViewportTransform.applyGesture(
@@ -549,12 +563,11 @@ private fun ReaderHome(
       try {
         val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
           val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-          val input = withContext(Dispatchers.IO) { activeRenderer.render(targetPage) }
-          try {
-            engine.recognize(input)
-          } finally {
-            input.recycle()
-          }
+          withIoOwnedResource(
+            render = { activeRenderer.render(targetPage) },
+            dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
+            use = { bitmap -> engine.recognize(bitmap) },
+          )
         }
         ocrResult = result
         ocrResultPage = targetPage
@@ -614,8 +627,9 @@ private fun ReaderHome(
       }
       try {
         val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-        val renderedPage = withContext(Dispatchers.IO) { activeRenderer.renderWithMetadata(targetPage) }
-        input = renderedPage.bitmap
+        val renderedPage = withContext(Dispatchers.IO) {
+          activeRenderer.renderWithMetadata(targetPage).also { input = it.bitmap }
+        }
         val pageImage = input ?: error("OCR page image is unavailable")
         val regionEngine = selection.toEngineRegion()
         val processor = RegionOcrProcessor(
@@ -747,20 +761,7 @@ private fun ReaderHome(
               )
             }
         } else {
-          val pageSourceLoader = PageTutorSourceLoader(
-            nativeText = { page ->
-              withContext(Dispatchers.IO) { activeRenderer!!.extractText(page) }
-            },
-            ocrText = { page ->
-              val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-              val bitmap = withContext(Dispatchers.IO) { activeRenderer!!.render(page) }
-              try {
-                withContext(Dispatchers.Default) { engine.recognize(bitmap) }
-              } finally {
-                bitmap.recycle()
-              }
-            },
-          )
+          val pageSourceLoader = createPdfSourceLoader(activeRenderer!!)
           val loaded = withTimeout(OcrPolicy.TIMEOUT_MS) {
             val current = pageSourceLoader.loadCurrent(targetPageIndex)
             val adjacent = mutableListOf<PageRequest.PageMaterial>()
@@ -901,29 +902,38 @@ private fun ReaderHome(
       activeRenderer!!.pageCount
     }
     require(targetPage in 1..totalPages) { "page out of range" }
-    val sourceText = if (activeMarkdown != null) {
-      MarkdownSourcePages.pageAt(activeMarkdown, targetPage)
-    } else {
-      val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(targetPageIndex) }
-      native.fullText
-    }
-    if (sourceText.isBlank()) {
-      throw PageTutorSourceException(context.getString(R.string.page_tutor_source_failed))
-    }
-    val neighbors = if (activeMarkdown != null) {
-      listOf(targetPageIndex - 1, targetPageIndex + 1)
+    var sourceWarnings = emptyList<String>()
+    val sourceText: String
+    val neighbors: List<Pair<String, Int>>
+    if (activeMarkdown != null) {
+      sourceText = MarkdownSourcePages.pageAt(activeMarkdown, targetPage)
+      neighbors = listOf(targetPageIndex - 1, targetPageIndex + 1)
         .filter { it in 0 until totalPages }
         .mapNotNull { neighborIndex ->
           val text = MarkdownSourcePages.pageAt(activeMarkdown, neighborIndex + 1)
           if (text.isBlank()) null else text to (neighborIndex + 1)
         }
     } else {
-      listOf(targetPageIndex - 1, targetPageIndex + 1)
-        .filter { it in 0 until activeRenderer!!.pageCount }
-        .mapNotNull { neighborIndex ->
-          val native = withContext(Dispatchers.IO) { activeRenderer!!.extractText(neighborIndex) }
-          if (native.fullText.isBlank()) null else native.fullText to (neighborIndex + 1)
+      val prepared = withTimeout(OcrPolicy.TIMEOUT_MS) {
+        val pageSourceLoader = createPdfSourceLoader(activeRenderer!!)
+        val current = pageSourceLoader.loadCurrent(targetPageIndex)
+        val adjacent = listOf(targetPageIndex - 1, targetPageIndex + 1)
+          .filter { it in 0 until activeRenderer.pageCount }
+          .map { neighborIndex -> neighborIndex to pageSourceLoader.loadNeighborForAgent(neighborIndex) }
+        val warnings = buildList {
+          current.warnings.forEach { add("Page $targetPage source: $it") }
+          adjacent.forEach { (neighborIndex, source) ->
+            source.warnings.forEach { add("Page ${neighborIndex + 1} source: $it") }
+          }
         }
+        Triple(current, adjacent, warnings)
+      }
+      sourceText = prepared.first.text
+      neighbors = prepared.second.map { (neighborIndex, source) -> source.text to (neighborIndex + 1) }
+      sourceWarnings = prepared.third
+    }
+    if (sourceText.isBlank()) {
+      throw PageTutorSourceException(context.getString(R.string.page_tutor_source_failed))
     }
     val input = AgentTaskInput.build(
       documentId = activeProject.manifest.id,
@@ -934,6 +944,7 @@ private fun ReaderHome(
       noteRevision = expectedRevision,
       sourceText = sourceText,
       neighbors = neighbors,
+      sourceWarnings = sourceWarnings,
     )
     val handlers = ProjectAgentTools.handlers(
       context.contentResolver,

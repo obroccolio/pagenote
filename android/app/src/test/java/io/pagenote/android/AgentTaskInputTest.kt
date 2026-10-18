@@ -27,6 +27,23 @@ class AgentTaskInputTest {
   }
 
   @Test
+  fun includesOcrWarningsInPageSourceContext() {
+    val input = AgentTaskInput.build(
+      documentId = "doc-1",
+      page = 1,
+      totalPages = 1,
+      instruction = "解释本页",
+      noteMarkdown = "",
+      noteRevision = "rev-1",
+      sourceText = "recognized source",
+      sourceWarnings = listOf("OCR confidence is low; verify against the PDF."),
+    )
+
+    val userMessage = input.messages.single { it["role"] == "user" }["content"].orEmpty()
+    assertTrue(userMessage.contains("OCR confidence is low; verify against the PDF."))
+  }
+
+  @Test
   fun rejectsWholeChapterAssembly() {
     try {
       AgentTaskInput.build(

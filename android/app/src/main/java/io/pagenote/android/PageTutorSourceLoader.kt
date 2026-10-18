@@ -22,14 +22,32 @@ class PageTutorSourceLoader(
   suspend fun loadCurrent(pageIndex: Int): PageTutorSourceText {
     require(pageIndex >= 0) { "page index must not be negative" }
     val native = nativeText(pageIndex)
+    return loadFromNative(pageIndex, native)
+  }
+
+  suspend fun loadNeighbor(pageIndex: Int): PageTutorSourceText? {
+    require(pageIndex >= 0) { "page index must not be negative" }
+    val native = nativeText(pageIndex)
+    if (native.status != PdfTextExtractionStatus.AVAILABLE || native.fullText.isBlank()) return null
+    return PageTutorSourceText(text = native.fullText, usedOcr = false)
+  }
+
+  suspend fun loadNeighborForAgent(pageIndex: Int): PageTutorSourceText {
+    require(pageIndex >= 0) { "page index must not be negative" }
+    val native = nativeText(pageIndex)
+    return loadFromNative(pageIndex, native)
+  }
+
+  private suspend fun loadFromNative(
+    pageIndex: Int,
+    native: PdfTextExtractionResult,
+  ): PageTutorSourceText {
     val shouldOcr = OcrTrigger.shouldRun(
       nativeAvailable = native.status == PdfTextExtractionStatus.AVAILABLE,
       nativeText = native.fullText,
       hasBitmap = hasBitmap(pageIndex),
     )
-    if (!shouldOcr) {
-      return PageTutorSourceText(text = native.fullText, usedOcr = false)
-    }
+    if (!shouldOcr) return PageTutorSourceText(text = native.fullText, usedOcr = false)
 
     val result = ocrText(pageIndex)
     try {
@@ -49,12 +67,5 @@ class PageTutorSourceLoader(
       warnings += "OCR text may be inaccurate. Verify it against the original PDF page."
     }
     return PageTutorSourceText(text = text, usedOcr = true, warnings = warnings.distinct())
-  }
-
-  suspend fun loadNeighbor(pageIndex: Int): PageTutorSourceText? {
-    require(pageIndex >= 0) { "page index must not be negative" }
-    val native = nativeText(pageIndex)
-    if (native.status != PdfTextExtractionStatus.AVAILABLE || native.fullText.isBlank()) return null
-    return PageTutorSourceText(text = native.fullText, usedOcr = false)
   }
 }

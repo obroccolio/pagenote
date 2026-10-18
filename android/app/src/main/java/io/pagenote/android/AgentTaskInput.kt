@@ -17,6 +17,7 @@ data class AgentTaskInput(
       noteRevision: String,
       sourceText: String,
       neighbors: List<Pair<String, Int>> = emptyList(),
+      sourceWarnings: List<String> = emptyList(),
       maxSteps: Int = 8,
     ): AgentTaskInput {
       require(documentId.isNotBlank()) { "document ID is blank" }
@@ -35,6 +36,11 @@ data class AgentTaskInput(
       val currentText = buildString {
         append("source:\n")
         append(sourceText)
+        val warnings = sourceWarnings.filter(String::isNotBlank).distinct()
+        if (warnings.isNotEmpty()) {
+          append("\n\nsource warnings (verify OCR content against the original document):\n")
+          warnings.forEach { append("- ").append(it).append('\n') }
+        }
         append("\n\nnote:\n")
         append(noteMarkdown)
       }
