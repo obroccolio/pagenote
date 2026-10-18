@@ -18,6 +18,8 @@ import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.ext.tasklist.TaskListPlugin
+import io.noties.markwon.html.HtmlPlugin
+import io.noties.markwon.html.tag.UnderlineHandler
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import io.noties.markwon.syntax.Prism4jThemeDarkula
@@ -27,7 +29,9 @@ import io.noties.prism4j.Prism4j
 
 internal object NoteMarkdownRenderer {
   fun createEditor(context: Context, sourceDirectoryUri: Uri?, textColor: Int = Color.BLACK): MarkwonEditor =
-    MarkwonEditor.create(base(context, sourceDirectoryUri, textColor).build())
+    MarkwonEditor.builder(base(context, sourceDirectoryUri, textColor).build())
+      .useEditHandler(UnderlineEditHandler())
+      .build()
 
   fun createPreview(
     context: Context,
@@ -68,6 +72,11 @@ internal object NoteMarkdownRenderer {
       .usePlugin(TablePlugin.create(context))
       .usePlugin(StrikethroughPlugin.create())
       .usePlugin(TaskListPlugin.create(context))
+      .usePlugin(
+        HtmlPlugin.create { plugin ->
+          plugin.excludeDefaults(true).addHandler(UnderlineHandler())
+        },
+      )
       .usePlugin(
         ImagesPlugin.create()
           .addSchemeHandler(

@@ -72,6 +72,7 @@ dependencies {
   }
   implementation("io.noties.markwon:ext-tables:4.6.2")
   implementation("io.noties.markwon:ext-tasklist:4.6.2")
+  implementation("io.noties.markwon:html:4.6.2")
   implementation("io.noties.markwon:image:4.6.2")
   implementation("io.noties:prism4j:2.0.0") {
     exclude(group = "org.jetbrains", module = "annotations-java5")

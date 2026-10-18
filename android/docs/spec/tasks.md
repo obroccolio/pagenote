@@ -229,7 +229,8 @@
   - 契约见 `features/markdown-edit-undo-redo.md`，实施拆分见 `markdown-edit-undo-redo-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
 
-- [ ] 25. Markdown 编辑器下划线格式（沿用桌面 HTML `<u>文字</u>`，受限启用 Markwon 原生 UnderlineSpan）
+- [x] 25. Markdown 编辑器下划线格式（沿用桌面 HTML `<u>文字</u>`，受限启用 Markwon 原生 UnderlineSpan）
   - 选区包裹或空选区占位均只更新当前页草稿；其他 HTML 默认处理器不启用，保存继续按 revision 保护。
+  - `underlineCommandUsesDesktopMarkupAndRendersUnderlineSpan` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖预览/无项目门控、既有粗体嵌套、占位选区、编辑器和预览 UnderlineSpan、其他 HTML handler 关闭及相邻页保存隔离；完整 app JVM 256 项、`:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-underline-formatting.md`，实施拆分见 `markdown-underline-formatting-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_

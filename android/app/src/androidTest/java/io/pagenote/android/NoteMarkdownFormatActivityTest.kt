@@ -6,6 +6,7 @@ import android.provider.DocumentsContract
 import android.text.Spanned
 import android.text.style.ClickableSpan
 import android.text.style.StrikethroughSpan
+import android.text.style.UnderlineSpan
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -96,6 +97,94 @@ class NoteMarkdownFormatActivityTest {
     assertTrue("preview must render bold", spans.any { it is StrongEmphasisSpan })
     assertTrue("preview must render italic", spans.any { it is EmphasisSpan })
     assertTrue("preview must render strikethrough", spans.any { it is StrikethroughSpan })
+  }
+
+  @Test
+  fun underlineCommandUsesDesktopMarkupAndRendersUnderlineSpan() {
+    val savedPages = listOf("Lead **Selected** tail <b>raw html</b>", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    formatCommand("underline").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    formatCommand("underline").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    selectCurrentWord()
+    formatCommand("underline").assertIsEnabled().performClick()
+    val selectedExpected = "Lead **<u>Selected</u>** tail <b>raw html</b>"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == selectedExpected }
+    var editor = requireNotNull(findNoteEditor())
+    val selectedStart = selectedExpected.indexOf("Selected")
+    assertEquals(selectedStart, editor.selectionStart)
+    assertEquals(selectedStart + "Selected".length, editor.selectionEnd)
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      val source = findNoteEditor()?.text
+      if (source !is Spanned) {
+        false
+      } else {
+        val sourceStart = source.indexOf("Selected")
+        source.getSpans(0, source.length, UnderlineSpan::class.java).any { span ->
+          source.getSpanStart(span) <= sourceStart &&
+            source.getSpanEnd(span) >= sourceStart + "Selected".length
+        }
+      }
+    }
+
+    val placeholder = composeRule.activity.getString(R.string.reader_menu_format_placeholder)
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setSelection(editor.text.length)
+    }
+    formatCommand("underline").assertIsEnabled().performClick()
+    val expected = "$selectedExpected<u>$placeholder</u>"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(expected.indexOf(placeholder), editor.selectionStart)
+    assertEquals(expected.indexOf(placeholder) + placeholder.length, editor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("Selected") != null }
+    val rendered = findRenderedPreview("Selected")?.text as? Spanned
+      ?: error("underline preview must expose native spans")
+    val renderedSelectionStart = rendered.indexOf("Selected")
+    val boldSpans = rendered.getSpans(0, rendered.length, StrongEmphasisSpan::class.java)
+    assertTrue(
+      "existing bold markup must remain rendered around selected text",
+      boldSpans.any { span ->
+        rendered.getSpanStart(span) <= renderedSelectionStart &&
+          rendered.getSpanEnd(span) >= renderedSelectionStart + "Selected".length
+      },
+    )
+    val underlineSpans = rendered.getSpans(0, rendered.length, UnderlineSpan::class.java)
+    assertTrue(
+      "selected text must render with an UnderlineSpan",
+      underlineSpans.any { span ->
+        rendered.getSpanStart(span) <= renderedSelectionStart &&
+          rendered.getSpanEnd(span) >= renderedSelectionStart + "Selected".length
+      },
+    )
+    val rawHtmlStart = rendered.indexOf("raw html")
+    assertTrue("raw HTML content must remain visible", rawHtmlStart >= 0)
+    assertFalse(
+      "other HTML tag handlers must remain disabled",
+      rendered.getSpans(0, rendered.length, StrongEmphasisSpan::class.java).any { span ->
+        rendered.getSpanStart(span) <= rawHtmlStart &&
+          rendered.getSpanEnd(span) >= rawHtmlStart + "raw html".length
+      },
+    )
   }
 
   @Test

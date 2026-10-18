@@ -32,6 +32,7 @@ class MarkdownInlineFormattingTest {
       MarkdownInlineStyle.BOLD to "**selected**",
       MarkdownInlineStyle.ITALIC to "*selected*",
       MarkdownInlineStyle.STRIKETHROUGH to "~~selected~~",
+      MarkdownInlineStyle.UNDERLINE to "<u>selected</u>",
     )
 
     styles.forEach { (style, expected) ->
@@ -63,6 +64,23 @@ class MarkdownInlineFormattingTest {
     assertEquals(8, edit.selectionStart)
     assertEquals(10, edit.selectionEnd)
     assertEquals("before *文字*after", markdown.replaceRange(edit.replaceStart, edit.replaceEnd, edit.replacement))
+  }
+
+  @Test
+  fun insertsAndSelectsUnderlinePlaceholderForCollapsedSelection() {
+    val markdown = "before after"
+    val edit = MarkdownInlineFormatting.wrapSelection(
+      markdown = markdown,
+      selectionStart = 7,
+      selectionEnd = 7,
+      style = MarkdownInlineStyle.UNDERLINE,
+      placeholder = "文字",
+    )
+
+    assertEquals("<u>文字</u>", edit.replacement)
+    assertEquals(10, edit.selectionStart)
+    assertEquals(12, edit.selectionEnd)
+    assertEquals("before <u>文字</u>after", markdown.replaceRange(edit.replaceStart, edit.replaceEnd, edit.replacement))
   }
 
   @Test

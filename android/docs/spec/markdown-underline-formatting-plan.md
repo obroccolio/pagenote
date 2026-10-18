@@ -4,7 +4,7 @@
 
 **Goal:** 接通 Android 可写 Markdown 页笔记的桌面一致 Underline 命令。
 
-**Architecture:** 扩展现有 `MarkdownInlineStyle` 为 `<u>` source wrapper；在 Markwon 4.6.2 中加入 `HtmlPlugin`，关闭全部默认 tag handlers，仅注册其 `UnderlineHandler`。MainActivity 继续通过当前 EditText 变更并让原 watcher 更新草稿。
+**Architecture:** 扩展现有 `MarkdownInlineStyle` 为 `<u>` source wrapper；在 Markwon 4.6.2 中加入 `HtmlPlugin`，关闭全部默认 tag handlers，仅注册其 `UnderlineHandler`。Markwon editor 默认只标记 Markdown 标点，因此额外注册只处理 `UnderlineSpan` 的 `EditHandler`，把 renderer 输出映射回可编辑源文本；MainActivity 继续通过当前 EditText 变更并让原 watcher 更新草稿。
 
 **Tech Stack:** Kotlin、Jetpack Compose、Android `EditText`、Markwon 4.6.2 HTML module、JUnit 4、Compose UI instrumentation。
 
@@ -52,10 +52,10 @@
 
 - 新增 `MarkdownInlineStyle.UNDERLINE("<u>", "</u>")`，复用 `wrapSelection`。
 
-- [ ] **Step 1: Write failing tests**：验证选择文本产生 `<u>selected</u>`、折叠光标产生并选中 `<u>文字</u>`。
-- [ ] **Step 2: Verify RED**：运行 `./gradlew :app:testDebugUnitTest --tests io.pagenote.android.MarkdownInlineFormattingTest`，确认缺少 `UNDERLINE` 时编译失败。
-- [ ] **Step 3: Implement the minimal style**：只增加 enum 样式值，不改范围算法。
-- [ ] **Step 4: Verify GREEN**：重复聚焦 JVM 命令，原五项及新增下划线用例全部通过。
+- [x] **Step 1: Write failing tests**：验证选择文本产生 `<u>selected</u>`、折叠光标产生并选中 `<u>文字</u>`。
+- [x] **Step 2: Verify RED**：运行 `./gradlew :app:testDebugUnitTest --tests io.pagenote.android.MarkdownInlineFormattingTest`，确认缺少 `UNDERLINE` 时编译失败。
+- [x] **Step 3: Implement the minimal style**：只增加 enum 样式值，不改范围算法。
+- [x] **Step 4: Verify GREEN**：重复聚焦 JVM 命令，原五项及新增下划线用例全部通过。
 
 ### Task 3: HTML preview 与菜单闭环
 
@@ -69,9 +69,9 @@
 - Modify: `android/docs/spec/markdown-underline-formatting-plan.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add the failing Reader flow**：测试无项目/预览时禁用；可写编辑器中选择文本插入 `<u>`，折叠光标插入占位并保持选中，保存当前页后确认相邻页不变，预览确认 `UnderlineSpan`。
-- [ ] **Step 2: Verify RED on API 34 AVD**：显式设置 `ANDROID_SERIAL=emulator-5554` 并运行单项 class/method filter；当前 pending Underline 应使 enabled 断言失败。
-- [ ] **Step 3: Wire the restricted renderer and command**：新增 `io.noties.markwon:html:4.6.2`；renderer 安装 `HtmlPlugin` 时调用 `excludeDefaults(true)` 并只添加 `UnderlineHandler`；替换 Underline pending command，复用现有 `applyMarkdownInlineFormatting`。
-- [ ] **Step 4: Verify the focused API 34 flow passes**：确认源文、选区、页级保存和原生 span 均符合 SPEC。
-- [ ] **Step 5: Run app JVM tests and compile**：运行完整 `:app:testDebugUnitTest`、单项 API 34 测试、`:app:assembleDebug` 与 `git diff --check`。
-- [ ] **Step 6: Update SPEC and CHANGELOG, commit and push**：勾选 task 25 与本计划，分别提交实现并推送 `fork/codex/android-port`。
+- [x] **Step 1: Add the failing Reader flow**：测试无项目/预览时禁用；可写编辑器中选择文本插入 `<u>`，折叠光标插入占位并保持选中，保存当前页后确认相邻页不变，编辑器与预览均检查 `UnderlineSpan`。
+- [x] **Step 2: Verify RED on API 34 AVD**：pending Underline 初始导致 enabled 断言失败；再移除 HTML renderer 验证时，编辑器 span 断言失败，证实需要 EditHandler 映射。
+- [x] **Step 3: Wire the restricted renderer and command**：新增 `io.noties.markwon:html:4.6.2`；renderer 安装 `HtmlPlugin` 时调用 `excludeDefaults(true)` 并只添加 `UnderlineHandler`；editor 只注册 `UnderlineEditHandler`；替换 Underline pending command并复用现有 `applyMarkdownInlineFormatting`。
+- [x] **Step 4: Verify the focused API 34 flow passes**：确认嵌套粗体源文、编辑器与预览原生 span、选区、占位、页级保存和相邻页隔离均符合 SPEC。
+- [x] **Step 5: Run app JVM tests and compile**：完整 app JVM 共 256 项通过；单项 API 34 测试 1/1 通过；`:app:assembleDebug` 与 `git diff --check` 通过。
+- [x] **Step 6: Update SPEC and CHANGELOG, commit and push**：更新了 task 25 与本计划；实现提交并推送 `fork/codex/android-port`。

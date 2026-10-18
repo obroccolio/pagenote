@@ -2698,7 +2698,9 @@ private fun ReaderHome(
           "strikethrough", R.string.reader_menu_strikethrough,
           canFormatMarkdown, markdownFormatDisabledReason,
         ) { applyMarkdownInlineFormatting(MarkdownInlineStyle.STRIKETHROUGH) },
-        pendingCommand("underline", R.string.reader_menu_underline),
+        actionCommand(
+          "underline", R.string.reader_menu_underline, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownInlineFormatting(MarkdownInlineStyle.UNDERLINE) },
       ),
     ),
     menuSection(

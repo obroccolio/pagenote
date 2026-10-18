@@ -4,6 +4,7 @@ enum class MarkdownInlineStyle(val opening: String, val closing: String) {
   BOLD("**", "**"),
   ITALIC("*", "*"),
   STRIKETHROUGH("~~", "~~"),
+  UNDERLINE("<u>", "</u>"),
 }
 
 data class MarkdownInlineEdit(
