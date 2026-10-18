@@ -57,6 +57,47 @@ class PdfAnnotationOverlayTest {
   }
 
   @Test
+  fun drawsLineArrowAndEllipseAtDesktopWidthScaledCoordinates() {
+    composeRule.setContent {
+      Box(Modifier.size(width = 300.dp, height = 400.dp)) {
+        PdfAnnotationOverlay(
+          items = listOf(
+            PdfAnnotationOverlayItem(
+              type = "line",
+              points = listOf(50.0 to 80.0, 250.0 to 280.0),
+              color = "#ff0000",
+              width = 10.0,
+              text = null,
+            ),
+            PdfAnnotationOverlayItem(
+              type = "arrow",
+              points = listOf(350.0 to 100.0, 550.0 to 100.0),
+              color = "#0000ff",
+              width = 5.0,
+              text = null,
+            ),
+            PdfAnnotationOverlayItem(
+              type = "ellipse",
+              points = listOf(700.0 to 100.0, 900.0 to 300.0),
+              color = "#00ff00",
+              width = 8.0,
+              text = null,
+            ),
+          ),
+        )
+      }
+    }
+
+    val pixels = composeRule.onNodeWithTag("pdf_annotation_overlay").captureToImage().toPixelMap()
+    val scale = pixels.width / 1000f
+    assertColorNear(pixels, 150f * scale, 180f * scale, Color(0xFFFF0000))
+    assertColorNear(pixels, 550f * scale, 100f * scale, Color(0xFF0000FF))
+    assertColorNear(pixels, 528.4f * scale, 110.4f * scale, Color(0xFF0000FF))
+    assertColorNear(pixels, 528.4f * scale, 89.6f * scale, Color(0xFF0000FF))
+    assertColorNear(pixels, 800f * scale, 100f * scale, Color(0xFF00FF00))
+  }
+
+  @Test
   fun reloadFindsAnnotationsFileCreatedAfterProjectWasOpened() {
     val context = InstrumentationRegistry.getInstrumentation().context
     val resolver = context.contentResolver
@@ -89,5 +130,19 @@ class PdfAnnotationOverlayTest {
       .readPage("document", 1)
 
     assertEquals(expected, reloaded)
+  }
+
+  private fun assertColorNear(
+    pixels: androidx.compose.ui.graphics.PixelMap,
+    x: Float,
+    y: Float,
+    expected: Color,
+  ) {
+    val centerX = x.toInt()
+    val centerY = y.toInt()
+    val matches = (-3..3).any { dy ->
+      (-3..3).any { dx -> pixels[centerX + dx, centerY + dy] == expected }
+    }
+    assertTrue("expected $expected near ($centerX, $centerY)", matches)
   }
 }
