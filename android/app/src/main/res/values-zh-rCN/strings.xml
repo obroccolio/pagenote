@@ -76,6 +76,10 @@
   <string name="reader_menu_table">表格</string>
   <string name="reader_menu_link">链接</string>
   <string name="reader_menu_image">图片</string>
+  <string name="reader_menu_image_editor_required">请在可写笔记的编辑模式中插入图片。</string>
+  <string name="reader_menu_image_import_failed">无法导入图片，笔记内容未更改。</string>
+  <string name="reader_menu_image_context_changed">插入前笔记已更改，图片未添加。</string>
+  <string name="reader_menu_image_orphaned">图片未添加。请删除这个未引用的项目资源：%1$s</string>
   <string name="reader_menu_paste_markdown">按 Markdown 粘贴</string>
   <string name="reader_menu_select_tool">选择工具</string>
   <string name="reader_menu_line">直线</string>

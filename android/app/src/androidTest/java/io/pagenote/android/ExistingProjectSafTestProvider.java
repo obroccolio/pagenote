@@ -28,6 +28,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String AUTHORITY = "io.pagenote.android.test.existing-project";
   public static final String ROOT_ID = "fixture";
   public static final String SRC_ID = ROOT_ID + "/src";
+  public static final String ASSETS_ID = SRC_ID + "/assets";
   public static final String MANIFEST_ID = ROOT_ID + "/project.pagenote";
   public static final String PDF_ID = SRC_ID + "/pattern-recognition.pdf";
   public static final String NOTES_ID = SRC_ID + "/notes.md";
@@ -39,6 +40,8 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_CONFIGURE_REVIEW_WRITE_FAILURE = "configureReviewWriteFailure";
   public static final String METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE = "configureAnnotationWriteFailure";
   public static final String METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE = "configureRecoveryDeleteFailure";
+  public static final String METHOD_CONFIGURE_IMAGE_WRITE_FAILURE = "configureImageWriteFailure";
+  public static final String METHOD_GET_IMAGE_COUNT = "getImageCount";
   public static final String METHOD_WRITE_OVERSIZED_REVIEWS = "writeOversizedReviews";
   public static final String METHOD_PAUSE_NEXT_REVIEW_READ = "pauseNextReviewRead";
   public static final String METHOD_WAIT_REVIEW_SNAPSHOT = "waitReviewSnapshot";
@@ -68,11 +71,15 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private static final String NOTES_FILE = "notes.md";
   private static final String REVIEWS_FILE = "ai-reviews.json";
   private static final String ANNOTATIONS_FILE = "annotations.json";
+  private static final String ASSETS_DIRECTORY = "assets";
   private int reviewWriteCount;
   private int reviewWriteFailuresRemaining;
   private int annotationWriteFailuresRemaining;
   private int recoveryDeleteFailuresRemaining;
+  private int imageWriteFailuresRemaining;
   private final Map<String, String> recoveryFiles = new HashMap<>();
+  private final Map<String, String> imageFiles = new HashMap<>();
+  private boolean assetsDirectoryCreated;
   private static volatile ReviewReadPause reviewReadPause;
   private static volatile NoteWritePause noteWritePause;
 
@@ -99,6 +106,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       if (METHOD_INSTALL.equals(method)) {
         for (String name : recoveryFiles.values()) new File(fixtureDir(), name).delete();
         recoveryFiles.clear();
+      for (String name : imageFiles.values()) new File(fixtureDir(), ASSETS_DIRECTORY + "/" + name).delete();
+      imageFiles.clear();
+      new File(fixtureDir(), ASSETS_DIRECTORY).delete();
+      assetsDirectoryCreated = false;
         writeFixtureFile(MANIFEST_FILE, requiredBytes(extras, EXTRA_MANIFEST));
         writeFixtureFile(PDF_FILE, requiredBytes(extras, EXTRA_PDF));
         writeFixtureFile(NOTES_FILE, requiredBytes(extras, EXTRA_NOTES));
@@ -116,6 +127,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         reviewWriteFailuresRemaining = 0;
         annotationWriteFailuresRemaining = 0;
         recoveryDeleteFailuresRemaining = 0;
+        imageWriteFailuresRemaining = 0;
         releaseReviewReadPause();
         releaseNoteWritePause();
         return Bundle.EMPTY;
@@ -142,26 +154,63 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         recoveryDeleteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
         return Bundle.EMPTY;
       }
+      if (METHOD_CONFIGURE_IMAGE_WRITE_FAILURE.equals(method)) {
+        imageWriteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
+        return Bundle.EMPTY;
+      }
+      if (METHOD_GET_IMAGE_COUNT.equals(method)) {
+        Bundle result = new Bundle();
+        result.putInt(EXTRA_COUNT, imageFiles.size());
+        result.putBoolean("assetsDirectoryCreated", assetsDirectoryCreated);
+        return result;
+      }
       if (METHOD_WRITE_OVERSIZED_REVIEWS.equals(method)) {
         writeOversizedReviews(extras == null ? 0 : extras.getLong(EXTRA_SIZE));
         return Bundle.EMPTY;
       }
       if (METHOD_CREATE_DOCUMENT.equals(method)) {
         Uri parentUri = extras == null ? null : extras.getParcelable(EXTRA_URI);
-        if (parentUri == null || !SRC_ID.equals(DocumentsContract.getDocumentId(parentUri))) {
+        if (parentUri == null) {
+          throw new IllegalArgumentException("missing parent");
+        }
+        String parentId = DocumentsContract.getDocumentId(parentUri);
+        if (!SRC_ID.equals(parentId) && !ASSETS_ID.equals(parentId)) {
           throw new IllegalArgumentException("unsupported parent: " + parentUri);
         }
         String displayName = extras == null
             ? null
             : extras.getString(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
         String mimeType = extras == null ? null : extras.getString(EXTRA_MIME_TYPE);
-        if (displayName == null || mimeType == null || recoveryFiles.containsValue(displayName)) {
+        if (displayName == null || mimeType == null) {
           throw new IllegalArgumentException(
-              "invalid recovery document request: name=" + displayName + " mime=" + mimeType);
+              "invalid document request: name=" + displayName + " mime=" + mimeType);
         }
-        String documentId = SRC_ID + "/" + displayName;
-        writeFixtureFile(displayName, new byte[0]);
-        recoveryFiles.put(documentId, displayName);
+        String documentId;
+        if (SRC_ID.equals(parentId) && DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)
+            && ASSETS_DIRECTORY.equals(displayName)) {
+          assetsDirectoryCreated = true;
+          if (!new File(fixtureDir(), ASSETS_DIRECTORY).mkdirs()
+              && !new File(fixtureDir(), ASSETS_DIRECTORY).isDirectory()) {
+            throw new IOException("Could not create assets directory");
+          }
+          documentId = ASSETS_ID;
+        } else if (ASSETS_ID.equals(parentId) && mimeType.startsWith("image/")) {
+          documentId = ASSETS_ID + "/" + displayName;
+          if (imageFiles.containsKey(documentId)) throw new IllegalArgumentException("duplicate image name");
+          File assets = new File(fixtureDir(), ASSETS_DIRECTORY);
+          if (!assets.isDirectory() && !assets.mkdirs()) throw new IOException("assets directory unavailable");
+          try (FileOutputStream output = new FileOutputStream(new File(assets, displayName), false)) {
+            output.flush();
+          }
+          imageFiles.put(documentId, displayName);
+        } else if (SRC_ID.equals(parentId)) {
+          documentId = SRC_ID + "/" + displayName;
+          if (recoveryFiles.containsKey(documentId)) throw new IllegalArgumentException("duplicate recovery name");
+          writeFixtureFile(displayName, new byte[0]);
+          recoveryFiles.put(documentId, displayName);
+        } else {
+          throw new IllegalArgumentException("unsupported document request");
+        }
         Bundle result = new Bundle();
         result.putParcelable(EXTRA_URI, DocumentsContract.buildDocumentUriUsingTree(parentUri, documentId));
         return result;
@@ -172,7 +221,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
           throw new IllegalStateException("injected recovery-copy delete failure");
         }
         Uri documentUri = extras == null ? null : extras.getParcelable(EXTRA_URI);
-        if (documentUri == null || !deleteRecoveryFile(DocumentsContract.getDocumentId(documentUri))) {
+        if (documentUri == null || !deleteFixtureDocument(DocumentsContract.getDocumentId(documentUri))) {
           throw new FileNotFoundException("recovery copy not found");
         }
         return Bundle.EMPTY;
@@ -269,7 +318,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       children = new ArrayList<>(Arrays.asList(PDF_ID, NOTES_ID));
       if (new File(fixtureDir(), REVIEWS_FILE).exists()) children.add(REVIEWS_ID);
       if (new File(fixtureDir(), ANNOTATIONS_FILE).exists()) children.add(ANNOTATIONS_ID);
+      if (assetsDirectoryCreated) children.add(ASSETS_ID);
       children.addAll(recoveryFiles.keySet());
+    } else if (ASSETS_ID.equals(parentDocumentId) && assetsDirectoryCreated) {
+      children = new ArrayList<>(imageFiles.keySet());
     } else {
       throw new FileNotFoundException(parentDocumentId);
     }
@@ -299,6 +351,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (ANNOTATIONS_ID.equals(documentId) && mode.contains("w") && annotationWriteFailuresRemaining > 0) {
       annotationWriteFailuresRemaining--;
       failAfterPartialTruncate(file, "annotation JSON");
+    }
+    if (imageFiles.containsKey(documentId) && mode.contains("w") && imageWriteFailuresRemaining > 0) {
+      imageWriteFailuresRemaining--;
+      failAfterPartialTruncate(file, "project image");
     }
     if (NOTES_ID.equals(documentId) && mode.contains("w")) {
       NoteWritePause pause = noteWritePause;
@@ -411,7 +467,19 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
 
   @Override
   public int delete(Uri uri, String selection, String[] selectionArgs) {
-    return deleteRecoveryFile(DocumentsContract.getDocumentId(uri)) ? 1 : 0;
+    return deleteFixtureDocument(DocumentsContract.getDocumentId(uri)) ? 1 : 0;
+  }
+
+  private boolean deleteFixtureDocument(String documentId) {
+    if (ASSETS_ID.equals(documentId)) {
+      File directory = new File(fixtureDir(), ASSETS_DIRECTORY);
+      if (!directory.delete()) return false;
+      assetsDirectoryCreated = false;
+      return true;
+    }
+    String imageName = imageFiles.remove(documentId);
+    if (imageName != null) return new File(fixtureDir(), ASSETS_DIRECTORY + "/" + imageName).delete();
+    return deleteRecoveryFile(documentId);
   }
 
   private boolean deleteRecoveryFile(String documentId) {
@@ -430,9 +498,13 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       path = Collections.singletonList(ROOT_ID);
     } else if (MANIFEST_ID.equals(documentId) || SRC_ID.equals(documentId)) {
       path = Arrays.asList(ROOT_ID, documentId);
+    } else if (ASSETS_ID.equals(documentId)) {
+      path = Arrays.asList(ROOT_ID, SRC_ID, ASSETS_ID);
     } else if (PDF_ID.equals(documentId) || NOTES_ID.equals(documentId) || REVIEWS_ID.equals(documentId) ||
         ANNOTATIONS_ID.equals(documentId) || recoveryFiles.containsKey(documentId)) {
       path = Arrays.asList(ROOT_ID, SRC_ID, documentId);
+    } else if (imageFiles.containsKey(documentId)) {
+      path = Arrays.asList(ROOT_ID, SRC_ID, ASSETS_ID, documentId);
     } else {
       throw new FileNotFoundException(documentId);
     }
@@ -448,6 +520,11 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (SRC_ID.equals(documentId)) return values(
         DocumentsContract.Document.COLUMN_DOCUMENT_ID, SRC_ID,
         DocumentsContract.Document.COLUMN_DISPLAY_NAME, "src",
+        DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.MIME_TYPE_DIR,
+        DocumentsContract.Document.COLUMN_FLAGS, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE);
+    if (ASSETS_ID.equals(documentId) && assetsDirectoryCreated) return values(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID, ASSETS_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME, ASSETS_DIRECTORY,
         DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.MIME_TYPE_DIR,
         DocumentsContract.Document.COLUMN_FLAGS, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE);
     if (MANIFEST_ID.equals(documentId)) return fileValues(
@@ -475,6 +552,11 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         documentId, recoveryName, "application/json",
         DocumentsContract.Document.FLAG_SUPPORTS_WRITE | DocumentsContract.Document.FLAG_SUPPORTS_DELETE,
         recoveryName);
+    String imageName = imageFiles.get(documentId);
+    if (imageName != null) return fileValues(
+        documentId, imageName, mimeForImage(imageName),
+        DocumentsContract.Document.FLAG_SUPPORTS_WRITE | DocumentsContract.Document.FLAG_SUPPORTS_DELETE,
+        ASSETS_DIRECTORY + "/" + imageName);
     return null;
   }
 
@@ -529,6 +611,19 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (ANNOTATIONS_ID.equals(documentId)) return new File(fixtureDir(), ANNOTATIONS_FILE);
     String recoveryName = recoveryFiles.get(documentId);
     if (recoveryName != null) return new File(fixtureDir(), recoveryName);
+    String imageName = imageFiles.get(documentId);
+    if (imageName != null) return new File(fixtureDir(), ASSETS_DIRECTORY + "/" + imageName);
     return null;
+  }
+
+  private String mimeForImage(String name) {
+    String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(java.util.Locale.ROOT);
+    switch (extension) {
+      case "jpg":
+      case "jpeg": return "image/jpeg";
+      case "gif": return "image/gif";
+      case "webp": return "image/webp";
+      default: return "image/png";
+    }
   }
 }

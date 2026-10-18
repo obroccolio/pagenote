@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -73,9 +74,29 @@ public final class NoteAssetSafTestProvider extends ContentProvider {
         ? new String[] {
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            OpenableColumns.DISPLAY_NAME,
+            OpenableColumns.SIZE,
           }
         : projection;
     MatrixCursor cursor = new MatrixCursor(columns);
+    if (IMAGE_DOCUMENT_ID.equals(documentId)) {
+      Object[] row = new Object[columns.length];
+      for (int index = 0; index < columns.length; index++) {
+        if (DocumentsContract.Document.COLUMN_DOCUMENT_ID.equals(columns[index])) {
+          row[index] = IMAGE_DOCUMENT_ID;
+        } else if (DocumentsContract.Document.COLUMN_DISPLAY_NAME.equals(columns[index]) ||
+            OpenableColumns.DISPLAY_NAME.equals(columns[index])) {
+          row[index] = IMAGE_NAME;
+        } else if (DocumentsContract.Document.COLUMN_MIME_TYPE.equals(columns[index])) {
+          row[index] = "image/png";
+        } else if (OpenableColumns.SIZE.equals(columns[index])) {
+          row[index] = fixturePng().length;
+        }
+      }
+      cursor.addRow(row);
+      return cursor;
+    }
     String childId = null;
     String childName = null;
     if (SOURCE_DOCUMENT_ID.equals(documentId)) {

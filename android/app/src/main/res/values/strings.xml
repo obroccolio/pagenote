@@ -76,6 +76,10 @@
   <string name="reader_menu_table">Table</string>
   <string name="reader_menu_link">Link</string>
   <string name="reader_menu_image">Image</string>
+  <string name="reader_menu_image_editor_required">Open a writable note in Edit mode to insert an image.</string>
+  <string name="reader_menu_image_import_failed">The image could not be imported. The note was left unchanged.</string>
+  <string name="reader_menu_image_context_changed">The note changed before the image was inserted. The image was not added.</string>
+  <string name="reader_menu_image_orphaned">The image was not added. Remove this unused project asset: %1$s</string>
   <string name="reader_menu_paste_markdown">Paste as Markdown</string>
   <string name="reader_menu_select_tool">Select tool</string>
   <string name="reader_menu_line">Line</string>

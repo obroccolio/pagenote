@@ -134,6 +134,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
@@ -148,6 +149,7 @@ import kotlinx.coroutines.withTimeout
 
 class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
+  internal var markdownImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
 
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
@@ -251,6 +253,17 @@ private data class ReaderProjectData(
 
 private class PersistedProjectPermissionMissingException : SecurityException()
 
+private data class PendingMarkdownImageInsertion(
+  val project: OpenedProject,
+  val projectId: String,
+  val sourceDirectoryUri: Uri,
+  val pageIndex: Int,
+  val editor: EditText,
+  val markdown: String,
+  val selectionStart: Int,
+  val selectionEnd: Int,
+)
+
 @Composable
 private fun ReaderHome(
   settings: ReaderSettings,
@@ -259,6 +272,7 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   var project by readerSession.project
@@ -306,6 +320,8 @@ private fun ReaderHome(
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var regionOcrContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var isOpening by readerSession.isOpening
+  var isImageImporting by remember { mutableStateOf(false) }
+  var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
@@ -646,7 +662,9 @@ private fun ReaderHome(
     val pageCount = renderer?.pageCount
       ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
       ?: 0
-    if (readerOcrState.inputLocked || pdfTextSelectionMode || nextPage !in 0 until pageCount) return false
+    if (readerOcrState.inputLocked || pdfTextSelectionMode || isImageImporting || nextPage !in 0 until pageCount) {
+      return false
+    }
     if (nextPage == pageIndex) return true
     if (hasUnsavedChanges && !saveCurrentNote()) return false
     readerSession.clearCurrentDraftRecovery()
@@ -1476,6 +1494,126 @@ private fun ReaderHome(
     }
   }
 
+  fun imageInsertionContextIsCurrent(pending: PendingMarkdownImageInsertion): Boolean =
+    project === pending.project &&
+      project?.manifest?.id == pending.projectId &&
+      project?.sourceDirectoryUri == pending.sourceDirectoryUri &&
+      pageIndex == pending.pageIndex &&
+      markdownEditor === pending.editor &&
+      pending.editor.isEnabled &&
+      noteWritable &&
+      noteDraft == pending.markdown &&
+      pending.editor.text.toString() == pending.markdown
+
+  fun handleMarkdownImageResult(sourceUri: Uri?) {
+    val pending = pendingMarkdownImageInsertion
+    pendingMarkdownImageInsertion = null
+    if (sourceUri == null || pending == null) {
+      isImageImporting = false
+      return
+    }
+    scope.launch {
+      var importedForCleanup: ImportedProjectImage? = null
+      val importer = ProjectImageImporter(
+        context.contentResolver,
+        context.cacheDir,
+        pending.sourceDirectoryUri,
+      )
+      try {
+        if (!imageInsertionContextIsCurrent(pending)) {
+          noteStatus = context.getString(R.string.reader_menu_image_context_changed)
+          return@launch
+        }
+        val imported = withContext(NonCancellable + Dispatchers.IO) {
+          importer.import(sourceUri).also { importedForCleanup = it }
+        }
+        if (!imageInsertionContextIsCurrent(pending)) {
+          val removed = withContext(Dispatchers.IO) { importer.deleteImported(imported.documentUri) }
+          importedForCleanup = null
+          noteStatus = if (removed) {
+            context.getString(R.string.reader_menu_image_context_changed)
+          } else {
+            context.getString(R.string.reader_menu_image_orphaned, imported.assetName)
+          }
+          return@launch
+        }
+        val reference = MarkdownImageInsertion.createReference(imported.altText, imported.assetName)
+        val edit = MarkdownImageInsertion.createEdit(
+          pending.markdown,
+          pending.selectionStart,
+          pending.selectionEnd,
+          reference,
+        )
+        pending.editor.requestFocus()
+        pending.editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+        pending.editor.setSelection(edit.cursor)
+        importedForCleanup = null
+        noteStatus = null
+      } catch (cancelled: CancellationException) {
+        importedForCleanup?.let { imported ->
+          withContext(NonCancellable + Dispatchers.IO) { importer.deleteImported(imported.documentUri) }
+        }
+        throw cancelled
+      } catch (error: ProjectImageImportException) {
+        noteStatus = error.residualAssetName?.let {
+          context.getString(R.string.reader_menu_image_orphaned, it)
+        } ?: context.getString(R.string.reader_menu_image_import_failed)
+      } catch (_: Exception) {
+        importedForCleanup?.let { imported ->
+          val removed = withContext(NonCancellable + Dispatchers.IO) {
+            importer.deleteImported(imported.documentUri)
+          }
+          if (!removed) {
+            noteStatus = context.getString(R.string.reader_menu_image_orphaned, imported.assetName)
+            importedForCleanup = null
+            return@launch
+          }
+        }
+        noteStatus = context.getString(R.string.reader_menu_image_import_failed)
+      } finally {
+        isImageImporting = false
+      }
+    }
+  }
+
+  val markdownImagePicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument(),
+    onResult = ::handleMarkdownImageResult,
+  )
+
+  fun chooseMarkdownImage() {
+    val activeProject = project ?: return
+    val editor = markdownEditor ?: return
+    if (isImageImporting || isOpening || isCreatingProject || isRendering || isSaving || isPenSaving ||
+      isOcrRunning || isAgentRunning || isPageTutorRunning || !noteWritable || !editor.isEnabled
+    ) return
+    val markdown = editor.text.toString()
+    if (markdown != noteDraft) return
+    pendingMarkdownImageInsertion = PendingMarkdownImageInsertion(
+      project = activeProject,
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri,
+      pageIndex = pageIndex,
+      editor = editor,
+      markdown = markdown,
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+    )
+    isImageImporting = true
+    try {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.markdownImagePickerForTesting
+      if (pickerForTesting == null) {
+        markdownImagePicker.launch(arrayOf("image/*"))
+      } else {
+        pickerForTesting(::handleMarkdownImageResult)
+      }
+    } catch (_: Exception) {
+      pendingMarkdownImageInsertion = null
+      isImageImporting = false
+      noteStatus = context.getString(R.string.reader_menu_image_import_failed)
+    }
+  }
+
   DisposableEffect(Unit) {
     onDispose { pageBitmap?.recycle() }
   }
@@ -1558,7 +1696,7 @@ private fun ReaderHome(
     activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
     else -> 0
   }
-  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || failedPenSave != null ||
+  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting || failedPenSave != null ||
     isOcrRunning || isSelectablePageTextLoading || readerInputLocked || isAgentRunning || isPageTutorRunning
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
@@ -1593,6 +1731,9 @@ private fun ReaderHome(
   val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
   val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_note_editor_required) else null
+  val canInsertMarkdownImage = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
+  val markdownImageDisabledReason = commandReason(requireProject = true, requireWritable = true)
+    ?: if (!canInsertMarkdownImage) context.getString(R.string.reader_menu_image_editor_required) else null
 
   fun applyMarkdownInlineFormatting(style: MarkdownInlineStyle) {
     val editor = markdownEditor ?: return
@@ -1620,11 +1761,11 @@ private fun ReaderHome(
   fun menuSection(group: ReaderMenuGroup, labelRes: Int, commands: List<ReaderMenuCommand>) =
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
-  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving &&
+  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canUsePdf = canReadDocument && !isMarkdownReading
-  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving &&
+  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
@@ -1795,7 +1936,10 @@ private fun ReaderHome(
         pendingCommand("formula", R.string.reader_menu_formula),
         pendingCommand("table", R.string.reader_menu_table),
         pendingCommand("link", R.string.reader_menu_link),
-        pendingCommand("image", R.string.reader_menu_image),
+        actionCommand(
+          "image", R.string.reader_menu_image,
+          canInsertMarkdownImage, markdownImageDisabledReason,
+        ) { chooseMarkdownImage() },
         pendingCommand("paste_markdown", R.string.reader_menu_paste_markdown),
       ),
     ),
