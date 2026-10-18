@@ -46,6 +46,7 @@
   - [x] 5.5 新增单设备 Markdown 预览截图工具：在 Android 14/API 34 平板 AVD 复用真实 `NotePanel`，用一组富内容覆盖中英混排、表格、公式、代码、Mermaid 与离线图片占位。截图发现 SVG 在 Markwon 平移画布坐标下不可见，已改为宽度受限、最多 4,194,304 像素且单边不超过 16,384 像素的 `BitmapDrawable`。仅保留一个 focused instrumentation 测试和一张浅色截图；脚本先构建、再用显式 ADB serial 只安装到所选 arm64 API 34 AVD。目标小米实机验收仍待进行。详见 `features/markdown-visual-capture.md` 与 `markdown-visual-capture-plan.md`。
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - [x] 5.6 补齐删除线和 GFM 任务列表的 Android Markwon 预览渲染，并确认源码编辑保留标记；不实现点按勾选或写回。渲染器仪器类 12/12 在唯一 API 34 平板 AVD 通过，notes/app JVM 测试及 Debug 应用/测试 APK 构建通过。契约见 `features/markdown-gfm-basics.md`。
+  - [ ] 5.7 接通可写笔记编辑器中的粗体、斜体、删除线菜单命令；保持桌面 Markdown 标记、UTF-16 选区、自动草稿恢复和 revision 保存语义。契约见 `features/markdown-inline-formatting.md`，实施见 `markdown-inline-formatting-plan.md`。
   - _Requirement: 阅读与笔记_
 
 - [x] 6. 标注与 AI 标注工作台（数据模型、SAF 边界、文字/区域批注、overall review、handoff、selection review 与同轮 Agent 应用授权已落地；验收限制见相关契约）
