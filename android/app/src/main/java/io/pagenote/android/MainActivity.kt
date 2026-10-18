@@ -131,10 +131,13 @@ import io.pagenote.feature.ocr.OcrResultMapper
 import io.pagenote.feature.ocr.OcrResultPolicy
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenCanvasView
+import io.pagenote.feature.pen.PenClipboardCodec
 import io.pagenote.feature.pen.PenPageStore
+import io.pagenote.feature.pen.PenPoint
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.CancellationException
@@ -367,6 +370,9 @@ private fun ReaderHome(
   var penStrokes by readerSession.penStrokes
   var penWritable by readerSession.penWritable
   var penTool by readerSession.penTool
+  var selectedPenIndex by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf<Int?>(null)
+  }
   var penColor by rememberSaveable { mutableStateOf(PenStyle.DEFAULT.color) }
   var penWidth by rememberSaveable { mutableStateOf(PenStyle.DEFAULT.width) }
   var showPenColorPicker by remember { mutableStateOf(false) }
@@ -619,6 +625,7 @@ private fun ReaderHome(
     val targetPage = pageIndex + 1
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    selectedPenIndex = null
     penStrokes = updated
     readerSession.launchSessionTask { savePenPage(targetPage, updated) }
   }
@@ -627,6 +634,13 @@ private fun ReaderHome(
     val targetPage = pageIndex + 1
     if (penPageStore.eraseAt(PenSide.DOCUMENT, targetPage, index)) {
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+      selectedPenIndex = selectedPenIndex?.let { selected ->
+        when {
+          selected == index -> null
+          selected > index -> selected - 1
+          else -> selected
+        }
+      }
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
     }
@@ -635,6 +649,7 @@ private fun ReaderHome(
   fun clearPenPage() {
     val targetPage = pageIndex + 1
     if (penPageStore.clearPage(PenSide.DOCUMENT, targetPage)) {
+      selectedPenIndex = null
       penStrokes = emptyList()
       readerSession.launchSessionTask { savePenPage(targetPage, emptyList()) }
     }
@@ -643,6 +658,7 @@ private fun ReaderHome(
   fun undoPenPage() {
     val targetPage = pageIndex + 1
     if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
+      selectedPenIndex = null
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
@@ -652,10 +668,75 @@ private fun ReaderHome(
   fun redoPenPage() {
     val targetPage = pageIndex + 1
     if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
+      selectedPenIndex = null
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
     }
+  }
+
+  fun selectedInkCanBeCopied(): Boolean = selectedPenIndex?.let { it in penStrokes.indices } == true
+
+  fun copySelectedInk() {
+    val stroke = selectedPenIndex?.let(penStrokes::getOrNull)
+    if (stroke == null) {
+      penStatus = context.getString(R.string.pen_selection_required)
+      return
+    }
+    try {
+      val clipboard = context.getSystemService(ClipboardManager::class.java)
+      if (clipboard == null) {
+        penStatus = context.getString(R.string.pen_clipboard_unavailable)
+        return
+      }
+      clipboard.setPrimaryClip(
+        ClipData.newPlainText(
+          context.getString(R.string.reader_menu_copy_ink),
+          PenClipboardCodec.encode(stroke),
+        ),
+      )
+      penStatus = context.getString(R.string.pen_copied)
+    } catch (_: Exception) {
+      penStatus = context.getString(R.string.pen_copy_failed)
+    }
+  }
+
+  fun clipboardInkForPaste(): PenStroke? {
+    val text = context.getSystemService(ClipboardManager::class.java)
+      ?.primaryClip
+      ?.takeIf { it.itemCount > 0 }
+      ?.getItemAt(0)
+      ?.text
+      ?.toString()
+      ?: return null
+    return PenClipboardCodec.decode(text, PenPoint(80f, 90f, PenValidation.DEFAULT_PRESSURE))
+  }
+
+  fun pasteInk() {
+    val stroke = clipboardInkForPaste()
+    if (stroke == null) {
+      penStatus = context.getString(R.string.pen_clipboard_invalid)
+      return
+    }
+    val targetPage = pageIndex + 1
+    try {
+      penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
+    } catch (_: Exception) {
+      penStatus = context.getString(R.string.pen_paste_failed)
+      return
+    }
+    val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    selectedPenIndex = updated.lastIndex
+    penStrokes = updated
+    penStatus = context.getString(R.string.pen_pasted)
+    readerSession.launchSessionTask { savePenPage(targetPage, updated) }
+  }
+
+  fun deleteSelectedInk() {
+    val index = selectedPenIndex?.takeIf { it in penStrokes.indices } ?: return
+    selectedPenIndex = null
+    erasePenStroke(index)
+    penStatus = context.getString(R.string.pen_deleted)
   }
 
   suspend fun saveCurrentNote(): Boolean {
@@ -2619,6 +2700,8 @@ private fun ReaderHome(
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
+  val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
+  val hasValidInkClipboard = clipboardInkForPaste() != null
 
   fun pdfImageInsertionContextIsCurrent(pending: PendingPdfImageInsertion): Boolean =
     project === pending.project &&
@@ -3077,24 +3160,28 @@ private fun ReaderHome(
       R.string.reader_menu_group_handwriting,
       listOf(
         actionCommand(
-          "select_tool", R.string.reader_menu_select_tool, canUsePen,
-          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
-        ) { selectAnnotationDrawTool(null) },
+          "select_tool", R.string.reader_menu_select_tool, canSelectPen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) {
+          selectedPenIndex = null
+          selectAnnotationDrawTool(null)
+          penTool = PenCanvasTool.SELECT
+        },
         actionCommand(
           "pen", R.string.pen, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.PEN },
+        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.PEN },
         actionCommand(
           "highlighter", R.string.highlighter, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.HIGHLIGHTER },
+        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.HIGHLIGHTER },
         actionCommand(
           "eraser", R.string.eraser, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.ERASER },
+        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.ERASER },
         actionCommand(
           "line", R.string.reader_menu_line, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -3151,8 +3238,21 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_nothing_to_redo),
         ) { redoPenPage() },
-        pendingCommand("copy_ink", R.string.reader_menu_copy_ink),
-        pendingCommand("paste_ink", R.string.reader_menu_paste_ink),
+        actionCommand(
+          "copy_ink", R.string.reader_menu_copy_ink,
+          canUsePdf && selectedInkCanBeCopied(),
+          disabledReason = if (selectedInkCanBeCopied()) commandReason(requireProject = true, requirePdf = true)
+            else context.getString(R.string.pen_selection_required),
+        ) { copySelectedInk() },
+        actionCommand(
+          "paste_ink", R.string.reader_menu_paste_ink,
+          canUsePen && hasValidInkClipboard,
+          disabledReason = commandReason(requireProject = true, requirePdf = true) ?: when {
+            !penWritable -> context.getString(R.string.pen_read_only)
+            !hasValidInkClipboard -> context.getString(R.string.pen_clipboard_invalid)
+            else -> context.getString(R.string.reader_menu_pen_unavailable)
+          },
+        ) { pasteInk() },
         actionCommand(
           "insert_ink_image", R.string.reader_menu_insert_image, canUsePen && !menuBusy,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -3163,7 +3263,15 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_no_ink),
         ) { clearPenPage() },
-        pendingCommand("delete_ink", R.string.reader_menu_delete_ink),
+        actionCommand(
+          "delete_ink", R.string.reader_menu_delete_ink,
+          canUsePen && selectedInkCanBeCopied(),
+          disabledReason = commandReason(requireProject = true, requirePdf = true) ?: when {
+            !penWritable -> context.getString(R.string.pen_read_only)
+            !selectedInkCanBeCopied() -> context.getString(R.string.pen_selection_required)
+            else -> context.getString(R.string.reader_menu_pen_unavailable)
+          },
+        ) { deleteSelectedInk() },
       ),
     ),
     menuSection(
@@ -3400,10 +3508,12 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerInputLocked && !annotateMode &&
+                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
+                selectedStrokeIndex = selectedPenIndex,
+                onSelectedStrokeChanged = { selectedPenIndex = it },
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
@@ -3502,10 +3612,12 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerInputLocked && !annotateMode &&
+                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
+                selectedStrokeIndex = selectedPenIndex,
+                onSelectedStrokeChanged = { selectedPenIndex = it },
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
@@ -4972,6 +5084,8 @@ internal fun PdfPageViewport(
   inputEnabled: Boolean,
   onStrokeAdded: (PenStroke) -> Unit,
   onStrokeErased: (Int) -> Unit,
+  selectedStrokeIndex: Int? = null,
+  onSelectedStrokeChanged: (Int?) -> Unit = {},
   transform: PdfViewportTransform,
   onTransformChanged: (PdfViewportTransform) -> Unit,
   onBoundsChanged: (PdfViewportBounds) -> Unit,
@@ -4996,6 +5110,7 @@ internal fun PdfPageViewport(
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
+  val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),
@@ -5185,16 +5300,18 @@ internal fun PdfPageViewport(
           )
           PdfAnnotationOverlay(annotations, images = annotationImages)
           AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
             factory = { viewContext -> PenCanvasView(viewContext) },
             update = { view ->
               view.strokes = strokes
               view.selectedTool = tool
+              view.selectedIndex = selectedStrokeIndex
               view.penColor = penStyle.color
               view.penWidth = penStyle.width
               view.inputEnabled = inputEnabled
               view.onStrokeAdded = onStrokeAdded
               view.onStrokeErased = onStrokeErased
+              view.onSelectionChanged = latestOnSelectedStrokeChanged
             },
           )
           OcrSelectionOverlay(selection)

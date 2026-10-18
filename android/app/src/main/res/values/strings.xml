@@ -308,6 +308,14 @@
   <string name="pen_saved">Ink saved</string>
   <string name="pen_saved_recovery_copy">Ink saved; recovery copy remains: %1$s</string>
   <string name="pen_not_saved">Ink not saved: %1$s</string>
+  <string name="pen_selection_required">Select a supported ink item first.</string>
+  <string name="pen_clipboard_unavailable">System clipboard is unavailable.</string>
+  <string name="pen_clipboard_invalid">Clipboard is empty or does not contain supported ink.</string>
+  <string name="pen_copied">Ink copied.</string>
+  <string name="pen_pasted">Ink pasted on this page.</string>
+  <string name="pen_deleted">Selected ink deleted.</string>
+  <string name="pen_copy_failed">Selected ink could not be copied.</string>
+  <string name="pen_paste_failed">Clipboard ink could not be added to this page.</string>
   <string name="readonly_pen_cannot_save">Read-only project: ink cannot be saved</string>
   <string name="opening_project_message">Opening project…</string>
   <string name="choose_project_message">Choose a pagenote project folder</string>

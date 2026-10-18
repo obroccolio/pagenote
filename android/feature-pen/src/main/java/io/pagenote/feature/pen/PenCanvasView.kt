@@ -14,7 +14,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-enum class PenCanvasTool { PEN, HIGHLIGHTER, ERASER }
+enum class PenCanvasTool { SELECT, PEN, HIGHLIGHTER, ERASER }
 
 /** Native ink layer. Persistence and page-scoped history remain with the caller. */
 class PenCanvasView @JvmOverloads constructor(
@@ -26,9 +26,15 @@ class PenCanvasView @JvmOverloads constructor(
     strokeCap = Paint.Cap.ROUND
     strokeJoin = Paint.Join.ROUND
   }
+  private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.rgb(0, 122, 204)
+    style = Paint.Style.STROKE
+    strokeWidth = 3f
+  }
   private val activePoints = mutableListOf<PenPoint>()
   private var internalStrokes: List<PenStroke> = emptyList()
   private var activePointerId = INVALID_POINTER
+  private var selectionPointerId = INVALID_POINTER
   private var gestureTool: PenCanvasTool? = null
   private var eraseModeLatched = false
   private var activeColor = "#dc3545"
@@ -61,7 +67,13 @@ class PenCanvasView @JvmOverloads constructor(
 
   var onStrokeAdded: ((PenStroke) -> Unit)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
+  var onSelectionChanged: ((Int?) -> Unit)? = null
   var inputEnabled: Boolean = true
+  var selectedIndex: Int? = null
+    set(value) {
+      field = value
+      invalidate()
+    }
 
   var strokes: List<PenStroke>
     get() = internalStrokes
@@ -82,6 +94,7 @@ class PenCanvasView @JvmOverloads constructor(
     val save = canvas.save()
     canvas.scale(width / 1000f, width / 1000f)
     internalStrokes.forEach { drawStroke(canvas, it) }
+    selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
         drawStroke(
@@ -100,6 +113,7 @@ class PenCanvasView @JvmOverloads constructor(
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
     if (!inputEnabled) return false
+    if (selectedTool == PenCanvasTool.SELECT) return handleSelectionTouch(event)
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> return beginGesture(event, event.actionIndex)
       MotionEvent.ACTION_POINTER_DOWN -> return activePointerId != INVALID_POINTER
@@ -174,7 +188,7 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-    if (!inputEnabled) return false
+    if (!inputEnabled || selectedTool == PenCanvasTool.SELECT) return false
     val action = event.actionMasked
     if (action != MotionEvent.ACTION_BUTTON_PRESS && action != MotionEvent.ACTION_BUTTON_RELEASE) {
       return super.onGenericMotionEvent(event)
@@ -219,6 +233,60 @@ class PenCanvasView @JvmOverloads constructor(
       invalidate()
     }
     return true
+  }
+
+  private fun handleSelectionTouch(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        val pointerIndex = event.actionIndex
+        if (!isSupportedTool(event.getToolType(pointerIndex))) return false
+        selectionPointerId = event.getPointerId(pointerIndex)
+        requestUnbufferedDispatch(event)
+        val radius = 18f * resources.displayMetrics.density
+        val nextSelection = PenCanvasGeometry(width.toFloat(), height.toFloat())
+          .hitTest(internalStrokes, event.getX(pointerIndex), event.getY(pointerIndex), radius)
+        if (selectedIndex != nextSelection) {
+          selectedIndex = nextSelection
+          onSelectionChanged?.invoke(nextSelection)
+        }
+        invalidate()
+        return true
+      }
+      MotionEvent.ACTION_MOVE -> return selectionPointerId != INVALID_POINTER
+      MotionEvent.ACTION_POINTER_DOWN -> return selectionPointerId != INVALID_POINTER
+      MotionEvent.ACTION_UP -> {
+        if (selectionPointerId == INVALID_POINTER) return false
+        selectionPointerId = INVALID_POINTER
+        performClick()
+        return true
+      }
+      MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+        val hadSelectionGesture = selectionPointerId != INVALID_POINTER
+        selectionPointerId = INVALID_POINTER
+        return hadSelectionGesture
+      }
+    }
+    return selectionPointerId != INVALID_POINTER
+  }
+
+  private fun drawSelection(canvas: Canvas, stroke: PenStroke) {
+    val points = stroke.points
+    if (points.isEmpty()) return
+    val minX = points.minOf { it.x }
+    val maxX = points.maxOf { it.x }
+    val minY = points.minOf { it.y }
+    val maxY = points.maxOf { it.y }
+    val inset = (stroke.width.toFloat() / 2f) + SELECTION_INSET
+    val left = minX - inset
+    val top = minY - inset
+    val right = maxX + inset
+    val bottom = maxY + inset
+    val minimumSize = SELECTION_MIN_SIZE
+    val adjustedLeft = if (right - left < minimumSize) left - (minimumSize - (right - left)) / 2f else left
+    val adjustedTop = if (bottom - top < minimumSize) top - (minimumSize - (bottom - top)) / 2f else top
+    val adjustedRight = if (right - left < minimumSize) right + (minimumSize - (right - left)) / 2f else right
+    val adjustedBottom = if (bottom - top < minimumSize) bottom + (minimumSize - (bottom - top)) / 2f else bottom
+    canvas.drawRect(adjustedLeft, adjustedTop, adjustedRight, adjustedBottom, selectionPaint)
   }
 
   private fun isSupportedTool(toolType: Int): Boolean =
@@ -364,5 +432,7 @@ class PenCanvasView @JvmOverloads constructor(
     const val INVALID_POINTER = -1
     const val HIGHLIGHT_ALPHA = 89
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
+    const val SELECTION_INSET = 8f
+    const val SELECTION_MIN_SIZE = 24f
   }
 }

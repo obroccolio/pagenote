@@ -250,3 +250,9 @@
   - 7 个聚焦存储 JVM 用例、`RecentProjectsActivityTest` 在 `Pixel_Tablet_API34` 通过（1/1）；覆盖空状态、SAF Provider 重开、脏页先保存及移除后项目保留。`:app:assembleDebug` 与 `git diff --check` 通过；小米 Pad 5 Pro 真机验收仍属 task 12。
   - 契约见 `features/recent-projects.md`，实施拆分见 `recent-projects-plan.md`。
   - _Requirement: 桌面菜单分组一致、项目管理与数据兼容_
+
+- [x] 28. 笔迹选择与系统剪贴板（PDF 当前页单选、桌面兼容标记、粘贴/删除及页级撤销）
+  - 本切片仅覆盖笔与荧光笔；矢量图形属于独立覆盖层/存储路径，不包含文字框/图片、多选或拖动缩放。
+  - 6 个 feature-pen 聚焦 JVM codec 用例、真实 PDF reader 的 API 34 平板 AVD 流程（1/1）、`:app:compileDebugAndroidTestKotlin` 与 `:app:assembleDebug` 通过；流程覆盖点选、marker、粘贴坐标、删除及页内撤销/重做。小米 Pad 5 Pro 实体笔体验仍归 task 12。
+  - 范围和 EARS 契约见 `features/ink-selection-clipboard.md`，实施拆分见 `ink-selection-clipboard-plan.md`。
+  - _Requirement: 手写笔迹操作、桌面剪贴板数据兼容_
