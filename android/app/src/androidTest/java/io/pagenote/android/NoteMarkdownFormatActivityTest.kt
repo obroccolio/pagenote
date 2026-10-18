@@ -21,10 +21,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.noties.markwon.ext.latex.JLatexAsyncDrawableSpan
+import io.noties.markwon.image.AsyncDrawableSpan
 import io.noties.markwon.core.spans.EmphasisSpan
 import io.noties.markwon.core.spans.StrongEmphasisSpan
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -195,6 +198,62 @@ class NoteMarkdownFormatActivityTest {
       ?: error("code block preview must render the selected source")
     assertTrue("preview must retain code", rendered.contains("Selected"))
     assertTrue("preview must not expose Markdown fences", !rendered.contains("```"))
+    assertEquals(expected, session.noteDraft.value)
+  }
+
+  @Test
+  fun formulaCommandWrapsSelectionAndSavesOnlyCurrentPage() {
+    val savedPages = listOf("Lead x^2 tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    insertCommand("formula").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    insertCommand("formula").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    val editor = requireNotNull(findNoteEditor())
+    val formulaStart = editor.text.indexOf("x^2")
+    check(formulaStart >= 0) { "formula source must remain in the Markdown editor" }
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(formulaStart, formulaStart + "x^2".length)
+    }
+    composeRule.waitForIdle()
+
+    insertCommand("formula").assertIsEnabled().performClick()
+    val expected = "Lead \n\n$$\nx^2\n$$\n\n tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    val updatedEditor = requireNotNull(findNoteEditor())
+    val selectedStart = expected.indexOf("x^2")
+    assertEquals(selectedStart, updatedEditor.selectionStart)
+    assertEquals(selectedStart + "x^2".length, updatedEditor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("Lead") != null }
+    val rendered = findRenderedPreview("Lead")?.text as? Spanned
+      ?: error("formula preview must expose native spans")
+    assertFalse("preview must not expose Markdown block delimiters", rendered.toString().contains("$$"))
+    val formulaSpan = rendered.getSpans(0, rendered.length, JLatexAsyncDrawableSpan::class.java).single()
+    val formulaDrawable = (formulaSpan as AsyncDrawableSpan).drawable
+    composeRule.waitUntil(timeoutMillis = 10_000) { formulaDrawable.hasResult() }
+    assertTrue(
+      "valid formula must render instead of using the error fallback",
+      formulaDrawable.result?.javaClass?.name?.startsWith("ru.noties.jlatexmath.") == true,
+    )
     assertEquals(expected, session.noteDraft.value)
   }
 
