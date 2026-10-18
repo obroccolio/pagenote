@@ -46,6 +46,6 @@
 - [x] Add the pure model tests first and run them red.
 - [x] Implement color normalization/validation and exact desktop width choices; run the focused JVM test green.
 - [x] Implement native swatch/custom-hex and width dialogs, saved style state, and apply the selected style to new freehand and PDF annotations.
-- [x] Add one Compose test for selecting a swatch/custom color and width; compile the Android test source.
+- [x] Add one Compose test for selecting a swatch/custom color and width, then draw through `PdfPageViewport` and verify the captured stroke style; compile the Android test source.
 - [x] Run focused JVM tests, the one API 34 Compose test on the selected tablet AVD, and build `:app:assembleDebug :app:assembleDebugAndroidTest`.
 - [x] Update `android/docs/spec/tasks.md` and root `CHANGELOG.md`, review the diff, commit, and push `codex/android-port` to `fork`.

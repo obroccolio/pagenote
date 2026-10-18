@@ -29,5 +29,5 @@ Enable the existing handwriting-menu color and width commands using the desktop 
 ## Verification
 
 - JVM: verify default values, color normalization/validation, and the exact desktop width choices.
-- Android 14/API 34 tablet AVD: one focused Compose test covers custom color/swatch choice and width selection through the native dialogs. The Xiaomi Pad 5 Pro remains the only hardware target; no other device/API/ABI matrix is required.
+- Android 14/API 34 tablet AVD: one focused Compose test covers swatch/custom color and width selection, then draws through the real `PdfPageViewport` and verifies the emitted `PenStroke` keeps the selected color and width. The Xiaomi Pad 5 Pro remains the only hardware target; no other device/API/ABI matrix is required.
 - Build: compile app and instrumentation sources and assemble Debug app/test APKs. Do not run other connected devices.

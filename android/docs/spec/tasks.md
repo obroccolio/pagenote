@@ -109,27 +109,33 @@
   - _Requirement: 布局与适配_
 
 - [ ] 12. 小米目标设备验收（当前只支持 Android 14/API 34 小米平板 5 Pro 骁龙 870；API 34 AVD 仅作平台代理。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
-  - [ ] 在小米平板 5 Pro 实机走通阅读、按页笔记保存/重载、标注与 Agent、离线 OCR 和手写笔工作流；实体笔硬件行为单独记录。
-  - API 34 AVD 只跑当前代码改动所需的聚焦仪器回归；Markdown 预览当前为一项测试和一张截图，见 task 5.5。下方历史矩阵不要求为普通功能切片重跑。
-  - 机型无关契约/JVM 测试按受影响模块运行；不再运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。
-  - 16 KB 页大小及公开商店合规检查移出当前验收；如目标 SDK 或商店发布政策触发，再作为独立发布门禁启用。
-    - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
-    - [x] 切换到项目自建 OpenCV 4.10.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查；原 4.14.0 `RDVL`/SIGILL 已解决。
-    - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常。初始 71 项套件记录属于早期验收；最新 107 项跨 AVD 矩阵见下方记录。
-  - [x] 修复 OCR 测试 runner 曾静默运行 0 tests 的问题，并以项目自建 OpenCV 4.10.0 AAR 解决旧版 `RDVL`/SIGILL；API 34、API 35 4 KB/16 KB 的模型识别测试均通过。API 35 16 KB AVD 的严格断网测试由 `scripts/test_offline_ocr_avd.sh` 验证。
-  - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
-  - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
-  - [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
-  - [x] 最新完整 JVM 回归 370/370 通过，`assembleDebug` 成功；四 ABI debug APK 的 ELF LOAD 与 ZIP alignment 16 KB 检查通过，arm64 OpenCV 不含 RDVL。该构建验证不关闭本任务中的手动设备验收。
-  - [x] 最新 `:app:connectedDebugAndroidTest` 完整仪器套件 107/107 通过：Android 14 AVD (4 KB)、Android 15 Pixel Tablet AVD (4 KB)、Android 15 AVD (16 KB) 均为 0 failures / 0 skipped。覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件、自适应菜单及后续 Activity 闭环回归；SAF fixture 不等同于系统 picker/真实持久授权，也不覆盖实体手写笔、真模型服务或全部手动交互验收。设备页大小由 `getconf PAGESIZE` 核实；本轮未修改 USB/安装安全设置。
-  - [x] `:feature-pen:connectedDebugAndroidTest` 原生 View 笔迹测试 3/3 在 API 34 4 KB、API 35 4 KB、API 35 16 KB AVD 全部通过；包括 generic-motion 侧键橡皮擦。该项不替代实体笔硬件验收。
-  - [x] 原生 `PenCanvasView` 仪器测试 3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过，覆盖合成压感笔迹、取消/禁用输入及两个平台侧键映射经 `dispatchGenericMotionEvent` 触发橡皮擦。仍需实体手写笔验证硬件压力、掌拒、延迟及具体按键映射。
-  - [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
-    - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
-    - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；笔迹/OCR/Agent 设备交互矩阵仍待验收。
-    - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
+  - [ ] 在用户 69 页讲解项目的副本上完成一次目标机核心流程：打开 PDF、跳到一页、修改笔记并保存/重载；原项目保持不变。
+  - [ ] 同一目标机上创建并重载一条 PDF 批注和一条小米手写笔笔迹；只检查基本落笔与侧键橡皮擦，不做压感/延迟/边缘性能矩阵。
+  - [ ] 对一张扫描页离线 OCR，并在配置了 OpenAI 兼容端点时发起一次单页讲解，确认 OCR 内容进入请求。
+  - 普通改动只运行受影响模块的契约/JVM 测试和 Debug 构建；UI/平台改动再用唯一 API 34 平板 AVD 跑聚焦仪器回归。Markdown 预览保留一项测试和一张截图，见 task 5.5；不重跑完整仪器套件。
+  - 不运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。16 KB 页大小及公开商店合规检查仅在目标 SDK/商店政策触发时作为独立发布门禁。
   - _Requirement: 构建与测试，全部 EARS_
+
+<details>
+<summary>历史验证记录（已完成；仅供审计，不是当前重跑门槛）</summary>
+
+- [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
+- [x] 切换到项目自建 OpenCV 4.10.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查；原 4.14.0 `RDVL`/SIGILL 已解决。
+- [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
+- [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常。初始 71 项套件记录属于早期验收；最新 107 项跨 AVD 矩阵见下方记录。
+- [x] 修复 OCR 测试 runner 曾静默运行 0 tests 的问题，并以项目自建 OpenCV 4.10.0 AAR 解决旧版 `RDVL`/SIGILL；API 34、API 35 4 KB/16 KB 的模型识别测试均通过。API 35 16 KB AVD 的严格断网测试由 `scripts/test_offline_ocr_avd.sh` 验证。
+- [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
+- [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
+- [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
+- [x] 最新完整 JVM 回归 370/370 通过，`assembleDebug` 成功；四 ABI debug APK 的 ELF LOAD 与 ZIP alignment 16 KB 检查通过，arm64 OpenCV 不含 RDVL。该构建验证不关闭本任务中的手动设备验收。
+- [x] 最新 `:app:connectedDebugAndroidTest` 完整仪器套件 107/107 通过：Android 14 AVD (4 KB)、Android 15 Pixel Tablet AVD (4 KB)、Android 15 AVD (16 KB) 均为 0 failures / 0 skipped。覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件、自适应菜单及后续 Activity 闭环回归；SAF fixture 不等同于系统 picker/真实持久授权，也不覆盖实体手写笔、真模型服务或全部手动交互验收。设备页大小由 `getconf PAGESIZE` 核实；本轮未修改 USB/安装安全设置。
+- [x] `:feature-pen:connectedDebugAndroidTest` 原生 View 笔迹测试 3/3 在 API 34 4 KB、API 35 4 KB、API 35 16 KB AVD 全部通过；包括 generic-motion 侧键橡皮擦。该项不替代实体笔硬件验收。
+- [x] 原生 `PenCanvasView` 仪器测试 3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过，覆盖合成压感笔迹、取消/禁用输入及两个平台侧键映射经 `dispatchGenericMotionEvent` 触发橡皮擦。仍需实体手写笔验证硬件压力、掌拒、延迟及具体按键映射。
+- [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
+- [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
+- [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；task 12 仅剩上述小米平板目标机的合并核心流程。
+- [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
+</details>
 
 - [x] 13. 分支、变更日志、PR 准备（分支基于 beta、CHANGELOG 随推更新、产物独立于 release/，待开 PR）
   - `codex/android-port` 基于 `beta`，PR 目标 `beta`。
