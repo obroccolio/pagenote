@@ -27,7 +27,7 @@
 
 - [x] Update Android SPEC task 28 and root `CHANGELOG.md`.
 - [x] Run focused feature-pen JVM tests, the single Activity test, `:app:assembleDebug`, Android test-source compilation, and `git diff --check`.
-- [ ] Commit and push this source slice to `fork/codex/android-port`; do not publish a binary release or create a PR.
+- [x] Commit `8e7800c` and push this source slice to `fork/codex/android-port`; no binary release or PR was created.
 
 ## Review Focus
 
