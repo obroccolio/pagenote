@@ -348,6 +348,7 @@ private fun ReaderHome(
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
+  var markdownEditor by remember { mutableStateOf<EditText?>(null) }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
   var showHandoff by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
@@ -1589,6 +1590,25 @@ private fun ReaderHome(
     onSelect = onSelect,
   )
 
+  val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
+  val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true)
+    ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_note_editor_required) else null
+
+  fun applyMarkdownInlineFormatting(style: MarkdownInlineStyle) {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val edit = MarkdownInlineFormatting.wrapSelection(
+      markdown = editor.text.toString(),
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+      style = style,
+      placeholder = context.getString(R.string.reader_menu_format_placeholder),
+    )
+    editor.requestFocus()
+    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+  }
+
   fun pendingCommand(id: String, labelRes: Int) = actionCommand(
     id = id,
     labelRes = labelRes,
@@ -1754,9 +1774,16 @@ private fun ReaderHome(
       ReaderMenuGroup.FORMAT,
       R.string.reader_menu_group_format,
       listOf(
-        pendingCommand("bold", R.string.reader_menu_bold),
-        pendingCommand("italic", R.string.reader_menu_italic),
-        pendingCommand("strikethrough", R.string.reader_menu_strikethrough),
+        actionCommand(
+          "bold", R.string.reader_menu_bold, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownInlineFormatting(MarkdownInlineStyle.BOLD) },
+        actionCommand(
+          "italic", R.string.reader_menu_italic, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownInlineFormatting(MarkdownInlineStyle.ITALIC) },
+        actionCommand(
+          "strikethrough", R.string.reader_menu_strikethrough,
+          canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownInlineFormatting(MarkdownInlineStyle.STRIKETHROUGH) },
         pendingCommand("underline", R.string.reader_menu_underline),
       ),
     ),
@@ -2182,6 +2209,10 @@ private fun ReaderHome(
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
+              onEditorViewAttached = { markdownEditor = it },
+              onEditorViewReleased = { released ->
+                if (markdownEditor === released) markdownEditor = null
+              },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
@@ -2258,6 +2289,10 @@ private fun ReaderHome(
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
+              onEditorViewAttached = { markdownEditor = it },
+              onEditorViewReleased = { released ->
+                if (markdownEditor === released) markdownEditor = null
+              },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
               onHistory = { showNoteHistory = true },
@@ -3736,6 +3771,8 @@ internal fun NotePanel(
   onSave: () -> Unit,
   onReload: () -> Unit,
   onSelectionChanged: (TextRange?) -> Unit = {},
+  onEditorViewAttached: (EditText) -> Unit = {},
+  onEditorViewReleased: (EditText) -> Unit = {},
   historyEnabled: Boolean = false,
   onHistory: () -> Unit = {},
   sourceDirectoryUri: Uri? = null,
@@ -3744,6 +3781,8 @@ internal fun NotePanel(
 ) {
   val context = LocalContext.current
   val selectionCallback = rememberUpdatedState(onSelectionChanged)
+  val editorAttachedCallback = rememberUpdatedState(onEditorViewAttached)
+  val editorReleasedCallback = rememberUpdatedState(onEditorViewReleased)
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
   var preview by remember { mutableStateOf(false) }
   val mermaidCoordinator = remember(context, preview) {
@@ -3784,8 +3823,18 @@ internal fun NotePanel(
       )
     }
     TabRow(selectedTabIndex = if (preview) 1 else 0) {
-      Tab(selected = !preview, onClick = { preview = false }, text = { Text(stringResource(R.string.note_edit)) })
-      Tab(selected = preview, onClick = { preview = true }, text = { Text(stringResource(R.string.note_preview)) })
+      Tab(
+        selected = !preview,
+        onClick = { preview = false },
+        modifier = Modifier.testTag("note_tab_edit"),
+        text = { Text(stringResource(R.string.note_edit)) },
+      )
+      Tab(
+        selected = preview,
+        onClick = { preview = true },
+        modifier = Modifier.testTag("note_tab_preview"),
+        text = { Text(stringResource(R.string.note_preview)) },
+      )
     }
     if (!writable) {
       Text(
@@ -3891,7 +3940,7 @@ internal fun NotePanel(
                     if (content.page == page) onMarkdownChange(editable?.toString().orEmpty())
                   }
                 })
-              }
+              }.also(editorAttachedCallback.value)
             },
             update = { editText ->
               editText.setTextColor(contentColorInt)
@@ -3903,6 +3952,7 @@ internal fun NotePanel(
                 editText.setSelection(editText.text.length)
               }
             },
+            onRelease = { editor -> editorReleasedCallback.value(editor) },
           )
         }
       }

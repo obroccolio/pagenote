@@ -69,6 +69,8 @@
   <string name="reader_menu_italic">Italic</string>
   <string name="reader_menu_strikethrough">Strikethrough</string>
   <string name="reader_menu_underline">Underline</string>
+  <string name="reader_menu_format_placeholder">Text</string>
+  <string name="reader_menu_note_editor_required">Open a writable note in Edit mode to format text.</string>
   <string name="reader_menu_code">Code block</string>
   <string name="reader_menu_formula">Formula</string>
   <string name="reader_menu_table">Table</string>

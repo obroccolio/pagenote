@@ -53,18 +53,19 @@
 - `data class MarkdownInlineEdit`: 替换起止偏移、替换文本和编辑后的选择起止偏移。
 - `MarkdownInlineFormatting.wrapSelection(markdown, selectionStart, selectionEnd, style, placeholder): MarkdownInlineEdit`：规范化/夹取 UTF-16 范围；折叠选区时使用占位文本。
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
   - `wrapsSelectedRangeAndLeavesSurroundingMarkdownUntouched`：仅替换选中片段，且新选择仍覆盖原内容。
   - `insertsAndSelectsPlaceholderForCollapsedSelection`：光标位置插入标记与占位文本，新选择覆盖占位文本。
   - `usesUtf16OffsetsAfterSupplementaryCharacters`：emoji 前的 UTF-16 代理对完整保留，后续文字范围精确包裹。
   - `normalizesReversedAndClampsOutOfRangeSelection`：反向选择规范化，越界偏移夹取到源文边界。
-- [ ] **Step 2: Verify RED**
+- 另覆盖三种样式各自使用桌面分隔符的 `usesDesktopDelimitersForEachInlineStyle`。
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew :app:testDebugUnitTest --offline --tests io.pagenote.android.MarkdownInlineFormattingTest`
   - Expected: compilation fails because the formatter API does not yet exist.
-- [ ] **Step 3: Implement the minimal formatter**
+- [x] **Step 3: Implement the minimal formatter**
   - Create the enum/result/interface above; do not mutate the source inside the formatter.
-- [ ] **Step 4: Verify GREEN**
-  - Run the same focused Gradle command; all four formatter tests pass.
+- [x] **Step 4: Verify GREEN**
+  - Run the same focused Gradle command; all five formatter tests pass.
 
 ### Task 3: Reader 菜单接线与保存闭环
 
@@ -78,22 +79,23 @@
 - Modify: `android/docs/spec/markdown-inline-formatting-plan.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Write the failing reader test**
-  - `menuFormattingCommandsWrapSelectionAndSaveOnlyCurrentPage`：用 SAF 测试 Provider 打开两页笔记；选中当前页文字，依次执行粗体、斜体、删除线；断言源码 draft 精确为 `Lead ~~***Selected***~~ tail`，点击保存并重读，确认第 1 页变更且第 2 页原样保留。
+- [x] **Step 1: Write the failing reader test**
+  - `menuFormattingCommandsWrapSelectionAndSaveOnlyCurrentPage`：用 SAF 测试 Provider 打开两页笔记；检查预览态禁用，选中当前页文字依次执行粗体、斜体、删除线；断言源码 draft 精确为 `Lead ***~~Selected~~*** tail`，点击保存并重读，确认第 1 页变更、第 2 页原样保留，并在预览中确认三种原生格式 span。
   - 测试先断言项目打开前命令禁用、可写编辑器打开后命令启用。
-- [ ] **Step 2: Verify RED on the single API 34 tablet AVD**
+- [x] **Step 2: Verify RED on the single API 34 tablet AVD**
   - Run only `NoteMarkdownFormatActivityTest#menuFormattingCommandsWrapSelectionAndSaveOnlyCurrentPage` with explicit `ANDROID_SERIAL=emulator-5554` and class/method instrumentation filter.
   - Expected: the current pending command is disabled and the test fails at its enabled assertion.
-- [ ] **Step 3: Wire menu actions to the active editor**
+- [x] **Step 3: Wire menu actions to the active editor**
   - Keep the active `EditText` reference from `NotePanel` attach/release lifecycle; clear only the released instance.
   - Replace the three `pendingCommand` rows with guarded `actionCommand` handlers. Enable only when a writable current Markdown editor exists and `menuBusy` is false; report the existing project/read-only/busy reasons or a localized editor-required reason.
   - Apply the returned replacement to the current `Editable`, restore the selected content range, and request editor focus. Do not write `noteDraft` directly or save from the format command.
-- [ ] **Step 4: Verify the focused API 34 reader test passes**
+- [x] **Step 4: Verify the focused API 34 reader test passes**
   - Repeat the same one filtered instrumentation test; verify current-page save/reload and unchanged next page.
-- [ ] **Step 5: Verify app JVM tests and compile Debug APK**
+- [x] **Step 5: Verify app JVM tests and compile Debug APK**
   - Run: `cd android && ./gradlew :app:testDebugUnitTest --offline --tests io.pagenote.android.MarkdownInlineFormattingTest :app:assembleDebug --offline`
   - Expected: all formatter tests pass and `BUILD SUCCESSFUL`.
-- [ ] **Step 6: Check the diff, update SPEC status/log, commit and push**
+- [x] **Step 6: Check the diff and update SPEC status/log**
   - Run: `git diff --check` and `npx prettier --check android/docs/spec/tasks.md android/docs/spec/markdown-inline-formatting-plan.md`.
   - Mark task 5.7 and this plan's implemented steps complete; add user-visible behavior and exact tests to `CHANGELOG.md`.
-  - Commit source/tests/log separately from the already pushed documentation stage, then push to `fork/codex/android-port`.
+
+After verification, commit source/tests/log separately from the already pushed documentation stage, then push to `fork/codex/android-port`.

@@ -69,6 +69,8 @@
   <string name="reader_menu_italic">斜体</string>
   <string name="reader_menu_strikethrough">删除线</string>
   <string name="reader_menu_underline">下划线</string>
+  <string name="reader_menu_format_placeholder">文字</string>
+  <string name="reader_menu_note_editor_required">请在可写笔记的编辑模式中使用格式命令。</string>
   <string name="reader_menu_code">代码块</string>
   <string name="reader_menu_formula">公式</string>
   <string name="reader_menu_table">表格</string>
