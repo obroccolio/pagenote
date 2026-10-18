@@ -107,6 +107,57 @@ fun mapPdfTapToAnnotationPoint(
   return (pageX / bounds.pageWidthPx * 1000.0) to (pageY / bounds.pageWidthPx * 1000.0)
 }
 
+data class PdfAnnotationPagePoints(
+  val first: Pair<Double, Double>,
+  val second: Pair<Double, Double>,
+)
+
+/** Map a drag through the viewport transform using desktop's page-width coordinate scale. */
+fun mapPdfAnnotationDragToPoints(
+  start: PdfSelectionPoint,
+  end: PdfSelectionPoint,
+  bounds: PdfViewportBounds,
+  transform: PdfViewportTransform,
+): PdfAnnotationPagePoints? {
+  if (listOf(
+      start.x, start.y, end.x, end.y,
+      bounds.viewportWidthPx, bounds.viewportHeightPx,
+      bounds.pageWidthPx, bounds.pageHeightPx,
+      transform.scale, transform.translationX, transform.translationY,
+    ).any { !it.isFinite() } ||
+    bounds.viewportWidthPx <= 0f || bounds.viewportHeightPx <= 0f ||
+    bounds.pageWidthPx <= 0f || bounds.pageHeightPx <= 0f || transform.scale <= 0f
+  ) {
+    return null
+  }
+
+  fun toPage(point: PdfSelectionPoint) = PdfSelectionPoint(
+    x = (point.x - bounds.viewportWidthPx / 2f - transform.translationX) /
+      transform.scale + bounds.pageWidthPx / 2f,
+    y = (point.y - bounds.viewportHeightPx / 2f - transform.translationY) /
+      transform.scale + bounds.pageHeightPx / 2f,
+  )
+
+  val pageStart = toPage(start)
+  val pageEnd = toPage(end)
+  if (listOf(pageStart.x, pageStart.y, pageEnd.x, pageEnd.y).any { !it.isFinite() } ||
+    pageStart.x !in 0f..bounds.pageWidthPx || pageStart.y !in 0f..bounds.pageHeightPx
+  ) {
+    return null
+  }
+
+  fun toAnnotationPoint(x: Float, y: Float) =
+    (x / bounds.pageWidthPx * 1000.0) to (y / bounds.pageWidthPx * 1000.0)
+
+  return PdfAnnotationPagePoints(
+    first = toAnnotationPoint(pageStart.x, pageStart.y),
+    second = toAnnotationPoint(
+      pageEnd.x.coerceIn(0f, bounds.pageWidthPx),
+      pageEnd.y.coerceIn(0f, bounds.pageHeightPx),
+    ),
+  )
+}
+
 data class PdfViewportPointer(val id: Long, val x: Float, val y: Float)
 
 data class PdfViewportGesture(

@@ -79,6 +79,10 @@
   <string name="reader_menu_line">直线</string>
   <string name="reader_menu_arrow">箭头</string>
   <string name="reader_menu_shape">形状</string>
+  <string name="annotation_shape_rectangle">矩形</string>
+  <string name="annotation_shape_ellipse">椭圆</string>
+  <string name="annotation_saving">正在保存批注...</string>
+  <string name="annotation_drag_invalid">请在 PDF 页面内拖出非零尺寸。</string>
   <string name="reader_menu_text">文字</string>
   <string name="reader_menu_color">笔迹颜色</string>
   <string name="reader_menu_width">笔迹宽度</string>

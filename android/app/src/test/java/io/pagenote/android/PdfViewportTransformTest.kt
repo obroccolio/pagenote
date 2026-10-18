@@ -32,6 +32,34 @@ class PdfViewportTransformTest {
   }
 
   @Test
+  fun annotationDragUsesInverseZoomPanAndClipsPortraitPageEnd() {
+    val points = mapPdfAnnotationDragToPoints(
+      start = PdfSelectionPoint(300f, 1200f),
+      end = PdfSelectionPoint(2000f, 2000f),
+      bounds = PdfViewportBounds(1000f, 1400f, 700f, 1050f),
+      transform = PdfViewportTransform(2f, 40f, -50f),
+    )
+
+    requireNotNull(points)
+    assertEquals(328.5714, points.first.first, 0.001)
+    assertEquals(1142.8571, points.first.second, 0.001)
+    assertEquals(1000.0, points.second.first, 0.001)
+    assertEquals(1500.0, points.second.second, 0.001)
+  }
+
+  @Test
+  fun annotationDragStartingInLetterboxIsRejected() {
+    val points = mapPdfAnnotationDragToPoints(
+      start = PdfSelectionPoint(100f, 300f),
+      end = PdfSelectionPoint(300f, 500f),
+      bounds = PdfViewportBounds(1000f, 1400f, 700f, 1050f),
+      transform = PdfViewportTransform.DEFAULT,
+    )
+
+    assertNull(points)
+  }
+
+  @Test
   fun zoomPan_mapsSelectionThroughInverseTransform() {
     val region = mapPdfSelectionToOcrRegion(
       start = PdfSelectionPoint(350f, 200f),

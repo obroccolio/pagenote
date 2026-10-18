@@ -312,6 +312,10 @@ private fun ReaderHome(
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
   var annotateIsRegion by remember { mutableStateOf(false) }
+  var annotationDrawTool by remember { mutableStateOf<PdfAnnotationDrawTool?>(null) }
+  var annotationPreview by remember { mutableStateOf<Pair<Int, PdfAnnotationOverlayItem>?>(null) }
+  var isAnnotationSaving by remember { mutableStateOf(false) }
+  var showAnnotationShapePicker by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
   var annotationOverlayItems by remember { mutableStateOf(emptyList<PdfAnnotationOverlayItem>()) }
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
@@ -330,6 +334,61 @@ private fun ReaderHome(
       return
     }
     readerSession.viewportBookmark.value = PdfViewportBookmark.fromTransform(transform, bounds)
+  }
+
+  fun selectAnnotationDrawTool(tool: PdfAnnotationDrawTool?) {
+    annotationDrawTool = tool
+    annotationPreview = null
+    annotateMode = false
+  }
+
+  fun handleAnnotationDrag(
+    tool: PdfAnnotationDrawTool,
+    start: PdfSelectionPoint,
+    end: PdfSelectionPoint,
+    finished: Boolean,
+  ) {
+    val points = mapPdfAnnotationDragToPoints(start, end, viewportBounds, viewportTransform)
+    val draft = points?.let { PdfAnnotationVectorDraft.create(tool.type, it.first, it.second) }
+    val targetPage = pageIndex + 1
+    annotationPreview = draft?.toOverlayItem()?.let { targetPage to it }
+    if (!finished) return
+    if (draft == null) {
+      annotationPreview = null
+      noteStatus = context.getString(R.string.annotation_drag_invalid)
+      return
+    }
+    val targetProject = project ?: run {
+      annotationPreview = null
+      return
+    }
+    isAnnotationSaving = true
+    noteStatus = context.getString(R.string.annotation_saving)
+    scope.launch {
+      try {
+        penSaveMutex.withLock {
+          val store = ProjectAnnotationStore(
+            context.contentResolver,
+            targetProject.sourceDirectoryUri,
+            targetProject.annotationsUri,
+          )
+          val existing = withContext(Dispatchers.IO) {
+            store.readPage("document", targetPage)
+          }
+          val merged = existing.toMutableList().apply { add(draft.toItem().toJsonElement()) }
+          withContext(Dispatchers.IO) {
+            store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(merged))
+          }
+        }
+        annotationOverlayReload += 1
+        noteStatus = context.getString(R.string.annotation_saved)
+      } catch (error: Exception) {
+        noteStatus = context.getString(R.string.annotation_save_failed, error.message ?: "")
+      } finally {
+        if (annotationPreview?.first == targetPage) annotationPreview = null
+        isAnnotationSaving = false
+      }
+    }
   }
 
   fun createPdfSourceLoader(activeRenderer: PdfDocumentSession) = PageTutorSourceLoader(
@@ -1499,7 +1558,7 @@ private fun ReaderHome(
   val canUsePdf = canReadDocument && !isMarkdownReading
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving &&
     failedPenSave == null && !isOcrRunning && !readerOcrState.inputLocked
-  val canUsePen = canUsePdf && penWritable && !readerOcrState.inputLocked
+  val canUsePen = canUsePdf && penWritable && !readerOcrState.inputLocked && !isAnnotationSaving
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
     NoteHistoryMirror.directory(context.filesDir, it) != null
   } == true
@@ -1641,12 +1700,18 @@ private fun ReaderHome(
           "ocr", R.string.ocr,
           canUsePdf && !isRendering && !isOcrRunning && !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
-        ) { recognizeCurrentPage() },
+        ) {
+          selectAnnotationDrawTool(null)
+          recognizeCurrentPage()
+        },
         actionCommand(
           "region_ocr", R.string.region_ocr_action,
           canUsePdf && !isOcrRunning && !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true, requirePdf = true),
-        ) { readerOcrState = ReaderOcrState().enterSelection(pageIndex) },
+        ) {
+          selectAnnotationDrawTool(null)
+          readerOcrState = ReaderOcrState().enterSelection(pageIndex)
+        },
         actionCommand(
           "zoom_out", R.string.zoom_out,
           canUsePdf && !readerOcrState.inputLocked &&
@@ -1675,25 +1740,37 @@ private fun ReaderHome(
       ReaderMenuGroup.HANDWRITING,
       R.string.reader_menu_group_handwriting,
       listOf(
-        pendingCommand("select_tool", R.string.reader_menu_select_tool),
+        actionCommand(
+          "select_tool", R.string.reader_menu_select_tool, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { selectAnnotationDrawTool(null) },
         actionCommand(
           "pen", R.string.pen, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { penTool = PenCanvasTool.PEN },
+        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.PEN },
         actionCommand(
           "highlighter", R.string.highlighter, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { penTool = PenCanvasTool.HIGHLIGHTER },
+        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.HIGHLIGHTER },
         actionCommand(
           "eraser", R.string.eraser, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { penTool = PenCanvasTool.ERASER },
-        pendingCommand("line", R.string.reader_menu_line),
-        pendingCommand("arrow", R.string.reader_menu_arrow),
-        pendingCommand("shape", R.string.reader_menu_shape),
+        ) { selectAnnotationDrawTool(null); penTool = PenCanvasTool.ERASER },
+        actionCommand(
+          "line", R.string.reader_menu_line, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { selectAnnotationDrawTool(PdfAnnotationDrawTool.LINE) },
+        actionCommand(
+          "arrow", R.string.reader_menu_arrow, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { selectAnnotationDrawTool(PdfAnnotationDrawTool.ARROW) },
+        actionCommand(
+          "shape", R.string.reader_menu_shape, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { showAnnotationShapePicker = true },
         pendingCommand("ink_text", R.string.reader_menu_text),
         pendingCommand("ink_color", R.string.reader_menu_color),
         pendingCommand("ink_width", R.string.reader_menu_width),
@@ -1701,7 +1778,10 @@ private fun ReaderHome(
           "annotate_mode", R.string.annotate, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { annotateMode = !annotateMode },
+        ) {
+          if (!annotateMode) selectAnnotationDrawTool(null)
+          annotateMode = !annotateMode
+        },
         actionCommand(
           "pen_undo", R.string.undo,
           canUsePen && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
@@ -1917,18 +1997,22 @@ private fun ReaderHome(
                 bitmap = pageBitmap,
                 sourceName = activeProject.sourceName,
                 page = pageIndex,
-                annotations = annotationOverlayItems,
+                annotations = annotationOverlayItems + listOfNotNull(
+                  annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
+                ),
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
+                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
+                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
@@ -1938,6 +2022,10 @@ private fun ReaderHome(
                     annotateDraft = point
                     annotateText = ""
                   }
+                },
+                annotationDrawTool = annotationDrawTool.takeUnless { isAnnotationSaving },
+                onAnnotationDrag = { start, end, finished ->
+                  annotationDrawTool?.let { handleAnnotationDrag(it, start, end, finished) }
                 },
                 modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
               )
@@ -1980,18 +2068,22 @@ private fun ReaderHome(
                 bitmap = pageBitmap,
                 sourceName = activeProject.sourceName,
                 page = pageIndex,
-                annotations = annotationOverlayItems,
+                annotations = annotationOverlayItems + listOfNotNull(
+                  annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
+                ),
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode,
+                inputEnabled = penWritable && !readerOcrState.inputLocked && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onStrokeErased = ::erasePenStroke,
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
                 selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
-                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode,
+                gesturesEnabled = !readerOcrState.inputLocked && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
@@ -2001,6 +2093,10 @@ private fun ReaderHome(
                     annotateDraft = point
                     annotateText = ""
                   }
+                },
+                annotationDrawTool = annotationDrawTool.takeUnless { isAnnotationSaving },
+                onAnnotationDrag = { start, end, finished ->
+                  annotationDrawTool?.let { handleAnnotationDrag(it, start, end, finished) }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
               )
@@ -2249,6 +2345,15 @@ private fun ReaderHome(
       },
     )
   }
+  if (showAnnotationShapePicker) {
+    AnnotationShapePickerDialog(
+      onSelect = { tool ->
+        showAnnotationShapePicker = false
+        selectAnnotationDrawTool(tool)
+      },
+      onDismiss = { showAnnotationShapePicker = false },
+    )
+  }
   if (showAnnotations && project != null) {
     AnnotationListDialog(
       page = pageIndex + 1,
@@ -2462,6 +2567,30 @@ internal fun AnnotationTextInputDialog(
 }
 
 @Composable
+internal fun AnnotationShapePickerDialog(
+  onSelect: (PdfAnnotationDrawTool) -> Unit,
+  onDismiss: () -> Unit,
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.reader_menu_shape)) },
+    text = {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(
+          modifier = Modifier.testTag("annotation_shape_rectangle"),
+          onClick = { onSelect(PdfAnnotationDrawTool.RECTANGLE) },
+        ) { Text(stringResource(R.string.annotation_shape_rectangle)) }
+        TextButton(
+          modifier = Modifier.testTag("annotation_shape_ellipse"),
+          onClick = { onSelect(PdfAnnotationDrawTool.ELLIPSE) },
+        ) { Text(stringResource(R.string.annotation_shape_ellipse)) }
+      }
+    },
+    confirmButton = {},
+  )
+}
+
+@Composable
 internal fun AnnotationListDialog(
   page: Int,
   project: OpenedProject,
@@ -2511,7 +2640,8 @@ internal fun AnnotationListDialog(
         }
         entries.forEach { (index, obj) ->
           val type = obj["type"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() } ?: ""
-          val label = if (type == "text" || type == "rect") {
+          val supportedVector = type == "line" || type == "arrow" || type == "ellipse"
+          val label = if (type == "text" || type == "rect" || supportedVector) {
             val text = obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullFallback() }.orEmpty()
             if (text.isBlank()) context.getString(R.string.annotation_other_type, type) else text
           } else {
@@ -2523,7 +2653,7 @@ internal fun AnnotationListDialog(
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Text(label, modifier = Modifier.weight(1f))
-            if (type == "text" || type == "rect") {
+            if (type == "text" || type == "rect" || supportedVector) {
               TextButton(
                 modifier = Modifier.testTag("annotation_delete_$index"),
                 onClick = { pendingDelete = index },
@@ -3034,12 +3164,15 @@ internal fun PdfPageViewport(
   onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
   annotateTapEnabled: Boolean = false,
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
+  annotationDrawTool: PdfAnnotationDrawTool? = null,
+  onAnnotationDrag: (PdfSelectionPoint, PdfSelectionPoint, Boolean) -> Unit = { _, _, _ -> },
   modifier: Modifier = Modifier,
 ) {
   val latestTransform by rememberUpdatedState(transform)
   val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
+  val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds(),
@@ -3066,10 +3199,27 @@ internal fun PdfPageViewport(
       LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
 
       Box(
-        modifier = Modifier.fillMaxSize().pointerInput(page, bounds, selectionEnabled, gesturesEnabled, annotateTapEnabled) {
+        modifier = Modifier.fillMaxSize().pointerInput(
+          page, bounds, selectionEnabled, gesturesEnabled, annotateTapEnabled, annotationDrawTool,
+        ) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            if (annotateTapEnabled && down.type != PointerType.Mouse) {
+            if (annotationDrawTool != null && down.type != PointerType.Mouse) {
+              val start = PdfSelectionPoint(down.position.x, down.position.y)
+              var end = start
+              down.consume()
+              latestOnAnnotationDrag(start, end, false)
+              do {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change != null) {
+                  end = PdfSelectionPoint(change.position.x, change.position.y)
+                  val finished = !change.pressed
+                  change.consume()
+                  latestOnAnnotationDrag(start, end, finished)
+                }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+            } else if (annotateTapEnabled && down.type != PointerType.Mouse) {
               val tap = PdfSelectionPoint(down.position.x, down.position.y)
               down.consume()
               latestOnAnnotateTap(tap)

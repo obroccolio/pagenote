@@ -79,6 +79,10 @@
   <string name="reader_menu_line">Line</string>
   <string name="reader_menu_arrow">Arrow</string>
   <string name="reader_menu_shape">Shape</string>
+  <string name="annotation_shape_rectangle">Rectangle</string>
+  <string name="annotation_shape_ellipse">Ellipse</string>
+  <string name="annotation_saving">Saving annotation...</string>
+  <string name="annotation_drag_invalid">Draw on the PDF page with a non-zero drag.</string>
   <string name="reader_menu_text">Text</string>
   <string name="reader_menu_color">Ink color</string>
   <string name="reader_menu_width">Stroke width</string>
