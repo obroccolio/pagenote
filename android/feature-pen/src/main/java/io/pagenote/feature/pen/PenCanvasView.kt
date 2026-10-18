@@ -173,6 +173,31 @@ class PenCanvasView @JvmOverloads constructor(
     return activePointerId != INVALID_POINTER
   }
 
+  override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+    if (!inputEnabled) return false
+    val action = event.actionMasked
+    if (action != MotionEvent.ACTION_BUTTON_PRESS && action != MotionEvent.ACTION_BUTTON_RELEASE) {
+      return super.onGenericMotionEvent(event)
+    }
+    if (activePointerId == INVALID_POINTER) return super.onGenericMotionEvent(event)
+    val index = event.findPointerIndex(activePointerId)
+    if (index < 0 || event.getToolType(index) != MotionEvent.TOOL_TYPE_STYLUS) {
+      return super.onGenericMotionEvent(event)
+    }
+
+    if (action == MotionEvent.ACTION_BUTTON_PRESS) {
+      if (!hasEraserButton(event.buttonState)) return super.onGenericMotionEvent(event)
+      updateGestureTool(event, index)
+      eraseAt(event.getX(index), event.getY(index))
+      invalidate()
+      return true
+    }
+
+    if (!eraseModeLatched) return super.onGenericMotionEvent(event)
+    updateGestureTool(event, index)
+    return true
+  }
+
   override fun performClick(): Boolean {
     super.performClick()
     return true
@@ -184,7 +209,7 @@ class PenCanvasView @JvmOverloads constructor(
     requestUnbufferedDispatch(event)
     val eraserInput = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_ERASER ||
       (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_STYLUS &&
-        event.buttonState and MotionEvent.BUTTON_STYLUS_SECONDARY != 0)
+        hasEraserButton(event.buttonState))
     eraseModeLatched = eraserInput || selectedTool == PenCanvasTool.ERASER
     gestureTool = if (eraseModeLatched) PenCanvasTool.ERASER else selectedTool
     if (gestureTool == PenCanvasTool.ERASER) {
@@ -205,7 +230,7 @@ class PenCanvasView @JvmOverloads constructor(
     val inputTool = event.getToolType(pointerIndex)
     val eraserInput = inputTool == MotionEvent.TOOL_TYPE_ERASER ||
       (inputTool == MotionEvent.TOOL_TYPE_STYLUS &&
-        event.buttonState and MotionEvent.BUTTON_STYLUS_SECONDARY != 0)
+        hasEraserButton(event.buttonState))
     if (eraserInput) eraseModeLatched = true
     val nextTool = if (eraseModeLatched || selectedTool == PenCanvasTool.ERASER) {
       PenCanvasTool.ERASER
@@ -252,6 +277,8 @@ class PenCanvasView @JvmOverloads constructor(
     eraseModeLatched = false
     activePoints.clear()
   }
+
+  private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
 
   private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
     val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)
@@ -336,5 +363,6 @@ class PenCanvasView @JvmOverloads constructor(
   private companion object {
     const val INVALID_POINTER = -1
     const val HIGHLIGHT_ALPHA = 89
+    const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
   }
 }

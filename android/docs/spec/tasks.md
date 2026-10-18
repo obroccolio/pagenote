@@ -59,6 +59,7 @@
   - [x] 原生 View 笔/荧光笔/橡皮、stylus 侧键与硬件橡皮输入、撤销、重做、按页清除。
   - [x] 笔迹按页存取并保留 annotations.json 中的其他批注、页面和未知字段。
   - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
+  - [x] 原生 View 仪器测试覆盖合成笔迹坐标/压力、取消/禁用输入和侧键 generic-motion 橡皮擦；3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过。该结果只验证应用事件逻辑，实体手写笔的压力、误触和延迟仍待 task 12。
   - _Requirement: 笔迹，布局与适配_
 
 - [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通；此项不生成 Mermaid PNG 缓存，笔记预览实际绘图仍归 task 5）
@@ -102,13 +103,16 @@
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。
     - [x] 切换到项目自建 OpenCV 4.10.0 AAR，并通过全部 ABI APK 的 ELF/ZIP 16 KB 检查；原 4.14.0 `RDVL`/SIGILL 已解决。
     - [x] 当前连接设备页大小为 4096 bytes；APK 可安装并启动，但不作为 16 KB 运行时验证。
-  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常，最新记录的 71 项 app 仪器测试全部通过。
+  - [x] 已安装官方 Android 15 `google_apis_playstore_ps16k` ARM64 镜像并建立 `Pixel_Tablet_16KB`；`getconf PAGESIZE=16384`，应用启动正常。初始 71 项套件记录属于早期验收；最新 107 项跨 AVD 矩阵见下方记录。
   - [x] 修复 OCR 测试 runner 曾静默运行 0 tests 的问题，并以项目自建 OpenCV 4.10.0 AAR 解决旧版 `RDVL`/SIGILL；API 34、API 35 4 KB/16 KB 的模型识别测试均通过。API 35 16 KB AVD 的严格断网测试由 `scripts/test_offline_ocr_avd.sh` 验证。
   - [x] 既有 v1 `.pagenote` 项目的隔离 SAF URI 往返测试：生成 69 页 PDF 按第 1/35/69 页正确渲染，修改第 35 页后重开并确认邻页笔记未变；过期 revision 不覆盖新内容。两项仪器用例在 API 34、API 35 4 KB 和 API 35 16 KB AVD 全部通过，详见 `features/existing-project-saf-roundtrip.md`。
   - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
   - [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
   - [ ] 手机/平板上的笔记完整交互矩阵、手写笔、OCR 与 Agent 闭环以及实体设备仍待验收；单页 SAF 保存/重载不替代这些检查。
+  - [x] 最新完整 JVM 回归 370/370 通过，`assembleDebug` 成功；四 ABI debug APK 的 ELF LOAD 与 ZIP alignment 16 KB 检查通过，arm64 OpenCV 不含 RDVL。该构建验证不关闭本任务中的手动设备验收。
   - [x] 最新 `:app:connectedDebugAndroidTest` 完整仪器套件 107/107 通过：Android 14 AVD (4 KB)、Android 15 Pixel Tablet AVD (4 KB)、Android 15 AVD (16 KB) 均为 0 failures / 0 skipped。覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件、自适应菜单及后续 Activity 闭环回归；SAF fixture 不等同于系统 picker/真实持久授权，也不覆盖实体手写笔、真模型服务或全部手动交互验收。设备页大小由 `getconf PAGESIZE` 核实；本轮未修改 USB/安装安全设置。
+  - [x] `:feature-pen:connectedDebugAndroidTest` 原生 View 笔迹测试 3/3 在 API 34 4 KB、API 35 4 KB、API 35 16 KB AVD 全部通过；包括 generic-motion 侧键橡皮擦。该项不替代实体笔硬件验收。
+  - [x] 原生 `PenCanvasView` 仪器测试 3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过，覆盖合成压感笔迹、取消/禁用输入及两个平台侧键映射经 `dispatchGenericMotionEvent` 触发橡皮擦。仍需实体手写笔验证硬件压力、掌拒、延迟及具体按键映射。
   - [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；笔迹/OCR/Agent 设备交互矩阵仍待验收。

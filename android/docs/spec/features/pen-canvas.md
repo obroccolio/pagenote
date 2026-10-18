@@ -58,6 +58,22 @@ undo/redo, project access, or changes to the `annotations.json` contract.
 - Existing `PenPageStore` behavior and `annotations.json` serialization remain
   unchanged.
 
+## Android Instrumentation Acceptance
+
+- A native PenCanvasView instrumentation test dispatches synthetic stylus
+  down, move, and up events through the View. It verifies normalized page
+  coordinates, retained non-default pressure samples, and one completed
+  stroke callback.
+- Cancellation and disabled input discard the in-progress gesture without
+  writing a stroke.
+- Stylus button press and release are tested through generic-motion dispatch,
+  which is Android's event route for these actions. Erasing recognizes both
+  the stylus-secondary button and the platform secondary-button mapping used
+  for BTN_STYLUS.
+- Synthetic events verify application logic only. They do not replace
+  physical-device checks for pressure fidelity, palm rejection, latency, or
+  hardware-specific button reporting.
+
 ## Verification
 
 - JVM tests cover coordinate normalization, aspect-ratio-preserving Y scale,
