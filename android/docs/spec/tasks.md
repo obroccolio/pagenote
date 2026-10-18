@@ -108,7 +108,7 @@
   - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
   - [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
   - [ ] 手机/平板上的笔记完整交互矩阵、手写笔、OCR 与 Agent 闭环以及实体设备仍待验收；单页 SAF 保存/重载不替代这些检查。
-  - [x] Pixel Tablet API 34 与 API 35 AVD 的完整 app instrumentation suite（本切片前完整套件 71 项）通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；本切片新增的 2 项 Activity 审阅闭环测试另在 API 34 4 KB、API 35 4 KB 和 API 35 16 KB AVD 各通过 2/2。该 fixture 不等同于系统 picker/真实持久授权，也不覆盖手写笔或 OpenAI 服务端端到端验收。当前未修改 USB/安装安全设置。
+  - [x] 最新 `:app:connectedDebugAndroidTest` 完整仪器套件 107/107 通过：Android 14 AVD (4 KB)、Android 15 Pixel Tablet AVD (4 KB)、Android 15 AVD (16 KB) 均为 0 failures / 0 skipped。覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件、自适应菜单及后续 Activity 闭环回归；SAF fixture 不等同于系统 picker/真实持久授权，也不覆盖实体手写笔、真模型服务或全部手动交互验收。设备页大小由 `getconf PAGESIZE` 核实；本轮未修改 USB/安装安全设置。
   - [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；笔迹/OCR/Agent 设备交互矩阵仍待验收。
