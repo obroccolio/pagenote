@@ -73,10 +73,10 @@
   - [x] 接通区域 PNG 生成（复用 `toPixelRect` + `createBitmap`，floor/ceil + 裁剪）、Markdown 表格抽取（`MarkdownTables`，headers/rows/source，供 Agent 上下文；区域 OCR 缓存仍为 pdf 专用）、项目缓存 `refresh` 重做（`RegionOcrProcessor.recognize(refresh=true)` 跳读强写）；契约见 `features/page-prepare-pipeline.md`。准备缓存不另存 Mermaid PNG；阅读预览绘图仍按 task 5 验收。
   - _Requirement: 页面准备与 OCR_
 
-- [x] 9. 离线 OCR（API 34、API 35 4 KB/16 KB AVD 的真实模型测试通过；API 35 16 KB AVD 在飞行模式、Wi-Fi/移动数据关闭且无默认网络时通过全部 7 项 OCR 仪器测试。实体 ARM 设备仍未验证，见 `features/offline-ocr.md` 与 `offline-ocr-native-runtime-plan.md`）
+- [x] 9. 离线 OCR（内置 ONNX 模型、失败/低置信度警告及离线行为已接通；自动触发包含原生文本不可用/为空、图多字少和疑似乱码回退。历史 AVD 模型验证见 `features/offline-ocr.md`；当前仅目标小米平板 Android 14 验收有效）
   - [x] 原生 OCR 引擎在 API 34、API 35 4 KB 和 16 KB ARM64 AVD 各通过 7 项 instrumentation；中英文识别、区域坐标、原图所有权和失败语义均有覆盖。
   - [x] 中英文整页与区域识别、坐标、置信度、警告、原图保留。
-  - [x] 触发规则（`OcrTrigger`：不可用/空/图多字少自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、严格离线可用。
+  - [x] 触发规则（`OcrTrigger`：不可用/空/图多字少/疑似乱码时自动补 OCR，Agent 循环内不触发，page tutor 统一接入）、超时处理、失败明确标记、严格离线可用。
   - [x] 区域重识别 API 与全页坐标映射，契约见 `features/ocr-region-recognition.md`。
   - [x] 阅读器区域选择、离线识别与 SAF 项目缓存；JVM 回归、仪器测试编译、四 ABI APK 构建及 16 KB 对齐检查通过，真机手写笔/启动验收待完成，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
