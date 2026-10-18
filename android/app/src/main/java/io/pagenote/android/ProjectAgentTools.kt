@@ -66,13 +66,6 @@ object ProjectAgentTools {
     return RewriteEvidence(page, expectedRevision)
   }
 
-  internal fun authorizesApplied(record: JsonObject, evidence: Collection<RewriteEvidence>): Boolean {
-    val page = (record["page"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: return false
-    val revision = (record["revision"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-      ?: return false
-    return evidence.any { it.page == page && it.expectedRevision == revision }
-  }
-
   private fun reviewPreview(record: JsonObject, field: String, maxLength: Int): String {
     val value = (record[field] as? JsonPrimitive)?.contentOrNull.orEmpty()
     if (value.length <= maxLength) return value
@@ -280,8 +273,15 @@ private suspend fun writeReviewStatus(
   val status = request.args["status"] ?: return ToolResult(ok = false, detail = "missing status")
   return try {
     val store = ProjectReviewStore(resolver, project.sourceDirectoryUri, project.reviewsUri)
-    store.transition(id, status) { review ->
-      ProjectAgentTools.authorizesApplied(review, rewriteEvidence)
+    if (status == "applied") {
+      store.transitionApplied(
+        id,
+        rewriteEvidence.map { evidence ->
+          ProjectReviewStore.ApplyExpectation(evidence.page, evidence.expectedRevision)
+        },
+      )
+    } else {
+      store.transition(id, status)
     }
     ToolResult(ok = true, detail = "review=$id status=$status")
   } catch (error: Exception) {

@@ -5,29 +5,39 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import io.pagenote.feature.annotations.ReviewCreate
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+/** App-process store instances share a URI-keyed lock. SAF has no generic cross-app compare-and-swap. */
 class ProjectReviewStore(
   private val resolver: ContentResolver,
   private val sourceDirectoryUri: Uri,
   reviewsUri: Uri?,
 ) {
   private val json = Json { ignoreUnknownKeys = true }
-  private var reviewsUri: Uri? = reviewsUri
+  private val state = states.computeIfAbsent(sourceDirectoryUri.toString()) { StoreState(reviewsUri) }
 
-  fun list(page: Int? = null): JsonArray {
-    val uri = reviewsUri ?: return JsonArray(emptyList())
+  internal data class ApplyExpectation(val expectedPage: Int, val expectedRevision: String)
+
+  init {
+    synchronized(state.lock) {
+      if (state.reviewsUri == null) state.reviewsUri = reviewsUri
+    }
+  }
+
+  fun list(page: Int? = null): JsonArray = synchronized(state.lock) {
+    val uri = state.reviewsUri ?: return@synchronized JsonArray(emptyList())
     val records = readRecords(uri)
-    if (page == null) return records
-    return JsonArray(records.filter {
+    if (page == null) records else JsonArray(records.filter {
       (it as? JsonObject)?.get("page")?.jsonPrimitive?.content?.toIntOrNull() == page
     })
   }
@@ -44,36 +54,51 @@ class ProjectReviewStore(
 
   fun create(input: ReviewCreate): JsonObject {
     validate(input)
-    val uri = ensureFile()
-    val records = readRecords(uri).toMutableList()
-    val number = (records.mapNotNull {
-      (it as? JsonObject)?.get("number")?.jsonPrimitive?.content?.toIntOrNull()
-    }.maxOrNull() ?: 0) + 1
-    val record = buildRecord(input, number)
-    records.add(record)
-    writeRecords(uri, JsonArray(records))
-    return record
+    return synchronized(state.lock) {
+      val uri = ensureFile()
+      val records = readRecords(uri).toMutableList()
+      val number = (records.mapNotNull {
+        (it as? JsonObject)?.get("number")?.jsonPrimitive?.content?.toIntOrNull()
+      }.maxOrNull() ?: 0) + 1
+      val record = buildRecord(input, number)
+      records.add(record)
+      writeRecords(uri, JsonArray(records))
+      record
+    }
   }
 
-  fun find(id: String): JsonObject? {
-    val uri = reviewsUri ?: return null
-    return readRecords(uri).firstOrNull {
+  fun find(id: String): JsonObject? = synchronized(state.lock) {
+    val uri = state.reviewsUri ?: return@synchronized null
+    readRecords(uri).firstOrNull {
       (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id
     } as? JsonObject
   }
 
-  fun transition(
+  fun transition(id: String, to: String): JsonObject = synchronized(state.lock) {
+    require(to != "applied") { "applied requires same-run changed note evidence" }
+    transitionLocked(id, to) { false }
+  }
+
+  /** Checks run-local page/revision evidence against the latest record under the shared URI lock. */
+  internal fun transitionApplied(id: String, expectations: Collection<ApplyExpectation>): JsonObject =
+    synchronized(state.lock) {
+      transitionLocked(id, "applied") { current -> authorizesApplied(current, expectations) }
+    }
+
+  private fun transitionLocked(
     id: String,
     to: String,
-    authorizeApplied: (JsonObject) -> Boolean = { false },
+    authorizeApplied: (JsonObject) -> Boolean,
   ): JsonObject {
-    val uri = reviewsUri ?: throw NoSuchElementException("review not found")
+    val uri = state.reviewsUri ?: throw NoSuchElementException("review not found")
     val records = readRecords(uri).toMutableList()
     val index = records.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id }
     if (index < 0) throw NoSuchElementException("review not found")
     val current = records[index] as? JsonObject ?: throw NoSuchElementException("review not found")
     if (to == "applied") {
-      require(authorizeApplied(current)) { "applied requires a changed note write matching the review page and revision" }
+      require(authorizeApplied(current)) {
+        "applied requires a changed note write matching the current review page and revision"
+      }
     }
     if (!ReviewSafBoundary.canTransition(current, to)) {
       throw IllegalStateException("review cannot transition from open")
@@ -87,13 +112,13 @@ class ProjectReviewStore(
     return updated
   }
 
-  fun delete(id: String): Boolean {
-    val uri = reviewsUri ?: return false
+  fun delete(id: String): Boolean = synchronized(state.lock) {
+    val uri = state.reviewsUri ?: return@synchronized false
     val records = readRecords(uri)
     val kept = records.filterNot { (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id }
-    if (kept.size == records.size) return false
+    if (kept.size == records.size) return@synchronized false
     writeRecords(uri, JsonArray(kept))
-    return true
+    true
   }
 
   private fun validate(input: ReviewCreate) {
@@ -135,11 +160,11 @@ class ProjectReviewStore(
   }
 
   private fun ensureFile(): Uri {
-    reviewsUri?.let { return it }
+    state.reviewsUri?.let { return it }
     val created = DocumentsContract.createDocument(
       resolver, sourceDirectoryUri, "application/json", "ai-reviews.json",
     ) ?: throw IOException("无法创建项目 JSON 文件")
-    reviewsUri = created
+    state.reviewsUri = created
     resolver.openOutputStream(created, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
       it.write("[]")
     } ?: throw IOException("无法写入项目 JSON 文件")
@@ -161,5 +186,23 @@ class ProjectReviewStore(
     resolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
       it.write(Json.encodeToString(JsonArray.serializer(), records))
     } ?: throw IOException("无法写入项目 JSON 文件")
+  }
+
+  private class StoreState(var reviewsUri: Uri?) {
+    val lock = Any()
+  }
+
+  companion object {
+    private val states = ConcurrentHashMap<String, StoreState>()
+
+    internal fun authorizesApplied(
+      record: JsonObject,
+      expectations: Collection<ApplyExpectation>,
+    ): Boolean {
+      val page = (record["page"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: return false
+      val revision = (record["revision"] as? JsonPrimitive)?.contentOrNull
+        ?.takeIf { it.isNotBlank() } ?: return false
+      return expectations.any { it.expectedPage == page && it.expectedRevision == revision }
+    }
   }
 }

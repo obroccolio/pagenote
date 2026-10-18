@@ -142,7 +142,12 @@ class ProjectAgentToolsTest {
       ),
     )
 
-    assertTrue(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(evidence)))
+    assertTrue(
+      ProjectReviewStore.authorizesApplied(
+        reviewRecord(),
+        listOf(ProjectReviewStore.ApplyExpectation(evidence.page, evidence.expectedRevision)),
+      ),
+    )
   }
 
   @Test
@@ -160,23 +165,33 @@ class ProjectAgentToolsTest {
       ),
     )
 
-    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(wrongPage)))
-    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(staleRevision)))
     assertFalse(
-      ProjectAgentTools.authorizesApplied(
-        reviewRecord(revision = null),
-        listOf(staleRevision),
+      ProjectReviewStore.authorizesApplied(
+        reviewRecord(),
+        listOf(ProjectReviewStore.ApplyExpectation(wrongPage.page, wrongPage.expectedRevision)),
       ),
     )
     assertFalse(
-      ProjectAgentTools.authorizesApplied(
+      ProjectReviewStore.authorizesApplied(
+        reviewRecord(),
+        listOf(ProjectReviewStore.ApplyExpectation(staleRevision.page, staleRevision.expectedRevision)),
+      ),
+    )
+    assertFalse(
+      ProjectReviewStore.authorizesApplied(
+        reviewRecord(revision = null),
+        listOf(ProjectReviewStore.ApplyExpectation(staleRevision.page, staleRevision.expectedRevision)),
+      ),
+    )
+    assertFalse(
+      ProjectReviewStore.authorizesApplied(
         reviewRecord(),
         listOfNotNull(
           ProjectAgentTools.rewriteEvidenceFrom(
             mapOf("page" to "3"),
             ToolResult(ok = true, updatedPage = 3),
           ),
-        ),
+        ).map { ProjectReviewStore.ApplyExpectation(it.page, it.expectedRevision) },
       ),
     )
   }
@@ -200,7 +215,12 @@ class ProjectAgentToolsTest {
 
     assertEquals(null, noOp)
     assertEquals(null, failed)
-    assertFalse(ProjectAgentTools.authorizesApplied(reviewRecord(), listOf(unrelatedPageWrite)))
+    assertFalse(
+      ProjectReviewStore.authorizesApplied(
+        reviewRecord(),
+        listOf(ProjectReviewStore.ApplyExpectation(unrelatedPageWrite.page, unrelatedPageWrite.expectedRevision)),
+      ),
+    )
   }
 
   private fun reviewRecord(

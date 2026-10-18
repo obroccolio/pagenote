@@ -10,6 +10,7 @@ import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -18,6 +19,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String AUTHORITY = "io.pagenote.android.test.existing-project";
@@ -30,6 +34,9 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_INSTALL = "installFixture";
   public static final String METHOD_REPLACE_NOTES = "replaceNotes";
   public static final String METHOD_GET_REVIEW_WRITE_COUNT = "getReviewWriteCount";
+  public static final String METHOD_PAUSE_NEXT_REVIEW_READ = "pauseNextReviewRead";
+  public static final String METHOD_WAIT_REVIEW_SNAPSHOT = "waitReviewSnapshot";
+  public static final String METHOD_RELEASE_REVIEW_READ = "releaseReviewRead";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String EXTRA_URI = "uri";
   private static final String EXTRA_RESULT = "result";
@@ -45,6 +52,13 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private static final String NOTES_FILE = "notes.md";
   private static final String REVIEWS_FILE = "ai-reviews.json";
   private int reviewWriteCount;
+  private static volatile ReviewReadPause reviewReadPause;
+
+  private static final class ReviewReadPause {
+    final AtomicBoolean claimed = new AtomicBoolean();
+    final CountDownLatch snapshotReady = new CountDownLatch(1);
+    final CountDownLatch release = new CountDownLatch(1);
+  }
 
   @Override
   public boolean onCreate() {
@@ -60,6 +74,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         writeFixtureFile(NOTES_FILE, requiredBytes(extras, EXTRA_NOTES));
         writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
         reviewWriteCount = 0;
+        releaseReviewReadPause();
         return Bundle.EMPTY;
       }
       if (METHOD_REPLACE_NOTES.equals(method)) {
@@ -70,6 +85,28 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         Bundle result = new Bundle();
         result.putInt(EXTRA_COUNT, reviewWriteCount);
         return result;
+      }
+      if (METHOD_PAUSE_NEXT_REVIEW_READ.equals(method)) {
+        reviewReadPause = new ReviewReadPause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_WAIT_REVIEW_SNAPSHOT.equals(method)) {
+        ReviewReadPause pause = reviewReadPause;
+        Bundle result = new Bundle();
+        boolean ready = false;
+        if (pause != null) {
+          try {
+            ready = pause.snapshotReady.await(5, TimeUnit.SECONDS);
+          } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+          }
+        }
+        result.putBoolean("ready", ready);
+        return result;
+      }
+      if (METHOD_RELEASE_REVIEW_READ.equals(method)) {
+        releaseReviewReadPause();
+        return Bundle.EMPTY;
       }
       if (METHOD_FIND_DOCUMENT_PATH.equals(method)) {
         Uri uri = extras == null ? null : extras.getParcelable(EXTRA_URI);
@@ -131,7 +168,55 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     File file = fileFor(documentId);
     if (file == null || !file.exists()) throw new FileNotFoundException(documentId);
     if (REVIEWS_ID.equals(documentId) && mode.contains("w")) reviewWriteCount++;
+    if (REVIEWS_ID.equals(documentId) && !mode.contains("w")) {
+      ReviewReadPause pause = reviewReadPause;
+      if (pause != null && pause.claimed.compareAndSet(false, true)) {
+        return pausedReviewRead(file, pause);
+      }
+    }
     return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
+  }
+
+  private ParcelFileDescriptor pausedReviewRead(File file, ReviewReadPause pause) throws FileNotFoundException {
+    try {
+      byte[] snapshot = readFile(file);
+      ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+      Thread writer = new Thread(() -> {
+        try (ParcelFileDescriptor.AutoCloseOutputStream output =
+                 new ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])) {
+          output.write(snapshot);
+          output.flush();
+          pause.snapshotReady.countDown();
+          pause.release.await(10, TimeUnit.SECONDS);
+        } catch (IOException | InterruptedException error) {
+          if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+          pause.snapshotReady.countDown();
+        }
+      }, "saf-test-review-snapshot");
+      writer.start();
+      return pipe[0];
+    } catch (IOException error) {
+      throw new FileNotFoundException(error.getMessage());
+    }
+  }
+
+  private byte[] readFile(File file) throws IOException {
+    try (FileInputStream input = new FileInputStream(file)) {
+      byte[] buffer = new byte[(int) file.length()];
+      int offset = 0;
+      while (offset < buffer.length) {
+        int count = input.read(buffer, offset, buffer.length - offset);
+        if (count < 0) break;
+        offset += count;
+      }
+      return offset == buffer.length ? buffer : Arrays.copyOf(buffer, offset);
+    }
+  }
+
+  private static void releaseReviewReadPause() {
+    ReviewReadPause pause = reviewReadPause;
+    if (pause != null) pause.release.countDown();
+    reviewReadPause = null;
   }
 
   @Override

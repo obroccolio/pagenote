@@ -14,8 +14,20 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.agent.ToolRequest
 import io.pagenote.agent.ToolResult
 import io.pagenote.core.project.PageNotes
+import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,6 +77,9 @@ class ReviewHandoffUiTest {
       }
     }
 
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithText("Review the page").fetchSemanticsNodes().isNotEmpty()
+    }
     composeRule.onNodeWithText("Review the page").assertIsDisplayed()
     assertTrue(composeRule.onAllNodesWithText(appliedLabel).fetchSemanticsNodes().isEmpty())
     composeRule.onNodeWithText(dismissedLabel).assertIsDisplayed().performClick()
@@ -183,6 +198,161 @@ class ReviewHandoffUiTest {
         mapOf("id" to firstId, "status" to "applied", "noteRewritten" to "false"),
       ).ok,
     )
+  }
+
+  @Test
+  fun applyRejectsReviewRevisionChangedAfterItsNoteWasRewritten() = runBlocking {
+    val project = installProject("Original note")
+    val noteStore = ProjectNoteStore(testResolver, project.notesUri)
+    val original = noteStore.read()
+    val page = NotePage.pageAt(original, 1)
+    val originalRevision = PageNotes.revision(page)
+    val reviewStore = ProjectReviewStore(testResolver, project.sourceDirectoryUri, project.reviewsUri)
+    val review = reviewStore.create("note", "selection", 1, "Apply selected edit", originalRevision)
+    val id = review.getValue("id").jsonPrimitive.content
+    val handlers = ProjectAgentTools.handlers(testResolver, project, null, currentPage = 1)
+    val changed = handlers.getValue("write_note")(
+      ToolRequest(
+        "write_note",
+        mapOf("page" to "1", "markdown" to "Rewritten note", "expectedRevision" to originalRevision),
+      ),
+    )
+    assertTrue(changed.ok)
+    assertEquals(1, changed.updatedPage)
+
+    val updatedRecord = JsonObject(
+      requireNotNull(reviewStore.find(id)) + mapOf(
+        "revision" to JsonPrimitive("concurrent-review-revision"),
+        "concurrentMarker" to JsonPrimitive("preserve this update"),
+      ),
+    )
+    val records = JsonArray(reviewStore.list().map { element ->
+      val record = element.jsonObject
+      if (record["id"]?.jsonPrimitive?.content == id) updatedRecord else record
+    })
+    testResolver.openOutputStream(requireNotNull(project.reviewsUri), "wt")!!.bufferedWriter(Charsets.UTF_8).use {
+      it.write(Json.encodeToString(JsonArray.serializer(), records))
+    }
+
+    val applied = handlers.getValue("write_review_status")(
+      ToolRequest("write_review_status", mapOf("id" to id, "status" to "applied")),
+    )
+
+    assertFalse(applied.ok)
+    assertEquals("concurrent-review-revision", reviewStore.find(id)?.get("revision")?.jsonPrimitive?.content)
+    assertEquals("preserve this update", reviewStore.find(id)?.get("concurrentMarker")?.jsonPrimitive?.content)
+    assertEquals("open", reviewStore.find(id)?.get("status")?.jsonPrimitive?.content)
+  }
+
+  @Test
+  fun separateStoreInstancesSerializeOverlappingCreates() {
+    val project = installProject()
+    val secondStarted = CountDownLatch(1)
+    val secondThread = AtomicReference<Thread>()
+    val executor = Executors.newFixedThreadPool(2)
+    val source = project.sourceDirectoryUri
+    val reviews = project.reviewsUri
+    val firstStore = ProjectReviewStore(testResolver, source, reviews)
+    val secondStore = ProjectReviewStore(testResolver, source, reviews)
+
+    testResolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_PAUSE_NEXT_REVIEW_READ,
+      null,
+      null,
+    )
+    val first = executor.submit {
+      firstStore.create("note", "overall", 1, "first create", "revision-1")
+    }
+    try {
+      val pause = testResolver.call(
+        ExistingProjectSafTestProvider.AUTHORITY,
+        ExistingProjectSafTestProvider.METHOD_WAIT_REVIEW_SNAPSHOT,
+        null,
+        null,
+      )
+      assertTrue(pause?.getBoolean("ready") == true)
+
+      val second = executor.submit {
+        secondThread.set(Thread.currentThread())
+        secondStarted.countDown()
+        secondStore.create("note", "overall", 1, "second create", "revision-2")
+      }
+      assertTrue(secondStarted.await(5, TimeUnit.SECONDS))
+      val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+      while (!second.isDone && secondThread.get()?.state != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+        Thread.sleep(10)
+      }
+      assertTrue(second.isDone || secondThread.get()?.state == Thread.State.BLOCKED)
+      testResolver.call(
+        ExistingProjectSafTestProvider.AUTHORITY,
+        ExistingProjectSafTestProvider.METHOD_RELEASE_REVIEW_READ,
+        null,
+        null,
+      )
+      first.get(5, TimeUnit.SECONDS)
+      second.get(5, TimeUnit.SECONDS)
+      assertEquals(2, ProjectReviewStore(testResolver, source, reviews).list().size)
+    } finally {
+      testResolver.call(
+        ExistingProjectSafTestProvider.AUTHORITY,
+        ExistingProjectSafTestProvider.METHOD_RELEASE_REVIEW_READ,
+        null,
+        null,
+      )
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun readReviewHandlerReturnsDetailAndFilteredBoundedSummaries() = runBlocking {
+    val project = installProject()
+    val store = ProjectReviewStore(testResolver, project.sourceDirectoryUri, project.reviewsUri)
+    val records = (1..23).map { index ->
+      store.create(
+        ReviewCreate(
+          side = "note",
+          kind = "selection",
+          page = index,
+          instruction = "instruction-$index-" + "i".repeat(180),
+          quote = "quote-$index-" + "q".repeat(350),
+          context = "full context $index",
+          revision = "revision-$index",
+          anchor = buildJsonObject {
+            put("coordinateSystem", JsonPrimitive("markdown-source-utf16"))
+            put("start", JsonPrimitive(0))
+            put("end", JsonPrimitive(5))
+          },
+        ),
+      )
+    }
+    val dismissedId = records.last().getValue("id").jsonPrimitive.content
+    store.transition(dismissedId, "dismissed")
+    val id = records.first().getValue("id").jsonPrimitive.content
+    val handler = ProjectAgentTools.handlers(testResolver, project, null, currentPage = 1).getValue("read_review")
+
+    val detailResult = handler(ToolRequest("read_review", mapOf("id" to id)))
+    assertTrue(detailResult.ok)
+    val detail = Json.parseToJsonElement(detailResult.detail).jsonObject
+    assertEquals("quote-1-" + "q".repeat(350), detail["quote"]?.jsonPrimitive?.content)
+    assertEquals("full context 1", detail["context"]?.jsonPrimitive?.content)
+    assertEquals("revision-1", detail["revision"]?.jsonPrimitive?.content)
+    assertEquals(records.first()["anchor"], detail["anchor"])
+
+    val listResult = handler(ToolRequest("read_review", mapOf("status" to "open")))
+    assertTrue(listResult.ok)
+    assertTrue(listResult.detail.startsWith("reviews=22\n"))
+    val summaries = Json.parseToJsonElement(listResult.detail.substringAfter('\n')).jsonArray
+    assertEquals(20, summaries.size)
+    assertTrue(summaries.all { it.jsonObject["status"]?.jsonPrimitive?.content == "open" })
+    val first = summaries.first().jsonObject
+    assertEquals(160, first["instruction"]?.jsonPrimitive?.content?.length)
+    assertTrue(first["instruction"]?.jsonPrimitive?.content?.endsWith("...[truncated]") == true)
+    assertEquals(320, first["quote"]?.jsonPrimitive?.content?.length)
+    assertTrue(first["quote"]?.jsonPrimitive?.content?.endsWith("...[truncated]") == true)
+    assertFalse("context" in first)
+    assertFalse("anchor" in first)
+    assertTrue(summaries.none { it.jsonObject["id"]?.jsonPrimitive?.content == dismissedId })
   }
 
   private fun installProject(): OpenedProject {
