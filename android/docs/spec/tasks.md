@@ -184,3 +184,10 @@
   - JSON 备份导入留作后续独立功能切片。
   - 契约见 `features/note-export.md`，实施拆分见 `note-export-plan.md`。
   - _Requirement: 桌面菜单分组与数据导入/导出一致性_
+
+- [ ] 18. 笔记导入（`File > Import notes` 支持桌面兼容 JSON 按页导入和当前页 Markdown/TXT 插入；只写笔记文档）
+  - JSON 导入确认后跳过非法/越界条目，空字符串清空对应页；未列出的页面保持不变，整批以单次 revision-guarded SAF 写入提交。
+  - Markdown/TXT 替换当前编辑选区；若处于预览模式，切换到编辑并插入当前页末。
+  - 仅运行一个聚焦 JVM 测试类、唯一 Android 14/API 34 平板 AVD 闭环和 `:app:assembleDebug`；不扩展设备/API 矩阵。
+  - 契约见 `features/note-import.md`，实施拆分见 `note-import-plan.md`。
+  - _Requirement: 桌面菜单分组与数据导入/导出一致性_
