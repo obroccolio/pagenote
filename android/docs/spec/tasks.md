@@ -79,6 +79,7 @@
   - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
   - [x] 原生 View 仪器测试覆盖合成笔迹坐标/压力、取消/禁用输入和侧键 generic-motion 橡皮擦；3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过。该结果只验证应用事件逻辑，实体手写笔的压力、误触和延迟仍待 task 12。
   - [x] 7.2 保留被修改页面中仍存在的笔迹对象未知扩展字段；删除/清空笔迹时随对象一并删除，不允许扩展字段覆盖标准笔迹字段。回归验证含嵌套字段读写、删除及标准字段优先；app 聚焦 JVM 测试、`feature-pen` 全套 JVM 测试和 Debug APK 构建通过。契约见 `features/pen-project-integration.md`，实施见 `pen-extension-field-preservation-plan.md`。
+  - [x] 7.3 项目打开后才创建 `src/annotations.json` 时，已存在的 `ProjectPenStore` 仍须发现并复用该文件；API 34 平板 AVD SAF 回归 3/3、相邻写入恢复测试 5/5 通过，并在 69 页项目独立副本上通过批注→笔迹→进程重启重读，目录仅保留单个 `annotations.json`。小米 Pad 5 Pro 实体笔验收仍待 task 12；契约见 `features/pen-late-annotations-resolution.md`，实施见 `pen-late-annotations-resolution-plan.md`。
   - _Requirement: 笔迹，布局与适配_
 
 - [x] 8. 页面准备管线（原生文字/整页渲染/区域 PNG/`MarkdownTables`/`RegionOcrProcessor.refresh` 缓存刷新均已接通；此项不生成 Mermaid PNG 缓存，笔记预览实际绘图仍归 task 5）
@@ -150,6 +151,7 @@
 - [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
 - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
 - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；task 12 仅剩上述小米平板目标机的合并核心流程。
+- [x] 用户导入的 69 页项目 API 34 AVD 独立副本复现“打开项目后先创建 PDF 批注、再写笔迹”顺序；旧版产生 `annotations (1).json`，修复后 PDF `text` 与 `pen` 共存于单个 `annotations.json`，应用重启后项目仍恢复第 1 页并可读盘。原始项目/基线副本未改；此 AVD 证据不代替小米 Pad 5 Pro 实体手写笔验收。
 - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
 </details>
 

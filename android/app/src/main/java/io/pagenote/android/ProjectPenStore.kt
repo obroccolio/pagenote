@@ -23,8 +23,9 @@ class ProjectPenStore(
     private set
 
   fun supportsWrite(): Boolean {
-    val uri = annotationsUri ?: sourceDirectoryUri
-    val flag = if (annotationsUri == null) {
+    val resolvedUri = resolveAnnotationsUri()
+    val uri = resolvedUri ?: sourceDirectoryUri
+    val flag = if (resolvedUri == null) {
       DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE
     } else {
       DocumentsContract.Document.FLAG_SUPPORTS_WRITE
@@ -45,7 +46,7 @@ class ProjectPenStore(
 
   fun readPage(side: PenSide, page: Int): List<PenStroke> {
     require(page >= 1) { "bad page: $page" }
-    val uri = annotationsUri ?: return emptyList()
+    val uri = resolveAnnotationsUri() ?: return emptyList()
     val root = readRoot(uri)
     val items = root.optJSONObject(side.key)
       ?.optJSONArray(page.toString())
@@ -58,7 +59,7 @@ class ProjectPenStore(
   }
 
   fun readPages(side: PenSide): Map<String, Any?> {
-    val uri = annotationsUri ?: return emptyMap()
+    val uri = resolveAnnotationsUri() ?: return emptyMap()
     val sidePages = readRoot(uri).optJSONObject(side.key) ?: return emptyMap()
     return sidePages.keys().asSequence().mapNotNull { pageKey ->
       val page = pageKey.toIntOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null
@@ -70,7 +71,7 @@ class ProjectPenStore(
   fun writePage(side: PenSide, page: Int, strokes: List<PenStroke>) {
     lastRetainedRecoveryCopyName = null
     require(page >= 1) { "bad page: $page" }
-    var uri = annotationsUri
+    var uri = resolveAnnotationsUri()
     if (uri == null && strokes.isEmpty()) return
 
     var createdUri: Uri? = null
@@ -117,6 +118,35 @@ class ProjectPenStore(
 
   private fun readRoot(uri: Uri): JSONObject {
     return parseRoot(readRawRoot(uri))
+  }
+
+  private fun resolveAnnotationsUri(): Uri? {
+    annotationsUri?.let { return it }
+    val parentId = DocumentsContract.getDocumentId(sourceDirectoryUri)
+    val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(sourceDirectoryUri, parentId)
+    val cursor = resolver.query(
+      childrenUri,
+      arrayOf(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+      ),
+      null,
+      null,
+      null,
+    ) ?: throw IOException("无法列出项目 src 目录")
+    cursor.use {
+      val idColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+      val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+      while (it.moveToNext()) {
+        if (it.getString(nameColumn) == "annotations.json") {
+          return DocumentsContract.buildDocumentUriUsingTree(
+            sourceDirectoryUri,
+            it.getString(idColumn),
+          ).also { uri -> annotationsUri = uri }
+        }
+      }
+    }
+    return null
   }
 
   private fun readRawRoot(uri: Uri): String = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {

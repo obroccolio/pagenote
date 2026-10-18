@@ -39,6 +39,8 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_GET_REVIEW_WRITE_COUNT = "getReviewWriteCount";
   public static final String METHOD_CONFIGURE_REVIEW_WRITE_FAILURE = "configureReviewWriteFailure";
   public static final String METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE = "configureAnnotationWriteFailure";
+  public static final String METHOD_CONFIGURE_CHILD_QUERY_FAILURE = "configureChildQueryFailure";
+  public static final String METHOD_GET_CREATE_DOCUMENT_COUNT = "getCreateDocumentCount";
   public static final String METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE = "configureRecoveryDeleteFailure";
   public static final String METHOD_CONFIGURE_IMAGE_WRITE_FAILURE = "configureImageWriteFailure";
   public static final String METHOD_GET_IMAGE_COUNT = "getImageCount";
@@ -61,6 +63,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String EXTRA_NOTES = "notes";
   public static final String EXTRA_REVIEWS = "reviews";
   public static final String EXTRA_OMIT_REVIEWS = "omit_reviews";
+  public static final String EXTRA_OMIT_ANNOTATIONS = "omit_annotations";
   public static final String EXTRA_COUNT = "count";
   public static final String EXTRA_FAILURES = "failures";
   public static final String EXTRA_SIZE = "size";
@@ -75,6 +78,8 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private int reviewWriteCount;
   private int reviewWriteFailuresRemaining;
   private int annotationWriteFailuresRemaining;
+  private int childQueryFailuresRemaining;
+  private int createDocumentCallCount;
   private int recoveryDeleteFailuresRemaining;
   private int imageWriteFailuresRemaining;
   private final Map<String, String> recoveryFiles = new HashMap<>();
@@ -119,13 +124,20 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         } else {
           writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
         }
-        writeFixtureFile(ANNOTATIONS_FILE, (
-            "{\"document\":{\"2\":[{\"type\":\"pen\",\"color\":\"#112233\",\"width\":2," +
-                "\"points\":[[10,20]],\"pressures\":[1]}]},\"note\":{},\"desktopOnly\":{\"keep\":true}}"
-            ).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        File annotationsFile = new File(fixtureDir(), ANNOTATIONS_FILE);
+        if (extras != null && extras.getBoolean(EXTRA_OMIT_ANNOTATIONS, false)) {
+          annotationsFile.delete();
+        } else {
+          writeFixtureFile(ANNOTATIONS_FILE, (
+              "{\"document\":{\"2\":[{\"type\":\"pen\",\"color\":\"#112233\",\"width\":2," +
+                  "\"points\":[[10,20]],\"pressures\":[1]}]},\"note\":{},\"desktopOnly\":{\"keep\":true}}"
+              ).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
         reviewWriteCount = 0;
         reviewWriteFailuresRemaining = 0;
         annotationWriteFailuresRemaining = 0;
+        childQueryFailuresRemaining = 0;
+        createDocumentCallCount = 0;
         recoveryDeleteFailuresRemaining = 0;
         imageWriteFailuresRemaining = 0;
         releaseReviewReadPause();
@@ -150,6 +162,15 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         annotationWriteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
         return Bundle.EMPTY;
       }
+      if (METHOD_CONFIGURE_CHILD_QUERY_FAILURE.equals(method)) {
+        childQueryFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
+        return Bundle.EMPTY;
+      }
+      if (METHOD_GET_CREATE_DOCUMENT_COUNT.equals(method)) {
+        Bundle result = new Bundle();
+        result.putInt(EXTRA_COUNT, createDocumentCallCount);
+        return result;
+      }
       if (METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE.equals(method)) {
         recoveryDeleteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
         return Bundle.EMPTY;
@@ -169,6 +190,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         return Bundle.EMPTY;
       }
       if (METHOD_CREATE_DOCUMENT.equals(method)) {
+        createDocumentCallCount++;
         Uri parentUri = extras == null ? null : extras.getParcelable(EXTRA_URI);
         if (parentUri == null) {
           throw new IllegalArgumentException("missing parent");
@@ -203,6 +225,17 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
             output.flush();
           }
           imageFiles.put(documentId, displayName);
+        } else if (SRC_ID.equals(parentId) && ANNOTATIONS_FILE.equals(displayName)) {
+          File canonical = new File(fixtureDir(), ANNOTATIONS_FILE);
+          if (!canonical.exists()) {
+            writeFixtureFile(ANNOTATIONS_FILE, new byte[0]);
+            documentId = ANNOTATIONS_ID;
+          } else {
+            String duplicateName = nextDuplicateAnnotationsName();
+            documentId = SRC_ID + "/" + duplicateName;
+            writeFixtureFile(duplicateName, new byte[0]);
+            recoveryFiles.put(documentId, duplicateName);
+          }
         } else if (SRC_ID.equals(parentId)) {
           documentId = SRC_ID + "/" + displayName;
           if (recoveryFiles.containsKey(documentId)) throw new IllegalArgumentException("duplicate recovery name");
@@ -293,6 +326,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
     try {
       if ("children".equals(uri.getLastPathSegment())) {
+        if (childQueryFailuresRemaining > 0) {
+          childQueryFailuresRemaining--;
+          return null;
+        }
         return queryChildDocuments(DocumentsContract.getDocumentId(uri), projection);
       }
       return queryDocument(DocumentsContract.getDocumentId(uri), projection);
@@ -597,6 +634,15 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     try (FileOutputStream output = new FileOutputStream(new File(directory, name), false)) {
       output.write(contents);
     }
+  }
+
+  private String nextDuplicateAnnotationsName() {
+    int suffix = 1;
+    String name;
+    do {
+      name = "annotations (" + suffix++ + ").json";
+    } while (new File(fixtureDir(), name).exists());
+    return name;
   }
 
   private File fixtureDir() {
