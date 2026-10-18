@@ -4,6 +4,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.text.Spanned
+import android.util.TypedValue
 import android.text.style.ClickableSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
@@ -39,6 +40,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 @RunWith(AndroidJUnit4::class)
 class NoteMarkdownFormatActivityTest {
@@ -261,6 +264,60 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(1, taskSpans.size)
     assertFalse("inserted task list starts unchecked", taskSpans.single().isDone)
     assertEquals(expected, session.noteDraft.value)
+  }
+
+  @Test
+  fun noteFontSizeAppliesToEditorAndPreviewWithoutChangingNote() {
+    val markdown = "A note stays intact"
+    val notes = PageNotes.join(listOf(markdown, "Second page"))
+    val project = installProject(notes)
+    val settingsStore = readerSettingsStore(composeRule.activity)
+    runBlocking {
+      settingsStore.save(settingsStore.settings.first().copy(noteFontSize = 15))
+    }
+
+    val session = attachProjectToReader(project, notes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    paragraphCommand("font_size").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("reader_note_font_size_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_note_font_size_option_24").performClick()
+    composeRule.onNodeWithTag("reader_note_font_size_cancel").performClick()
+    composeRule.waitForIdle()
+    assertEquals(15, runBlocking { settingsStore.settings.first().noteFontSize })
+    assertEquals(markdown, session.noteDraft.value)
+
+    paragraphCommand("font_size").performClick()
+    composeRule.onNodeWithTag("reader_note_font_size_option_24").performClick()
+    composeRule.onNodeWithTag("reader_note_font_size_apply").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      runBlocking { settingsStore.settings.first().noteFontSize == 24 }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      val editor = findNoteEditor() ?: return@waitUntil false
+      matchesTextSizeSp(editor, 24)
+    }
+    assertEquals(markdown, session.noteDraft.value)
+
+    composeRule.runOnUiThread { session.noteWritable.value = false }
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor()?.isEnabled == false }
+    paragraphCommand("font_size").assertIsNotEnabled()
+    composeRule.runOnUiThread { session.noteWritable.value = true }
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor()?.isEnabled == true }
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      val preview = findRenderedPreview("A note") ?: return@waitUntil false
+      matchesTextSizeSp(preview, 24)
+    }
+    paragraphCommand("font_size").assertIsNotEnabled()
+    assertEquals(markdown, session.noteDraft.value)
+
+    composeRule.activityRule.scenario.recreate()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      val editor = findNoteEditor() ?: return@waitUntil false
+      matchesTextSizeSp(editor, 24)
+    }
+    assertEquals(markdown, session.noteDraft.value)
   }
 
   @Test
@@ -689,6 +746,15 @@ class NoteMarkdownFormatActivityTest {
       result.set(hosts.firstOrNull { it.markdownView.text.toString().contains(containsText) }?.markdownView)
     }
     return result.get()
+  }
+
+  private fun matchesTextSizeSp(view: TextView, size: Int): Boolean {
+    val expectedPixels = TypedValue.applyDimension(
+      TypedValue.COMPLEX_UNIT_SP,
+      size.toFloat(),
+      composeRule.activity.resources.displayMetrics,
+    )
+    return kotlin.math.abs(view.textSize - expectedPixels) < 0.5f
   }
 
   private fun View.collectEditTexts(destination: MutableList<EditText>) {

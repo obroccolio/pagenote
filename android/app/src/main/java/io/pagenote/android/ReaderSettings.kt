@@ -5,9 +5,11 @@ data class ReaderSettings(
   val language: String = "system",
   val leftPercent: Int = 42,
   val noteAnimation: Boolean = true,
+  val noteFontSize: Int = 15,
 )
 
 object ReaderSettingsPolicy {
+  val NOTE_FONT_SIZES = listOf(12, 15, 18, 20, 24, 28, 32)
   private val THEMES = setOf("system", "light", "dark", "paper")
   private val LANGUAGES = setOf("system", "zh-CN", "en-US")
 
@@ -17,6 +19,7 @@ object ReaderSettingsPolicy {
       theme = settings.theme.takeIf(THEMES::contains) ?: defaults.theme,
       language = settings.language.takeIf(LANGUAGES::contains) ?: defaults.language,
       leftPercent = settings.leftPercent.takeIf { it in 20..80 } ?: defaults.leftPercent,
+      noteFontSize = settings.noteFontSize.takeIf(NOTE_FONT_SIZES::contains) ?: defaults.noteFontSize,
     )
   }
 
@@ -24,6 +27,7 @@ object ReaderSettingsPolicy {
     require(THEMES.contains(settings.theme)) { "bad theme" }
     require(LANGUAGES.contains(settings.language)) { "bad language" }
     require(settings.leftPercent in 20..80) { "bad split percent" }
+    require(NOTE_FONT_SIZES.contains(settings.noteFontSize)) { "bad note font size" }
   }
 
   fun isTabletLandscape(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {

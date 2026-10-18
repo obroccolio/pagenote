@@ -38,9 +38,14 @@ internal object NoteMarkdownRenderer {
     sourceDirectoryUri: Uri?,
     textColor: Int,
     mermaidCoordinator: MermaidRenderCoordinator? = null,
+    baseFontSizeSp: Float = 16f,
   ): Markwon {
     val displayMetrics = context.resources.displayMetrics
-    val latexTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 16f, displayMetrics)
+    val latexTextSize = TypedValue.applyDimension(
+      TypedValue.COMPLEX_UNIT_SP,
+      baseFontSizeSp,
+      displayMetrics,
+    )
     val theme = if (Color.luminance(textColor) >= 0.5f) {
       Prism4jThemeDarkula.create()
     } else {

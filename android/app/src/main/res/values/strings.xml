@@ -79,6 +79,9 @@
   <string name="reader_menu_copy">Copy</string>
   <string name="reader_menu_select_all">Select all</string>
   <string name="reader_menu_font_size">Font size</string>
+  <string name="reader_note_font_size_title">Note font size</string>
+  <string name="reader_note_font_size_description">Choose a size for note editing and preview.</string>
+  <string name="reader_note_font_size_apply">Apply</string>
   <string name="reader_menu_heading">Heading level</string>
   <string name="reader_menu_heading_level_1">Heading 1</string>
   <string name="reader_menu_heading_level_2">Heading 2</string>

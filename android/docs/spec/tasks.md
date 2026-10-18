@@ -221,7 +221,7 @@
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
 
 - [x] 23. Markdown 编辑器任务列表前缀（沿用桌面源码模式逐行添加 `- [ ] `；预览 checkbox 不点按写回）
-  - 复用既有段落变换、可写门控和 GFM renderer；字号仍禁用。
+  - 复用既有段落变换、可写门控和 GFM renderer；字号另由 task 26 独立实现。
   - 9 个段落 helper JVM 用例、`paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖预览门控、任务前缀、按页保存、相邻页隔离及未完成 `TaskListSpan`；完整 `:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-task-list-insertion.md`，实施拆分见 `markdown-task-list-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
@@ -237,4 +237,10 @@
   - 选区包裹或空选区占位均只更新当前页草稿；其他 HTML 默认处理器不启用，保存继续按 revision 保护。
   - `underlineCommandUsesDesktopMarkupAndRendersUnderlineSpan` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖预览/无项目门控、既有粗体嵌套、占位选区、编辑器和预览 UnderlineSpan、其他 HTML handler 关闭及相邻页保存隔离；完整 app JVM 256 项、`:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-underline-formatting.md`，实施拆分见 `markdown-underline-formatting-plan.md`。
+  - _Requirement: 桌面菜单语义一致、阅读与笔记_
+
+- [x] 26. Markdown 笔记字号（接通段落菜单桌面同款 12/15/18/20/24/28/32 档；作为全局 reader preference 持久化）
+  - 字号应用于笔记编辑器与预览，不改笔记正文、项目格式或左侧原文阅读区；取消不保存，持久化失败保留旧值并显示错误。
+  - 13 个聚焦设置 JVM 测试和唯一 Android 14/API 34 平板 AVD Activity 用例（1/1）通过；覆盖桌面七档、持久化/非法值回退、取消与应用、只读/预览门控、编辑和预览字号及 Activity 重建恢复；`:app:assembleDebug` 通过。小米 Pad 5 Pro 实机验收仍归 task 12。
+  - 契约见 `features/markdown-note-font-size.md`，实施拆分见 `markdown-note-font-size-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_

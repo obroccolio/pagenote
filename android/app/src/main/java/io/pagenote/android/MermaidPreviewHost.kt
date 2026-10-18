@@ -63,8 +63,9 @@ internal class MermaidPreviewHost(
     super.onDetachedFromWindow()
   }
 
-  fun setMarkdown(renderer: Markwon, markdown: String, textColor: Int) {
+  fun setMarkdown(renderer: Markwon, markdown: String, textColor: Int, baseFontSizeSp: Float = 16f) {
     markdownView.setTextColor(textColor)
+    markdownView.textSize = baseFontSizeSp
     if (boundRenderer !== renderer || boundMarkdown != markdown) {
       boundRenderer = renderer
       boundMarkdown = markdown

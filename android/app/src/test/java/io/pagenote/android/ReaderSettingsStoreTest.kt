@@ -56,6 +56,27 @@ class ReaderSettingsStoreTest {
   }
 
   @Test
+  fun noteFontSizeSurvivesOpeningAnotherStoreOnSameFile() = runBlocking {
+    val file = File(temporaryFolder.root, "font-size.preferences_pb")
+    val firstScope = newScope()
+    try {
+      val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
+      firstStore.save(ReaderSettings(noteFontSize = 24))
+    } finally {
+      firstScope.cancel()
+    }
+
+    val secondScope = newScope()
+    try {
+      val secondStore = ReaderSettingsStore(newDataStore(file, secondScope))
+
+      assertEquals(24, secondStore.settings.first().noteFontSize)
+    } finally {
+      secondScope.cancel()
+    }
+  }
+
+  @Test
   fun invalidStoredFieldsFallBackIndependently() = runBlocking {
     val scope = newScope()
     try {
@@ -64,6 +85,7 @@ class ReaderSettingsStoreTest {
         preferences[stringPreferencesKey("theme")] = "neon"
         preferences[booleanPreferencesKey("language")] = true
         preferences[intPreferencesKey("left_percent")] = 90
+        preferences[intPreferencesKey("note_font_size")] = 17
         preferences[booleanPreferencesKey("note_animation")] = false
       }
 
@@ -90,6 +112,15 @@ class ReaderSettingsStoreTest {
         rejected = true
       }
       assertTrue(rejected)
+      assertEquals(original, store.settings.first())
+
+      var badFontSizeRejected = false
+      try {
+        store.save(original.copy(noteFontSize = 17))
+      } catch (_: IllegalArgumentException) {
+        badFontSizeRejected = true
+      }
+      assertTrue(badFontSizeRejected)
       assertEquals(original, store.settings.first())
     } finally {
       scope.cancel()

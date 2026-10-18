@@ -387,6 +387,7 @@ private fun ReaderHome(
   var showAgentTask by remember { mutableStateOf(false) }
   var showPageJumpDialog by remember { mutableStateOf(false) }
   var showHeadingLevelDialog by remember { mutableStateOf(false) }
+  var showNoteFontSizeDialog by remember { mutableStateOf(false) }
   var pageJumpInput by remember { mutableStateOf("") }
   var isPageJumpRunning by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
@@ -2869,7 +2870,10 @@ private fun ReaderHome(
       ReaderMenuGroup.PARAGRAPH,
       R.string.reader_menu_group_paragraph,
       listOf(
-        pendingCommand("font_size", R.string.reader_menu_font_size),
+        actionCommand(
+          "font_size", R.string.reader_menu_font_size,
+          canFormatMarkdown, markdownFormatDisabledReason,
+        ) { showNoteFontSizeDialog = true },
         actionCommand(
           "heading", R.string.reader_menu_heading, canFormatMarkdown, markdownFormatDisabledReason,
         ) { showHeadingLevelDialog = true },
@@ -3396,6 +3400,7 @@ private fun ReaderHome(
               onHistory = { showNoteHistory = true },
               sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
+              noteFontSize = settings.noteFontSize,
               modifier = Modifier.weight(notePaneWeight).fillMaxHeight(),
             )
           }
@@ -3497,6 +3502,7 @@ private fun ReaderHome(
               onHistory = { showNoteHistory = true },
               sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
+              noteFontSize = settings.noteFontSize,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
           }
@@ -3633,6 +3639,13 @@ private fun ReaderHome(
         showAgentModelSettings = true
       },
       onSave = settingsStore::save,
+    )
+  }
+  if (showNoteFontSizeDialog) {
+    NoteFontSizeDialog(
+      currentSize = settings.noteFontSize,
+      onDismiss = { showNoteFontSizeDialog = false },
+      onApply = { size -> settingsStore.save(settings.copy(noteFontSize = size)) },
     )
   }
   if (showPageTutor && project != null && (renderer != null || markdownSource != null)) {
@@ -5120,6 +5133,7 @@ internal fun NotePanel(
   onHistory: () -> Unit = {},
   sourceDirectoryUri: Uri? = null,
   animationEnabled: Boolean,
+  noteFontSize: Int = 15,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -5136,8 +5150,14 @@ internal fun NotePanel(
   DisposableEffect(mermaidCoordinator) {
     onDispose { mermaidCoordinator?.close() }
   }
-  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator) {
-    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator)
+  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator, noteFontSize) {
+    NoteMarkdownRenderer.createPreview(
+      context,
+      sourceDirectoryUri,
+      contentColorInt,
+      mermaidCoordinator,
+      baseFontSizeSp = noteFontSize.toFloat(),
+    )
   }
   val markwonEditor = remember(context, sourceDirectoryUri, contentColorInt) {
     NoteMarkdownRenderer.createEditor(context, sourceDirectoryUri, contentColorInt)
@@ -5235,6 +5255,7 @@ internal fun NotePanel(
                   markwon,
                   NotePreviewRewrite.forPreview(previewMarkdown),
                   contentColorInt,
+                  noteFontSize.toFloat(),
                 )
               },
             )
@@ -5272,7 +5293,7 @@ internal fun NotePanel(
                 inputType = InputType.TYPE_CLASS_TEXT or
                   InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                   InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                textSize = 16f
+                textSize = noteFontSize.toFloat()
                 setTextColor(contentColorInt)
                 backgroundTintList = ColorStateList.valueOf(outlineColor)
                 isEnabled = writable && !saving && content.page == page
@@ -5304,6 +5325,7 @@ internal fun NotePanel(
             update = { editText ->
               editText.setTextColor(contentColorInt)
               editText.backgroundTintList = ColorStateList.valueOf(outlineColor)
+              editText.textSize = noteFontSize.toFloat()
               editText.isEnabled = writable && !saving && content.page == page
               if (editText.text.toString() != content.markdown) {
                 selectionCallback.value(null)

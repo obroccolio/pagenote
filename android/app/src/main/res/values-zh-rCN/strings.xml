@@ -79,6 +79,9 @@
   <string name="reader_menu_copy">复制</string>
   <string name="reader_menu_select_all">全选</string>
   <string name="reader_menu_font_size">字号</string>
+  <string name="reader_note_font_size_title">笔记字号</string>
+  <string name="reader_note_font_size_description">选择笔记编辑和预览使用的字号。</string>
+  <string name="reader_note_font_size_apply">应用</string>
   <string name="reader_menu_heading">标题级别</string>
   <string name="reader_menu_heading_level_1">一级标题</string>
   <string name="reader_menu_heading_level_2">二级标题</string>
