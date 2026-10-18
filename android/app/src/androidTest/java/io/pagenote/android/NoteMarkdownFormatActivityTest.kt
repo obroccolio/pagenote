@@ -25,6 +25,8 @@ import io.noties.markwon.ext.latex.JLatexAsyncDrawableSpan
 import io.noties.markwon.image.AsyncDrawableSpan
 import io.noties.markwon.core.spans.EmphasisSpan
 import io.noties.markwon.core.spans.StrongEmphasisSpan
+import io.noties.markwon.ext.tables.TableSpan
+import io.noties.markwon.ext.tables.TableRowSpan
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
 import org.junit.Assert.assertFalse
@@ -254,6 +256,58 @@ class NoteMarkdownFormatActivityTest {
       "valid formula must render instead of using the error fallback",
       formulaDrawable.result?.javaClass?.name?.startsWith("ru.noties.jlatexmath.") == true,
     )
+    assertEquals(expected, session.noteDraft.value)
+  }
+
+  @Test
+  fun tableCommandReplacesSelectionAndSavesOnlyCurrentPage() {
+    val savedPages = listOf("Lead replace me tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    insertCommand("table").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    insertCommand("table").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    val editor = requireNotNull(findNoteEditor())
+    val selectedText = "replace me"
+    val selectionStart = editor.text.indexOf(selectedText)
+    check(selectionStart >= 0) { "selected note text must remain in the Markdown editor" }
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectionStart, selectionStart + selectedText.length)
+    }
+    composeRule.waitForIdle()
+
+    insertCommand("table").assertIsEnabled().performClick()
+    val table = "\n\n| 列一 | 列二 |\n| --- | --- |\n| 内容 | 内容 |\n\n"
+    val expected = "Lead $table tail"
+    val cursor = "Lead ".length + table.length
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    val updatedEditor = requireNotNull(findNoteEditor())
+    assertEquals(cursor, updatedEditor.selectionStart)
+    assertEquals(cursor, updatedEditor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("Lead") != null }
+    val rendered = findRenderedPreview("Lead")?.text as? Spanned
+      ?: error("table preview must expose native spans")
+    assertTrue("GFM table must render as a native table span", rendered.getSpans(0, rendered.length, TableSpan::class.java).isNotEmpty())
+    assertEquals("header and content must both render as table rows", 2, rendered.getSpans(0, rendered.length, TableRowSpan::class.java).size)
     assertEquals(expected, session.noteDraft.value)
   }
 

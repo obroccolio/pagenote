@@ -39,14 +39,14 @@
 - `data class MarkdownTableEdit(replaceStart, replaceEnd, replacement, cursor)`。
 - `MarkdownTableInsertion.createEdit(markdown, selectionStart, selectionEnd): MarkdownTableEdit`。
 
-- [ ] **Step 1: Write focused failing tests**
+- [x] **Step 1: Write focused failing tests**
   - 覆盖固定模板、选区删除、折叠光标、反向/越界及前后文本保持。
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.MarkdownTableInsertionTest`
   - Expected: 编译失败，因为 helper API 尚不存在。
-- [ ] **Step 3: Implement the minimal pure Kotlin helper**
+- [x] **Step 3: Implement the minimal pure Kotlin helper**
   - 固定插入模板，夹取并规范化 UTF-16 范围，光标返回模板末尾。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - Run the same focused JVM command; all helper tests pass。
 
 ### Task 2: Reader 命令与 Android 14 聚焦闭环
@@ -58,16 +58,18 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add the failing API 34 reader test**
+- [x] **Step 1: Add the failing API 34 reader test**
   - 在现有格式 Activity 测试中验证 Table 无可写编辑器时禁用；选中内容后精确替换为表格并折叠光标；草稿 watcher、保存后仅当前页变化，预览出现 Markwon `TableSpan`。
-- [ ] **Step 2: Verify RED on the single API 34 tablet AVD**
+- [x] **Step 2: Verify RED on the single API 34 tablet AVD**
   - 仅运行新增方法，显式使用 `ANDROID_SERIAL=emulator-5554` 和 class/method instrumentation filter。
   - Expected: `table` 命令仍为 pending/disabled 或新增行为断言失败。
-- [ ] **Step 3: Implement guarded Insert > Table action**
+- [x] **Step 3: Implement guarded Insert > Table action**
   - 只替换 `pendingCommand("table", ...)`，复用 `canFormatMarkdown` gate，调用 helper 并经原生 `Editable.replace` 设置折叠光标。
-- [ ] **Step 4: Verify the focused API 34 reader flow**
+- [x] **Step 4: Verify the focused API 34 reader flow**
   - 重跑新增方法并检查草稿、revision 保存、GFM 表格预览与相邻页保持。
-- [ ] **Step 5: Focused tests, Debug APK, and docs**
+- [x] **Step 5: Focused tests, Debug APK, and docs**
   - 运行 helper JVM 测试、单项 API 34 AVD 仪器测试和 `:app:assembleDebug`。
   - 更新 task 5.12 与 `CHANGELOG.md`；记录 AVD 代理性质及 Xiaomi 真机验收仍归 task 12。
-  - 执行 `git diff --check` 与相关 Markdown 格式检查。独立审查后提交并推送到个人 fork。
+  - 执行 `git diff --check` 与相关 Markdown 格式检查。
+
+> Finalization: Implementation review, commit, and push to the personal fork happen after the checked test/documentation tasks, following the repository workflow.
