@@ -2,7 +2,7 @@
 
 ## Scope
 
-补 Task 3 最后一块：安卓端经 SAF 目录选择器创建新 pagenote 项目（`project.pagenote` + `src/left.md` + `src/right.md` + `src/assets/`），创建后直接打开。与桌面 `POST /api/projects` 同 manifest 语义；assets 导入导出与 SAF 原子写已有实现，本片只做创建与打开。
+补 Task 3 最后一块：安卓端经 SAF 目录选择器创建新 pagenote 项目（`project.pagenote` + `src/left.md` + `src/right.md` + `src/assets/`），创建后直接打开。与桌面 `POST /api/projects` 同 manifest 语义；assets 导入导出与 SAF 原子写已有实现，本片只做创建与打开。可选 PDF 原文导入属于后续独立切片，见 `project-create-optional-pdf.md`。
 
 ## Interaction
 

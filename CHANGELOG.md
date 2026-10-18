@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- 编写 Android 新建项目可选 PDF 原文 SPEC：明确 SAF 选择、复制到项目、v1 manifest 关联、空白页 PDF 验证、失败清理和单 API 34 平板 AVD 验收范围。仅 SPEC/计划/任务文档变更，无应用行为或公开二进制变化。
 - Enable Android `File > Import notes` for desktop-compatible JSON page-note backups and current-page Markdown/text insertion. JSON import confirms first, saves a dirty page against its revision, preserves unlisted pages, and applies one recoverable notes-document write; Markdown/text replaces the active selection or switches preview to Edit and appends. The focused JVM test, one Android 14/API 34 tablet AVD end-to-end flow, and `:app:assembleDebug` pass. Xiaomi Pad 5 Pro hardware acceptance remains pending; local source change only, no public binary release. / 安卓 `File > Import notes` 已支持桌面兼容 JSON 分页笔记备份及当前页 Markdown/文本插入。JSON 导入先确认、按 revision 保存当前脏页、保留未列出的页面，并以一次可恢复的笔记文档写入提交；Markdown/文本替换当前选区，或从预览切换至编辑并追加到页末。聚焦 JVM 测试、唯一 Android 14/API 34 平板 AVD 端到端流程及 `:app:assembleDebug` 通过。小米平板 5 Pro 真机验收仍待进行；本次仅本地源码变更，未发布公开二进制。
 - 编写 Android 笔记导入 SPEC：定义桌面兼容 JSON 按页合并、Markdown/TXT 当前页插入、冲突/取消/错误语义，以及单 JVM 类、单 API 34 平板 AVD 和 Debug 构建的最小验证范围。仅 SPEC/计划/任务文档变更，无应用行为或公开二进制变化。
 - 编写 Android 笔记导出 SPEC：定义桌面兼容 v1 JSON 备份与当前页 Markdown 两种 SAF 输出，明确脏草稿、只读恢复草稿、取消/失败语义及单 AVD 验证范围。仅 SPEC/计划/任务文档变更，无应用行为或公开二进制变化。
