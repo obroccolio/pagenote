@@ -41,6 +41,9 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_PAUSE_NEXT_REVIEW_READ = "pauseNextReviewRead";
   public static final String METHOD_WAIT_REVIEW_SNAPSHOT = "waitReviewSnapshot";
   public static final String METHOD_RELEASE_REVIEW_READ = "releaseReviewRead";
+  public static final String METHOD_PAUSE_NEXT_NOTE_WRITE = "pauseNextNoteWrite";
+  public static final String METHOD_WAIT_NOTE_WRITE = "waitNoteWrite";
+  public static final String METHOD_RELEASE_NOTE_WRITE = "releaseNoteWrite";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String METHOD_CREATE_DOCUMENT = "android:createDocument";
   private static final String METHOD_DELETE_DOCUMENT = "android:deleteDocument";
@@ -66,10 +69,17 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private int recoveryDeleteFailuresRemaining;
   private final Map<String, String> recoveryFiles = new HashMap<>();
   private static volatile ReviewReadPause reviewReadPause;
+  private static volatile NoteWritePause noteWritePause;
 
   private static final class ReviewReadPause {
     final AtomicBoolean claimed = new AtomicBoolean();
     final CountDownLatch snapshotReady = new CountDownLatch(1);
+    final CountDownLatch release = new CountDownLatch(1);
+  }
+
+  private static final class NoteWritePause {
+    final AtomicBoolean claimed = new AtomicBoolean();
+    final CountDownLatch writeStarted = new CountDownLatch(1);
     final CountDownLatch release = new CountDownLatch(1);
   }
 
@@ -97,6 +107,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         reviewWriteFailuresRemaining = 0;
         recoveryDeleteFailuresRemaining = 0;
         releaseReviewReadPause();
+        releaseNoteWritePause();
         return Bundle.EMPTY;
       }
       if (METHOD_REPLACE_NOTES.equals(method)) {
@@ -154,6 +165,28 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       }
       if (METHOD_PAUSE_NEXT_REVIEW_READ.equals(method)) {
         reviewReadPause = new ReviewReadPause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_PAUSE_NEXT_NOTE_WRITE.equals(method)) {
+        noteWritePause = new NoteWritePause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_WAIT_NOTE_WRITE.equals(method)) {
+        NoteWritePause pause = noteWritePause;
+        boolean started = false;
+        if (pause != null) {
+          try {
+            started = pause.writeStarted.await(5, TimeUnit.SECONDS);
+          } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+          }
+        }
+        Bundle result = new Bundle();
+        result.putBoolean("started", started);
+        return result;
+      }
+      if (METHOD_RELEASE_NOTE_WRITE.equals(method)) {
+        releaseNoteWritePause();
         return Bundle.EMPTY;
       }
       if (METHOD_WAIT_REVIEW_SNAPSHOT.equals(method)) {
@@ -242,6 +275,20 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         failAfterPartialTruncate(file);
       }
     }
+    if (NOTES_ID.equals(documentId) && mode.contains("w")) {
+      NoteWritePause pause = noteWritePause;
+      if (pause != null && pause.claimed.compareAndSet(false, true)) {
+        pause.writeStarted.countDown();
+        try {
+          if (!pause.release.await(10, TimeUnit.SECONDS)) {
+            throw new FileNotFoundException("timed out waiting to release test note write");
+          }
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+          throw new FileNotFoundException("interrupted while waiting to release test note write");
+        }
+      }
+    }
     if (REVIEWS_ID.equals(documentId) && !mode.contains("w")) {
       ReviewReadPause pause = reviewReadPause;
       if (pause != null && pause.claimed.compareAndSet(false, true)) {
@@ -303,6 +350,12 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     ReviewReadPause pause = reviewReadPause;
     if (pause != null) pause.release.countDown();
     reviewReadPause = null;
+  }
+
+  private static void releaseNoteWritePause() {
+    NoteWritePause pause = noteWritePause;
+    if (pause != null) pause.release.countDown();
+    noteWritePause = null;
   }
 
   private void writeOversizedReviews(long size) throws IOException {

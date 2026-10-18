@@ -292,6 +292,9 @@ private fun ReaderHome(
   var isPageTutorRunning by remember { mutableStateOf(false) }
   val agentRunner = remember { AgentRunner(OkHttpChatClient()) }
   var showAgentTask by remember { mutableStateOf(false) }
+  var showPageJumpDialog by remember { mutableStateOf(false) }
+  var pageJumpInput by remember { mutableStateOf("") }
+  var isPageJumpRunning by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
   var agentPageRange by remember { mutableStateOf("") }
   var agentReport by remember { mutableStateOf<SerialPages.Report?>(null) }
@@ -514,17 +517,23 @@ private fun ReaderHome(
     }
   }
 
-  suspend fun changePage(nextPage: Int) {
-    if (readerOcrState.inputLocked) return
-    if (hasUnsavedChanges && !saveCurrentNote()) return
+  suspend fun changePage(nextPage: Int): Boolean {
+    val pageCount = renderer?.pageCount
+      ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
+      ?: 0
+    if (readerOcrState.inputLocked || nextPage !in 0 until pageCount) return false
+    if (nextPage == pageIndex) return true
+    if (hasUnsavedChanges && !saveCurrentNote()) return false
     readerSession.clearCurrentDraftRecovery()
     noteStatus = null
     showOcrResult = false
-    readerSession.setNoteDraft(NotePage.pageAt(notesMarkdown, nextPage + 1))
-    noteBaseRevision = PageNotes.revision(noteDraft)
+    val targetPageNote = NotePage.pageAt(notesMarkdown, nextPage + 1)
+    readerSession.setNoteDraft(targetPageNote)
+    noteBaseRevision = PageNotes.revision(targetPageNote)
     penStrokes = penPageStore.getItems(PenSide.DOCUMENT, nextPage + 1)
     readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT
     pageIndex = nextPage
+    return true
   }
 
   fun recognizeCurrentPage() {
@@ -1733,11 +1742,19 @@ private fun ReaderHome(
           )
         }
         if (activeProject != null) {
-          Text(
-            text = stringResource(R.string.page_count, pageIndex + 1, totalPages),
+          TextButton(
             modifier = Modifier.testTag("reader_page_status"),
-            style = MaterialTheme.typography.labelLarge,
-          )
+            enabled = canChangePage && totalPages > 0,
+            onClick = {
+              pageJumpInput = (pageIndex + 1).toString()
+              showPageJumpDialog = true
+            },
+          ) {
+            Text(
+              text = stringResource(R.string.page_count, pageIndex + 1, totalPages),
+              style = MaterialTheme.typography.labelLarge,
+            )
+          }
         }
       }
 
@@ -1938,6 +1955,27 @@ private fun ReaderHome(
     }
   }
 
+  if (showPageJumpDialog && activeProject != null && totalPages > 0) {
+    PageJumpDialog(
+      input = pageJumpInput,
+      totalPages = totalPages,
+      isRunning = isPageJumpRunning,
+      onInputChange = { pageJumpInput = it },
+      onDismiss = { showPageJumpDialog = false },
+      onConfirm = { targetPage ->
+        if (!isPageJumpRunning) {
+          isPageJumpRunning = true
+          readerSession.launchSessionTask {
+            try {
+              if (changePage(targetPage)) showPageJumpDialog = false
+            } finally {
+              isPageJumpRunning = false
+            }
+          }
+        }
+      },
+    )
+  }
   if (showOcrResult) {
     ocrResult?.let { result ->
       OcrResultDialog(

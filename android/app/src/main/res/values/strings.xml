@@ -138,6 +138,11 @@
   <string name="previous_page">Previous</string>
   <string name="next_page">Next</string>
   <string name="page_count">%1$d / %2$d</string>
+  <string name="page_jump_title">Go to page</string>
+  <string name="page_jump_label">Page number</string>
+  <string name="page_jump_invalid">Enter a whole page number from 1 to %1$d.</string>
+  <string name="page_jump_go">Go</string>
+  <string name="page_jump_saving">Saving…</string>
   <string name="recognizing">Recognizing</string>
   <string name="ocr">OCR</string>
   <string name="region_ocr_action">Region OCR</string>

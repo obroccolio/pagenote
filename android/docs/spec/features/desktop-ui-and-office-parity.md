@@ -30,7 +30,7 @@ Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组�
 | 段落 | 字号、标题级别、无序/有序/任务列表、引用 |
 | 格式 | 粗体、斜体、删除线、下划线 |
 | 插入 | 代码、公式、表格、链接、图片、Markdown 格式粘贴 |
-| 阅读 | 页码、上一页/下一页、缩放、适合窗口、重置视口 |
+| 阅读 | 页码输入与跳转、上一页/下一页、缩放、适合窗口、重置视口 |
 | 手写批注 | 选择、笔、荧光笔、橡皮、线/箭头/形状/文字、颜色/宽度、撤销/重做、复制/粘贴/图片/删除 |
 | Word 编辑 | 打开当前 Office 文档编辑、选中文字转 AI 批注、保存并返回阅读 |
 | 设置 | 外观、Markdown 主题、语言、笔记分页动画、双栏比例、模型设置 |
@@ -108,6 +108,7 @@ Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只�
 ## 7. 关联
 
 - 菜单导航实施契约：`adaptive-menu-navigation.md`；任务与逐项验证：`../adaptive-menu-navigation-plan.md`。
+- 页码输入与 Android 跳转验收：`page-jump.md`、`page-jump-plan.md`。
 - 父规格：`../requirements.md`、`../design.md`、`../tasks.md`。
 - 当前功能契约：`reader-shell.md`、`reader-viewport.md`、`pen-canvas.md`、`note-rich-render.md`、`openai-model-settings.md`。
 - 桌面实现参照：仓库根目录 `index.html`、`src/main.js`、`src/theme.css`、`src/desktop.css`、`desktop/word.cjs`、`desktop/mac-office.cjs`。

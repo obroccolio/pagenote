@@ -133,3 +133,11 @@
   - [x] `:app:assembleDebug` 通过；四 ABI debug APK 均通过 16 KB 对齐检查。
   - [x] Pixel Tablet API 34 AVD 通过 DocumentsUI 授予持久 SAF 目录权限，编辑未保存草稿后将 Activity 退到后台，并以应用 UID 执行 SIGKILL；重新调回原任务后项目和草稿均恢复，界面显示本机草稿恢复状态。此验证覆盖进程死亡与任务恢复，不代表自然低内存杀进程或真机测试。
   - _Requirement: 阅读器状态恢复、草稿持久性与冲突保护_
+
+- [x] 16. 阅读器直接页码跳转（顶栏页数控件、输入校验、脏笔记 revision 保存与目标页状态加载；契约见 `features/page-jump.md`，实施拆分见 `page-jump-plan.md`）
+  - 只能跳转至 `1..totalPages` 的整数页码；输入无效时禁用确认。
+  - 脏笔记须先按捕获的页 revision 保存；冲突时保留当前页和草稿。
+  - 成功跳转后，目标页笔记、笔迹及其 revision 基线正确，视口复位。
+  - `PageJumpPolicyTest` 3 项通过；真实 `MainActivity` 的页码校验、脏笔记保存/冲突保留、目标页笔迹/视口加载及保存中防重入测试在 API 34 / 4 KB、API 35 / 4 KB、API 35 / 16 KB 平板 AVD 各通过 3/3。
+  - 新鲜 app/Agent JVM 测试 178/178、56/56；Android instrumentation Kotlin 编译和 `assembleDebug` 通过；四 ABI APK 通过 16 KB 对齐检查。
+  - _Requirement: 阅读与笔记，桌面页码导航语义一致_

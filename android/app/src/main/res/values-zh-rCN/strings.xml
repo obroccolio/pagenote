@@ -138,6 +138,11 @@
   <string name="previous_page">上一页</string>
   <string name="next_page">下一页</string>
   <string name="page_count">%1$d / %2$d</string>
+  <string name="page_jump_title">跳转到页面</string>
+  <string name="page_jump_label">页码</string>
+  <string name="page_jump_invalid">请输入 1 到 %1$d 之间的整数页码。</string>
+  <string name="page_jump_go">跳转</string>
+  <string name="page_jump_saving">正在保存…</string>
   <string name="recognizing">识别中</string>
   <string name="ocr">OCR</string>
   <string name="region_ocr_action">区域 OCR</string>
