@@ -15,8 +15,14 @@
 
 ## Steps
 
-1. 在 `android/app/src/androidTest/java/io/pagenote/android/PdfTextAnnotationToolTest.kt` 先写失败流程：无项目/Markdown 禁用；有可写 PDF 时启用；点击后纯文字 dialog 不显示区域切换；取消/空白不写入；提交后检查单点坐标、颜色、宽度、页隔离和 overlay。
-2. 在唯一 API 34 AVD 用显式 `ANDROID_SERIAL=emulator-5554` 运行该单项，确认 Text 目前 disabled，观察 RED。
-3. 增加 Text-only 状态并接通 menu action；复用 tap 事件和 annotation writer，只在 Text 模式隐藏类型切换，成功或取消的生命周期按 SPEC 清理。
-4. 运行聚焦 AVD 流程至 GREEN，随后运行 `:app:testDebugUnitTest`、`:app:assembleDebug` 和 `git diff --check`。
-5. 更新 task 6.6、SPEC/计划进度和根 `CHANGELOG.md`，提交实现并推送 fork 同名分支。
+1. [x] 在 `android/app/src/androidTest/java/io/pagenote/android/PdfTextAnnotationToolTest.kt` 先写失败流程：无项目/Markdown 禁用；有可写 PDF 时启用；点击后纯文字 dialog 不显示区域切换；取消不写入；提交后检查单点坐标、颜色、宽度、页隔离和 overlay。
+2. [x] 在唯一 API 34 AVD 用显式 `ANDROID_SERIAL=emulator-5554` 运行单项并观察 RED：挂入可写 PDF 后 Text 命令仍禁用。
+3. [x] 增加 Text-only 状态并接通 menu action；复用 tap 事件和 annotation writer，只在 Text 模式隐藏类型切换，取消保留放置模式，提交后退出模式。
+4. [x] 聚焦 AVD 流程 GREEN（1/1）；`:app:testDebugUnitTest`、`:app:assembleDebug` 和 `git diff --check` 通过。
+5. [x] 更新 task 6.6 和根 `CHANGELOG.md`，提交并推送到 fork 同名分支。
+
+## 验证记录
+
+- 唯一验证设备为 Pixel Tablet API 34 AVD；没有启动或操作其他应用。
+- 仪器闭环覆盖空项目/Markdown 禁用、可写 PDF 启用、点击位置换算、空输入禁用、取消无写入、纯文字保存、页隔离及 overlay 像素刷新。
+- 小米平板 5 Pro 与实体手写笔尚未测试，仍由父 SPEC task 12 跟踪；本地 Debug APK 不是公开二进制发布。

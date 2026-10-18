@@ -396,6 +396,7 @@ private fun ReaderHome(
   val isExportingNotes = isPreparingNoteExport || isRestoringPendingNoteExport ||
     isHandlingNoteExportResult || (pendingNoteExport != null && !isPendingNoteExportRecovered)
   var annotateMode by remember { mutableStateOf(false) }
+  var annotationTextToolMode by remember { mutableStateOf(false) }
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
   var annotateIsRegion by remember { mutableStateOf(false) }
@@ -437,6 +438,7 @@ private fun ReaderHome(
     annotationDrawTool = tool
     annotationPreview = null
     annotateMode = false
+    annotationTextToolMode = false
   }
 
   fun handleAnnotationDrag(
@@ -2822,7 +2824,16 @@ private fun ReaderHome(
           "shape", R.string.reader_menu_shape, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
         ) { showAnnotationShapePicker = true },
-        pendingCommand("ink_text", R.string.reader_menu_text),
+        actionCommand(
+          "ink_text", R.string.reader_menu_text, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) {
+          selectAnnotationDrawTool(null)
+          annotationTextToolMode = true
+          annotateIsRegion = false
+          annotateMode = true
+        },
         actionCommand(
           "ink_color", R.string.reader_menu_color, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -2836,8 +2847,14 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
         ) {
-          if (!annotateMode) selectAnnotationDrawTool(null)
-          annotateMode = !annotateMode
+          if (annotationTextToolMode) {
+            annotationTextToolMode = false
+            annotateIsRegion = false
+            annotateMode = true
+          } else {
+            if (!annotateMode) selectAnnotationDrawTool(null)
+            annotateMode = !annotateMode
+          }
         },
         actionCommand(
           "pen_undo", R.string.undo,
@@ -3118,6 +3135,7 @@ private fun ReaderHome(
                   if (point != null) {
                     annotateDraft = point
                     annotateText = ""
+                    if (annotationTextToolMode) annotateIsRegion = false
                   }
                 },
                 annotationDrawTool = annotationDrawTool.takeUnless { isAnnotationSaving },
@@ -3217,6 +3235,7 @@ private fun ReaderHome(
                   if (point != null) {
                     annotateDraft = point
                     annotateText = ""
+                    if (annotationTextToolMode) annotateIsRegion = false
                   }
                 },
                 annotationDrawTool = annotationDrawTool.takeUnless { isAnnotationSaving },
@@ -3488,6 +3507,7 @@ private fun ReaderHome(
       text = annotateText,
       onTextChange = { annotateText = it },
       isRegion = annotateIsRegion,
+      allowKindSelection = !annotationTextToolMode,
       onKindChange = { annotateIsRegion = it },
       onConfirm = {
         scope.launch {
@@ -3531,6 +3551,7 @@ private fun ReaderHome(
             annotateText = ""
             annotateIsRegion = false
             annotateMode = false
+            annotationTextToolMode = false
           }
         }
       },
@@ -3805,6 +3826,7 @@ internal fun AnnotationTextInputDialog(
   text: String,
   onTextChange: (String) -> Unit,
   isRegion: Boolean = false,
+  allowKindSelection: Boolean = true,
   onKindChange: (Boolean) -> Unit = {},
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
@@ -3815,28 +3837,30 @@ internal fun AnnotationTextInputDialog(
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.annotation_hint))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          if (isRegion) {
-            Button(
-              modifier = Modifier.testTag("annotation_kind_region"),
-              onClick = {},
-            ) { Text(stringResource(R.string.annotation_kind_region)) }
-          } else {
-            TextButton(
-              modifier = Modifier.testTag("annotation_kind_region"),
-              onClick = { onKindChange(true) },
-            ) { Text(stringResource(R.string.annotation_kind_region)) }
-          }
-          if (!isRegion) {
-            Button(
-              modifier = Modifier.testTag("annotation_kind_text"),
-              onClick = {},
-            ) { Text(stringResource(R.string.annotation_kind_text)) }
-          } else {
-            TextButton(
-              modifier = Modifier.testTag("annotation_kind_text"),
-              onClick = { onKindChange(false) },
-            ) { Text(stringResource(R.string.annotation_kind_text)) }
+        if (allowKindSelection) {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isRegion) {
+              Button(
+                modifier = Modifier.testTag("annotation_kind_region"),
+                onClick = {},
+              ) { Text(stringResource(R.string.annotation_kind_region)) }
+            } else {
+              TextButton(
+                modifier = Modifier.testTag("annotation_kind_region"),
+                onClick = { onKindChange(true) },
+              ) { Text(stringResource(R.string.annotation_kind_region)) }
+            }
+            if (!isRegion) {
+              Button(
+                modifier = Modifier.testTag("annotation_kind_text"),
+                onClick = {},
+              ) { Text(stringResource(R.string.annotation_kind_text)) }
+            } else {
+              TextButton(
+                modifier = Modifier.testTag("annotation_kind_text"),
+                onClick = { onKindChange(false) },
+              ) { Text(stringResource(R.string.annotation_kind_text)) }
+            }
           }
         }
         AndroidView(
