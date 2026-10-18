@@ -61,6 +61,9 @@
   <string name="reader_menu_select_all">全选</string>
   <string name="reader_menu_font_size">字号</string>
   <string name="reader_menu_heading">标题级别</string>
+  <string name="reader_menu_heading_level_1">一级标题</string>
+  <string name="reader_menu_heading_level_2">二级标题</string>
+  <string name="reader_menu_heading_level_3">三级标题</string>
   <string name="reader_menu_unordered_list">无序列表</string>
   <string name="reader_menu_ordered_list">有序列表</string>
   <string name="reader_menu_task_list">任务列表</string>

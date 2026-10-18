@@ -40,14 +40,14 @@
 - `data class MarkdownParagraphEdit(replaceStart, replaceEnd, replacement, cursor)`。
 - `MarkdownParagraphFormatting.prefixLines(markdown, selectionStart, selectionEnd, prefix): MarkdownParagraphEdit`。
 
-- [ ] **Step 1: Write focused failing tests**
+- [x] **Step 1: Write focused failing tests**
   - 验证每种 prefix 的输出、跨行和空行、选区行边界、折叠光标、反向/越界选区、emoji UTF-16 偏移、范围外内容和新光标。
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew :app:testDebugUnitTest --offline --tests io.pagenote.android.MarkdownParagraphFormattingTest`
   - Expected: 编译失败，因为 helper API 尚不存在。
-- [ ] **Step 3: Implement the minimal pure Kotlin helper**
+- [x] **Step 3: Implement the minimal pure Kotlin helper**
   - 精确遵循桌面源码回退行扩展规则；不加入 toggle、自动空行或保存行为。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - Run the same focused JVM command; all helper tests pass.
 
 ### Task 2: Reader 命令和 Android 14 聚焦闭环
@@ -61,18 +61,18 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add the failing API 34 reader test**
-  - 在已有格式仪器类增加段落命令测试：无可写编辑器时禁用；标题弹窗可选 1/2/3；标题、无序、有序、引用能按选区变换；检查草稿、页级保存、相邻页不变和预览 spans。
-- [ ] **Step 2: Verify RED on the single API 34 tablet AVD**
+- [x] **Step 1: Add the failing API 34 reader test**
+  - 在已有格式仪器类增加段落命令测试：无可写编辑器时禁用；标题弹窗可选 1/2/3；标题、无序、有序、引用能按选区变换；检查草稿、页级保存、相邻页不变和预览内容。
+- [x] **Step 2: Verify RED on the single API 34 tablet AVD**
   - 仅运行 `NoteMarkdownFormatActivityTest` 的该方法，显式指定当前 API 34 arm64 平板 AVD serial。
   - Expected: 段落命令仍 disabled/pending 或新测试未通过。
-- [ ] **Step 3: Implement guarded menu actions and heading level dialog**
+- [x] **Step 3: Implement guarded menu actions and heading level dialog**
   - 添加 helper 应用函数，调用前重新检查编辑器可写/busy；使用 `Editable.replace` 并折叠光标。
   - 标题命令只打开 1/2/3 级对话框，确认时应用，取消不改文本。
   - 只替换 `heading`、`unordered_list`、`ordered_list`、`quote` 四项；保留字号和 `task_list` 为禁用。
-- [ ] **Step 4: Verify the focused API 34 reader flow**
+- [x] **Step 4: Verify the focused API 34 reader flow**
   - 重跑该方法；确认 watcher、保存和当前页范围符合断言。
-- [ ] **Step 5: Focused tests, Debug APK, and push**
+- [x] **Step 5: Focused tests, Debug APK, and push**
   - 运行新增 helper JVM 测试、单项仪器测试、`:app:assembleDebug`。
   - 更新 task 5.9 与 `CHANGELOG.md`，记录 AVD 代理与 Xiaomi 真机仍待 task 12。
   - 执行 `git diff --check` 和相关文档格式检查，提交并推送到 `fork/codex/android-port`。

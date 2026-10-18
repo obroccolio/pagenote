@@ -61,6 +61,9 @@
   <string name="reader_menu_select_all">Select all</string>
   <string name="reader_menu_font_size">Font size</string>
   <string name="reader_menu_heading">Heading level</string>
+  <string name="reader_menu_heading_level_1">Heading 1</string>
+  <string name="reader_menu_heading_level_2">Heading 2</string>
+  <string name="reader_menu_heading_level_3">Heading 3</string>
   <string name="reader_menu_unordered_list">Bulleted list</string>
   <string name="reader_menu_ordered_list">Numbered list</string>
   <string name="reader_menu_task_list">Task list</string>

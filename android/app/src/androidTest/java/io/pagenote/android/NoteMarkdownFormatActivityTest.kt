@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
 import androidx.lifecycle.ViewModelProvider
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -90,12 +91,93 @@ class NoteMarkdownFormatActivityTest {
     assertTrue("preview must render strikethrough", spans.any { it is StrikethroughSpan })
   }
 
+  @Test
+  fun paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage() {
+    val initial = "intro\nalpha\nbeta\ngamma\ndelta"
+    val savedPages = listOf(initial, "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    paragraphCommand("heading").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    paragraphCommand("unordered_list").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    paragraphCommand("font_size").assertIsNotEnabled()
+    paragraphCommand("task_list").assertIsNotEnabled()
+    selectCurrentLine("intro")
+    paragraphCommand("heading").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("reader_heading_cancel").assertIsDisplayed().performClick()
+    assertEquals(initial, session.noteDraft.value)
+
+    paragraphCommand("heading").performClick()
+    (1..3).forEach { level ->
+      composeRule.onNodeWithTag("reader_heading_level_$level").assertIsDisplayed()
+    }
+    composeRule.onNodeWithTag("reader_heading_level_2").performClick()
+    val afterHeading = "## intro\nalpha\nbeta\ngamma\ndelta"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterHeading }
+
+    selectTextRange("alpha", "beta")
+    paragraphCommand("unordered_list").assertIsEnabled().performClick()
+    val afterBullets = "## intro\n- alpha\n- beta\ngamma\ndelta"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterBullets }
+
+    selectCurrentLine("gamma")
+    paragraphCommand("ordered_list").assertIsEnabled().performClick()
+    val afterNumbered = "## intro\n- alpha\n- beta\n1. gamma\ndelta"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterNumbered }
+
+    selectCurrentLine("delta")
+    paragraphCommand("quote").assertIsEnabled().performClick()
+    val expected = "## intro\n- alpha\n- beta\n1. gamma\n> delta"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("intro") != null }
+    val rendered = findRenderedPreview("intro")?.text?.toString()
+      ?: error("formatted Markdown preview must render the current page")
+    listOf("intro", "alpha", "beta", "gamma", "delta").forEach { text ->
+      assertTrue("preview must include <$text>", rendered.contains(text))
+    }
+    assertEquals(expected, session.noteDraft.value)
+  }
+
   private fun formatCommand(id: String) = run {
     val commandTag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_format").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun paragraphCommand(id: String) = run {
+    val commandTag = "reader_menu_command_$id"
+    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
@@ -135,6 +217,33 @@ class NoteMarkdownFormatActivityTest {
     composeRule.waitForIdle()
   }
 
+  private fun selectCurrentLine(text: String) {
+    val editor = requireNotNull(findNoteEditor())
+    val markdown = editor.text.toString()
+    val start = markdown.indexOf(text)
+    check(start >= 0) { "expected <$text> to remain in the Markdown source" }
+    val end = start + text.length
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(start, end)
+    }
+    composeRule.waitForIdle()
+  }
+
+  private fun selectTextRange(firstText: String, lastText: String) {
+    val editor = requireNotNull(findNoteEditor())
+    val markdown = editor.text.toString()
+    val start = markdown.indexOf(firstText)
+    val lastStart = markdown.indexOf(lastText, start + firstText.length)
+    check(start >= 0 && lastStart >= 0) { "expected selected Markdown text to remain in the editor" }
+    val end = lastStart + lastText.length
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(start, end)
+    }
+    composeRule.waitForIdle()
+  }
+
   private fun installProject(notes: String): OpenedProject {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"c".repeat(64)}","name":"Markdown format fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
@@ -163,12 +272,12 @@ class NoteMarkdownFormatActivityTest {
     return result.get()
   }
 
-  private fun findRenderedPreview(): TextView? {
+  private fun findRenderedPreview(containsText: String = "Selected"): TextView? {
     val result = AtomicReference<TextView?>()
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
       val hosts = mutableListOf<MermaidPreviewHost>()
       composeRule.activity.window.decorView.collectPreviewHosts(hosts)
-      result.set(hosts.firstOrNull { it.markdownView.text.toString().contains("Selected") }?.markdownView)
+      result.set(hosts.firstOrNull { it.markdownView.text.toString().contains(containsText) }?.markdownView)
     }
     return result.get()
   }

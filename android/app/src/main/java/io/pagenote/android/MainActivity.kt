@@ -338,6 +338,7 @@ private fun ReaderHome(
   val agentRunner = remember { AgentRunner(OkHttpChatClient()) }
   var showAgentTask by remember { mutableStateOf(false) }
   var showPageJumpDialog by remember { mutableStateOf(false) }
+  var showHeadingLevelDialog by remember { mutableStateOf(false) }
   var pageJumpInput by remember { mutableStateOf("") }
   var isPageJumpRunning by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
@@ -1750,6 +1751,20 @@ private fun ReaderHome(
     editor.setSelection(edit.selectionStart, edit.selectionEnd)
   }
 
+  fun applyMarkdownParagraphFormatting(prefix: MarkdownParagraphPrefix) {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val edit = MarkdownParagraphFormatting.prefixLines(
+      markdown = editor.text.toString(),
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+      prefix = prefix,
+    )
+    editor.requestFocus()
+    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setSelection(edit.cursor)
+  }
+
   fun pendingCommand(id: String, labelRes: Int) = actionCommand(
     id = id,
     labelRes = labelRes,
@@ -1904,11 +1919,21 @@ private fun ReaderHome(
       R.string.reader_menu_group_paragraph,
       listOf(
         pendingCommand("font_size", R.string.reader_menu_font_size),
-        pendingCommand("heading", R.string.reader_menu_heading),
-        pendingCommand("unordered_list", R.string.reader_menu_unordered_list),
-        pendingCommand("ordered_list", R.string.reader_menu_ordered_list),
+        actionCommand(
+          "heading", R.string.reader_menu_heading, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { showHeadingLevelDialog = true },
+        actionCommand(
+          "unordered_list", R.string.reader_menu_unordered_list,
+          canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.UNORDERED_LIST) },
+        actionCommand(
+          "ordered_list", R.string.reader_menu_ordered_list,
+          canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.ORDERED_LIST) },
         pendingCommand("task_list", R.string.reader_menu_task_list),
-        pendingCommand("quote", R.string.reader_menu_quote),
+        actionCommand(
+          "quote", R.string.reader_menu_quote, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.QUOTE) },
       ),
     ),
     menuSection(
@@ -2480,6 +2505,40 @@ private fun ReaderHome(
               isPageJumpRunning = false
             }
           }
+        }
+      },
+    )
+  }
+  if (showHeadingLevelDialog) {
+    AlertDialog(
+      onDismissRequest = { showHeadingLevelDialog = false },
+      title = { Text(stringResource(R.string.reader_menu_heading)) },
+      text = {
+        Column {
+          listOf(
+            MarkdownParagraphPrefix.HEADING_1 to R.string.reader_menu_heading_level_1,
+            MarkdownParagraphPrefix.HEADING_2 to R.string.reader_menu_heading_level_2,
+            MarkdownParagraphPrefix.HEADING_3 to R.string.reader_menu_heading_level_3,
+          ).forEachIndexed { index, (prefix, labelRes) ->
+            TextButton(
+              modifier = Modifier.fillMaxWidth().testTag("reader_heading_level_${index + 1}"),
+              enabled = canFormatMarkdown,
+              onClick = {
+                showHeadingLevelDialog = false
+                applyMarkdownParagraphFormatting(prefix)
+              },
+            ) {
+              Text(stringResource(labelRes))
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(
+          modifier = Modifier.testTag("reader_heading_cancel"),
+          onClick = { showHeadingLevelDialog = false },
+        ) {
+          Text(stringResource(R.string.cancel))
         }
       },
     )
