@@ -2635,7 +2635,9 @@ private fun ReaderHome(
           "ordered_list", R.string.reader_menu_ordered_list,
           canFormatMarkdown, markdownFormatDisabledReason,
         ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.ORDERED_LIST) },
-        pendingCommand("task_list", R.string.reader_menu_task_list),
+        actionCommand(
+          "task_list", R.string.reader_menu_task_list, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.TASK_LIST) },
         actionCommand(
           "quote", R.string.reader_menu_quote, canFormatMarkdown, markdownFormatDisabledReason,
         ) { applyMarkdownParagraphFormatting(MarkdownParagraphPrefix.QUOTE) },

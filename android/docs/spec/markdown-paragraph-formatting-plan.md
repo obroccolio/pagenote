@@ -36,7 +36,7 @@
 
 **Interface:**
 
-- `MarkdownParagraphPrefix` 定义 `HEADING_1/2/3`、`UNORDERED_LIST`、`ORDERED_LIST`、`QUOTE`。
+- `MarkdownParagraphPrefix` 定义 `HEADING_1/2/3`、`UNORDERED_LIST`、`ORDERED_LIST`、`TASK_LIST`、`QUOTE`。
 - `data class MarkdownParagraphEdit(replaceStart, replaceEnd, replacement, cursor)`。
 - `MarkdownParagraphFormatting.prefixLines(markdown, selectionStart, selectionEnd, prefix): MarkdownParagraphEdit`。
 
@@ -74,5 +74,5 @@
   - 重跑该方法；确认 watcher、保存和当前页范围符合断言。
 - [x] **Step 5: Focused tests, Debug APK, and push**
   - 运行新增 helper JVM 测试、单项仪器测试、`:app:assembleDebug`。
-  - 更新 task 5.9 与 `CHANGELOG.md`，记录 AVD 代理与 Xiaomi 真机仍待 task 12。
+  - 更新 task 5.9 与 `CHANGELOG.md`，记录 AVD 代理与 Xiaomi 真机仍待 task 12。Task List 的增量测试/实现由 `markdown-task-list-insertion-plan.md` 单独追踪。
   - 执行 `git diff --check` 和相关文档格式检查，提交并推送到 `fork/codex/android-port`。

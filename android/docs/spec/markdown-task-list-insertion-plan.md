@@ -39,17 +39,17 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Write failing JVM and Reader assertions**
+- [x] **Step 1: Write failing JVM and Reader assertions**
   - JVM cases add task prefix for selected single/multiple lines including blank lines.
   - Reader flow changes task-list command from disabled to enabled; verifies resulting note, saves only current page, and finds a not-done `TaskListSpan` in preview.
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run the focused `MarkdownParagraphFormattingTest` and the existing `paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage` method on `emulator-5554` API 34.
   - Expected: JVM cannot find the enum case; Reader command remains disabled.
-- [ ] **Step 3: Implement the exact source-mode prefix**
+- [x] **Step 3: Implement the exact source-mode prefix**
   - Add `TASK_LIST("- [ ] ")`; replace only `pendingCommand("task_list", ...)` with the existing paragraph action/helper and gate.
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - Re-run the focused JVM test and single API 34 Reader flow; confirm current page save and GFM preview span.
-- [ ] **Step 5: Run focused regression and Debug build**
+- [x] **Step 5: Run focused regression and Debug build**
   - Run `:app:testDebugUnitTest`, focused AVD instrumentation, `:app:assembleDebug`, and `git diff --check`; update the parent task list and changelog.
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
   - Commit implementation and tests, then push to `fork/codex/android-port`.

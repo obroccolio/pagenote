@@ -216,8 +216,8 @@
   - 契约见 `features/markdown-link-insertion.md`，实施拆分见 `markdown-link-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
 
-- [ ] 23. Markdown 编辑器任务列表前缀（沿用桌面源码模式逐行添加 `- [ ] `；预览 checkbox 不点按写回）
+- [x] 23. Markdown 编辑器任务列表前缀（沿用桌面源码模式逐行添加 `- [ ] `；预览 checkbox 不点按写回）
   - 复用既有段落变换、可写门控和 GFM renderer；字号仍禁用。
-  - 验收覆盖多行/空行前缀、只读/预览门控、当前页保存、相邻页隔离及未完成 `TaskListSpan`；运行聚焦 JVM、唯一 API 34 平板 AVD 仪器测试及 Debug 构建。
+  - 9 个段落 helper JVM 用例、`paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖预览门控、任务前缀、按页保存、相邻页隔离及未完成 `TaskListSpan`；完整 `:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-task-list-insertion.md`，实施拆分见 `markdown-task-list-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_

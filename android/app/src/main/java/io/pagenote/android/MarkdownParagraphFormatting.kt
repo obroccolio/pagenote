@@ -6,6 +6,7 @@ enum class MarkdownParagraphPrefix(val value: String) {
   HEADING_3("### "),
   UNORDERED_LIST("- "),
   ORDERED_LIST("1. "),
+  TASK_LIST("- [ ] "),
   QUOTE("> "),
 }
 

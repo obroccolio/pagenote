@@ -12,6 +12,7 @@ class MarkdownParagraphFormattingTest {
       MarkdownParagraphPrefix.HEADING_3 to "### selected",
       MarkdownParagraphPrefix.UNORDERED_LIST to "- selected",
       MarkdownParagraphPrefix.ORDERED_LIST to "1. selected",
+      MarkdownParagraphPrefix.TASK_LIST to "- [ ] selected",
       MarkdownParagraphPrefix.QUOTE to "> selected",
     )
 
@@ -33,6 +34,22 @@ class MarkdownParagraphFormattingTest {
         "selected".replaceRange(edit.replaceStart, edit.replaceEnd, edit.replacement),
       )
     }
+  }
+
+  @Test
+  fun prefixesEverySelectedTaskLineIncludingBlankLines() {
+    val markdown = "before\nalpha\n\nbeta\nafter"
+    val edit = MarkdownParagraphFormatting.prefixLines(
+      markdown = markdown,
+      selectionStart = markdown.indexOf("alpha"),
+      selectionEnd = markdown.indexOf("beta") + "beta".length,
+      prefix = MarkdownParagraphPrefix.TASK_LIST,
+    )
+
+    assertEquals(7, edit.replaceStart)
+    assertEquals(markdown.indexOf("\nafter"), edit.replaceEnd)
+    assertEquals("- [ ] alpha\n- [ ] \n- [ ] beta", edit.replacement)
+    assertEquals("before\n- [ ] alpha\n- [ ] \n- [ ] beta\nafter", markdown.replaceRange(edit.replaceStart, edit.replaceEnd, edit.replacement))
   }
 
   @Test

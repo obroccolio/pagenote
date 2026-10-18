@@ -28,6 +28,7 @@ import io.noties.markwon.core.spans.EmphasisSpan
 import io.noties.markwon.core.spans.StrongEmphasisSpan
 import io.noties.markwon.ext.tables.TableSpan
 import io.noties.markwon.ext.tables.TableRowSpan
+import io.noties.markwon.ext.tasklist.TaskListSpan
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
 import org.junit.Assert.assertFalse
@@ -99,7 +100,7 @@ class NoteMarkdownFormatActivityTest {
 
   @Test
   fun paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage() {
-    val initial = "intro\nalpha\nbeta\ngamma\ndelta"
+    val initial = "intro\nalpha\nbeta\ngamma\ndelta\nepsilon"
     val savedPages = listOf(initial, "Second page remains unchanged")
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
@@ -111,11 +112,12 @@ class NoteMarkdownFormatActivityTest {
     composeRule.onNodeWithTag("note_tab_preview").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
     paragraphCommand("unordered_list").assertIsNotEnabled()
+    paragraphCommand("task_list").assertIsNotEnabled()
     composeRule.onNodeWithTag("note_tab_edit").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
 
     paragraphCommand("font_size").assertIsNotEnabled()
-    paragraphCommand("task_list").assertIsNotEnabled()
+    paragraphCommand("task_list").assertIsEnabled()
     selectCurrentLine("intro")
     paragraphCommand("heading").assertIsEnabled().performClick()
     composeRule.onNodeWithTag("reader_heading_cancel").assertIsDisplayed().performClick()
@@ -126,22 +128,27 @@ class NoteMarkdownFormatActivityTest {
       composeRule.onNodeWithTag("reader_heading_level_$level").assertIsDisplayed()
     }
     composeRule.onNodeWithTag("reader_heading_level_2").performClick()
-    val afterHeading = "## intro\nalpha\nbeta\ngamma\ndelta"
+    val afterHeading = "## intro\nalpha\nbeta\ngamma\ndelta\nepsilon"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterHeading }
 
     selectTextRange("alpha", "beta")
     paragraphCommand("unordered_list").assertIsEnabled().performClick()
-    val afterBullets = "## intro\n- alpha\n- beta\ngamma\ndelta"
+    val afterBullets = "## intro\n- alpha\n- beta\ngamma\ndelta\nepsilon"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterBullets }
 
     selectCurrentLine("gamma")
     paragraphCommand("ordered_list").assertIsEnabled().performClick()
-    val afterNumbered = "## intro\n- alpha\n- beta\n1. gamma\ndelta"
+    val afterNumbered = "## intro\n- alpha\n- beta\n1. gamma\ndelta\nepsilon"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterNumbered }
 
     selectCurrentLine("delta")
     paragraphCommand("quote").assertIsEnabled().performClick()
-    val expected = "## intro\n- alpha\n- beta\n1. gamma\n> delta"
+    val afterQuote = "## intro\n- alpha\n- beta\n1. gamma\n> delta\nepsilon"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == afterQuote }
+
+    selectCurrentLine("epsilon")
+    paragraphCommand("task_list").assertIsEnabled().performClick()
+    val expected = "## intro\n- alpha\n- beta\n1. gamma\n> delta\n- [ ] epsilon"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
 
     composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
@@ -156,9 +163,14 @@ class NoteMarkdownFormatActivityTest {
     composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("intro") != null }
     val rendered = findRenderedPreview("intro")?.text?.toString()
       ?: error("formatted Markdown preview must render the current page")
-    listOf("intro", "alpha", "beta", "gamma", "delta").forEach { text ->
+    listOf("intro", "alpha", "beta", "gamma", "delta", "epsilon").forEach { text ->
       assertTrue("preview must include <$text>", rendered.contains(text))
     }
+    val taskPreview = findRenderedPreview("epsilon")?.text as? Spanned
+      ?: error("task-list preview must expose native spans")
+    val taskSpans = taskPreview.getSpans(0, taskPreview.length, TaskListSpan::class.java)
+    assertEquals(1, taskSpans.size)
+    assertFalse("inserted task list starts unchecked", taskSpans.single().isDone)
     assertEquals(expected, session.noteDraft.value)
   }
 
