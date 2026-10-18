@@ -87,6 +87,8 @@
 ### 标注
 
 - When 用户选中文字或框选区域并填写需求时，the Android 端 shall 生成一条定位到文档/页/选区或区域的标注。
+- When Android 14 用户在可搜索 PDF 上拖选文字时，the Android 端 shall 保存带全文上下文、页 revision、桌面兼容宽度坐标锚点及目标笔记 revision 的页级 AI selection review。
+- When PDF 页面没有可提取文字时，the Android 端 shall 不伪造字符级选区，保留现有区域 OCR 选择流程。
 - When Agent 成功改写对应笔记后，the Android 端 shall 才能标记该标注完成，不提前标记。
 - When 用户删除标注时，the Android 端 shall 仅删除该标注，不改动笔记正文。
 
