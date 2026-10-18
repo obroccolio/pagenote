@@ -152,7 +152,7 @@
 - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
 - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；task 12 仅剩上述小米平板目标机的合并核心流程。
 - [x] 用户导入的 69 页项目 API 34 AVD 独立副本复现“打开项目后先创建 PDF 批注、再写笔迹”顺序；旧版产生 `annotations (1).json`，修复后 PDF `text` 与 `pen` 共存于单个 `annotations.json`，应用重启后项目仍恢复第 1 页并可读盘。原始项目/基线副本未改；此 AVD 证据不代替小米 Pad 5 Pro 实体手写笔验收。
-- [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
+- [x] `ProjectCreatorSafTest` 在 Pixel Tablet API 34 AVD 安装并通过（1/1）；Xiaomi MIUI 上的 `INSTALL_FAILED_USER_RESTRICTED` 仍是设备限制，SAF Provider 创建/打开行为已由真机手工端到端验证。
 </details>
 
 - [x] 13. 分支、变更日志、PR 准备（分支基于 beta、CHANGELOG 随推更新、产物独立于 release/，待开 PR）

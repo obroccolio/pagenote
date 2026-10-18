@@ -32,4 +32,5 @@
 
 - JVM/仪器：名称校验、manifest 字段、SAF 创建顺序、目录选择期间的弹窗关闭策略，以及创建目标保留父 tree URI/项目根 document ID。设备真机验证 Provider 保留 `project.pagenote` 文件名，并能从创建目标直接打开。
 - 2026-10-17 Xiaomi 23127PN0CC（4 KB）：在独立的 `CodexAndroidDebug` 目录创建并直接打开 `CodexSafEndToEnd20261017`，文件清单与名称正确，选择器返回后弹窗和输入状态保留。`ProjectOpenTargetTest` 两项在设备通过；`ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`），其 MIME 行为由同一 Provider 的端到端创建验证覆盖。
+- 2026-10-19 `Pixel_Tablet_API34` AVD：`ProjectCreatorSafTest` 安装并执行通过（1/1），验证 manifest MIME 不会映射出文件扩展名。该结果验证 Android API 行为，不消除 Xiaomi MIUI 对仪器包安装的设备限制，也不替代目标设备验收。
 - `cd android && ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin --offline` 通过；其余设备矩阵待 task 12。
