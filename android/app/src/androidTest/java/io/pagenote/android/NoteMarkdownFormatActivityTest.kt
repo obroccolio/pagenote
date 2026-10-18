@@ -175,6 +175,63 @@ class NoteMarkdownFormatActivityTest {
   }
 
   @Test
+  fun markdownUndoRedoCommandsRestoreDraftAndSaveOnlyCurrentPage() {
+    val savedPages = listOf("Original page", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    editCommand("note_undo").assertIsNotEnabled()
+    editCommand("note_redo").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    editCommand("note_undo").assertIsNotEnabled()
+    editCommand("note_redo").assertIsNotEnabled()
+
+    val editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setText("Edited page")
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Edited page" }
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == savedPages[0] }
+    assertEquals(savedPages[0].length, requireNotNull(findNoteEditor()).selectionStart)
+    editCommand("note_undo").assertIsNotEnabled()
+    editCommand("note_redo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Edited page" }
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == savedPages[0] }
+    val branchedEditor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      branchedEditor.setText("Branched page")
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Branched page" }
+    editCommand("note_redo").assertIsNotEnabled()
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == savedPages[0] }
+    editCommand("note_redo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Branched page" }
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == "Branched page"
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals("Branched page", NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.runOnUiThread { session.noteWritable.value = false }
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor()?.isEnabled == false }
+    editCommand("note_undo").assertIsNotEnabled()
+    editCommand("note_redo").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    editCommand("note_undo").assertIsNotEnabled()
+    editCommand("note_redo").assertIsNotEnabled()
+  }
+
+  @Test
   fun codeBlockCommandWrapsSelectionAndSavesOnlyCurrentPage() {
     val savedPages = listOf("Lead Selected tail", "Second page remains unchanged")
     val savedNotes = PageNotes.join(savedPages)
@@ -393,6 +450,22 @@ class NoteMarkdownFormatActivityTest {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_format").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun editCommand(id: String) = run {
+    val commandTag = "reader_menu_command_$id"
+    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }

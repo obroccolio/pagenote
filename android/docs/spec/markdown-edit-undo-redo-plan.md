@@ -41,14 +41,14 @@
 - `undo(current: String): String?`, `redo(current: String): String?`, `reset(markdown: String)`。
 - Read-only `canUndo` and `canRedo` properties.
 
-- [ ] **Step 1: Write failing deterministic history tests**
+- [x] **Step 1: Write failing deterministic history tests**
   - 覆盖空栈、往返、500ms 分组、redo 清空、80 条上限、reset 和文本失配。
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.MarkdownEditHistoryTest`
   - Expected: 编译失败，因为 helper API 尚不存在。
-- [ ] **Step 3: Implement the minimal history helper**
+- [x] **Step 3: Implement the minimal history helper**
   - 使用有界双栈及单调时间戳分组；undo/redo 前校验传入文本与内部当前文本一致，不一致时清栈并拒绝。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - 重跑同一聚焦 JVM 命令，历史边界全通过。
 
 ### Task 2: Reader watcher 与菜单闭环
@@ -60,16 +60,16 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add failing API 34 Reader flow**
+- [x] **Step 1: Add failing API 34 Reader flow**
   - 验证无历史时 Undo/Redo 禁用；一笔文本修改后 Undo 可用、Redo 禁用；撤销后反向可用；Redo 恢复内容；再次 Undo 后新编辑清除 redo；保存只改当前页；预览和只读态禁用。
-- [ ] **Step 2: Verify RED on the sole API 34 tablet AVD**
-  - 显式使用 `ANDROID_SERIAL=emulator-5554` 和 class/method instrumentation filter；预期菜单仍为 pending/disabled。
-- [ ] **Step 3: Wire watcher history and guarded actions**
+- [x] **Step 2: Verify RED on the sole API 34 tablet AVD**
+  - 使用唯一已连接的 `emulator-5554` 与 class/method instrumentation filter；预期菜单仍为 pending/disabled。最终 GREEN 验证显式设置 `ANDROID_SERIAL=emulator-5554`。
+- [x] **Step 3: Wire watcher history and guarded actions**
   - 在 NotePanel watcher 捕获前后文本；页面/外部重载时 reset；Undo/Redo 替换文本期间抑制 history record，但保留 `onMarkdownChange` 草稿回调。
   - 用 Compose state 刷新菜单 enabled 状态；替换 pending 菜单命令，按可写/忙碌/历史栈门控。
-- [ ] **Step 4: Verify GREEN on API 34 AVD**
+- [x] **Step 4: Verify GREEN on API 34 AVD**
   - 断言文本、按钮状态、当前页保存和邻页不变；不启动外部 UI。
-- [ ] **Step 5: JVM, full app tests, Debug build and docs**
+- [x] **Step 5: JVM, full app tests, Debug build and docs**
   - 运行 history 聚焦单测、`:app:testDebugUnitTest`、单项 AVD 仪器测试、`:app:assembleDebug` 与 `git diff --check`；更新 task 24 和变更日志。
 - [ ] **Step 6: Commit and push**
   - 提交实现与测试并推送至 `fork/codex/android-port`。

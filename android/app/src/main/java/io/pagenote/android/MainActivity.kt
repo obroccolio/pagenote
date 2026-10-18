@@ -8,6 +8,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.text.Editable
@@ -408,6 +409,15 @@ private fun ReaderHome(
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
   var markdownEditor by remember { mutableStateOf<EditText?>(null) }
+  val markdownHistory = remember(project?.manifest?.id, pageIndex) {
+    MarkdownEditHistory(noteDraft)
+  }
+  var markdownHistoryRevision by remember(project?.manifest?.id, pageIndex) {
+    mutableIntStateOf(0)
+  }
+  var isApplyingMarkdownHistory by remember(project?.manifest?.id, pageIndex) {
+    mutableStateOf(false)
+  }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
   var showHandoff by remember { mutableStateOf(false) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
@@ -2302,8 +2312,18 @@ private fun ReaderHome(
   )
 
   val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
+  val canUndoMarkdown = remember(markdownHistoryRevision, canFormatMarkdown) {
+    canFormatMarkdown && markdownHistory.canUndo
+  }
+  val canRedoMarkdown = remember(markdownHistoryRevision, canFormatMarkdown) {
+    canFormatMarkdown && markdownHistory.canRedo
+  }
   val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_note_editor_required) else null
+  val markdownUndoDisabledReason = markdownFormatDisabledReason
+    ?: if (!markdownHistory.canUndo) context.getString(R.string.reader_menu_nothing_to_undo) else null
+  val markdownRedoDisabledReason = markdownFormatDisabledReason
+    ?: if (!markdownHistory.canRedo) context.getString(R.string.reader_menu_nothing_to_redo) else null
   val hasNoteSelection = noteSelection?.let { it.start != it.end } == true
   val markdownClipboardDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_text_editor_required) else null
@@ -2312,6 +2332,23 @@ private fun ReaderHome(
   val canInsertMarkdownImage = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
   val markdownImageDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canInsertMarkdownImage) context.getString(R.string.reader_menu_image_editor_required) else null
+
+  fun applyMarkdownHistory(undo: Boolean) {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val current = editor.text.toString()
+    val restored = if (undo) markdownHistory.undo(current) else markdownHistory.redo(current)
+    markdownHistoryRevision++
+    if (restored == null) return
+    isApplyingMarkdownHistory = true
+    try {
+      editor.requestFocus()
+      editor.text.replace(0, editor.text.length, restored)
+      editor.setSelection(restored.length)
+    } finally {
+      isApplyingMarkdownHistory = false
+    }
+  }
 
   fun applyMarkdownInlineFormatting(style: MarkdownInlineStyle) {
     val editor = markdownEditor ?: return
@@ -2603,8 +2640,12 @@ private fun ReaderHome(
       ReaderMenuGroup.EDIT,
       R.string.reader_menu_group_edit,
       listOf(
-        pendingCommand("note_undo", R.string.reader_menu_edit_undo),
-        pendingCommand("note_redo", R.string.reader_menu_edit_redo),
+        actionCommand(
+          "note_undo", R.string.reader_menu_edit_undo, canUndoMarkdown, markdownUndoDisabledReason,
+        ) { applyMarkdownHistory(undo = true) },
+        actionCommand(
+          "note_redo", R.string.reader_menu_edit_redo, canRedoMarkdown, markdownRedoDisabledReason,
+        ) { applyMarkdownHistory(undo = false) },
         actionCommand(
           "cut", R.string.reader_menu_cut,
           canFormatMarkdown && hasNoteSelection, markdownSelectionDisabledReason,
@@ -3098,12 +3139,30 @@ private fun ReaderHome(
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
+              onMarkdownMutation = { before, after ->
+                if (!isApplyingMarkdownHistory) {
+                  markdownHistory.record(before, after, SystemClock.uptimeMillis())
+                  markdownHistoryRevision++
+                }
+              },
+              onEditorTextReset = { markdown ->
+                markdownHistory.reset(markdown)
+                markdownHistoryRevision++
+              },
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
-              onEditorViewAttached = { markdownEditor = it },
+              onEditorViewAttached = {
+                markdownHistory.reset(it.text.toString())
+                markdownHistoryRevision++
+                markdownEditor = it
+              },
               onEditorViewReleased = { released ->
-                if (markdownEditor === released) markdownEditor = null
+                if (markdownEditor === released) {
+                  markdownHistory.reset(released.text.toString())
+                  markdownHistoryRevision++
+                  markdownEditor = null
+                }
               },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
@@ -3179,12 +3238,30 @@ private fun ReaderHome(
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
+              onMarkdownMutation = { before, after ->
+                if (!isApplyingMarkdownHistory) {
+                  markdownHistory.record(before, after, SystemClock.uptimeMillis())
+                  markdownHistoryRevision++
+                }
+              },
+              onEditorTextReset = { markdown ->
+                markdownHistory.reset(markdown)
+                markdownHistoryRevision++
+              },
               onSave = { readerSession.launchSessionTask { saveCurrentNote() } },
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
-              onEditorViewAttached = { markdownEditor = it },
+              onEditorViewAttached = {
+                markdownHistory.reset(it.text.toString())
+                markdownHistoryRevision++
+                markdownEditor = it
+              },
               onEditorViewReleased = { released ->
-                if (markdownEditor === released) markdownEditor = null
+                if (markdownEditor === released) {
+                  markdownHistory.reset(released.text.toString())
+                  markdownHistoryRevision++
+                  markdownEditor = null
+                }
               },
               historyEnabled = noteWritable &&
                 NoteHistoryMirror.directory(context.filesDir, project?.manifest?.id) != null,
@@ -4797,6 +4874,8 @@ internal fun NotePanel(
   saving: Boolean,
   status: String?,
   onMarkdownChange: (String) -> Unit,
+  onMarkdownMutation: (String, String) -> Unit = { _, _ -> },
+  onEditorTextReset: (String) -> Unit = {},
   onSave: () -> Unit,
   onReload: () -> Unit,
   onSelectionChanged: (TextRange?) -> Unit = {},
@@ -4810,6 +4889,8 @@ internal fun NotePanel(
 ) {
   val context = LocalContext.current
   val selectionCallback = rememberUpdatedState(onSelectionChanged)
+  val markdownMutationCallback = rememberUpdatedState(onMarkdownMutation)
+  val editorTextResetCallback = rememberUpdatedState(onEditorTextReset)
   val editorAttachedCallback = rememberUpdatedState(onEditorViewAttached)
   val editorReleasedCallback = rememberUpdatedState(onEditorViewReleased)
   val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -4967,10 +5048,20 @@ internal fun NotePanel(
                   MarkwonEditorTextWatcher.withPreRender(markwonEditor, executor, this),
                 )
                 addTextChangedListener(object : TextWatcher {
-                  override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                  private var previousMarkdown = ""
+
+                  override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                    previousMarkdown = s?.toString().orEmpty()
+                  }
                   override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
                   override fun afterTextChanged(editable: Editable?) {
-                    if (content.page == page) onMarkdownChange(editable?.toString().orEmpty())
+                    if (content.page == page) {
+                      val updatedMarkdown = editable?.toString().orEmpty()
+                      if (previousMarkdown != updatedMarkdown) {
+                        markdownMutationCallback.value(previousMarkdown, updatedMarkdown)
+                      }
+                      onMarkdownChange(updatedMarkdown)
+                    }
                   }
                 })
               }.also(editorAttachedCallback.value)
@@ -4983,6 +5074,7 @@ internal fun NotePanel(
                 selectionCallback.value(null)
                 editText.setText(content.markdown)
                 editText.setSelection(editText.text.length)
+                editorTextResetCallback.value(editText.text.toString())
               }
             },
             onRelease = { editor -> editorReleasedCallback.value(editor) },

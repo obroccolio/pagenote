@@ -222,8 +222,9 @@
   - 契约见 `features/markdown-task-list-insertion.md`，实施拆分见 `markdown-task-list-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
 
-- [ ] 24. Markdown 编辑器撤销/重做（页级内存历史；500ms 合并输入，最多 80 步；新编辑清 redo）
+- [x] 24. Markdown 编辑器撤销/重做（页级内存历史；500ms 合并输入，最多 80 步；新编辑清 redo）
   - 通过原生 watcher 记录键入与工具栏修改；Undo/Redo 更新当前页草稿，不自动保存，保存仍按 revision 保护。
   - 项目/页切换或编辑器重载清栈；只读/预览/无项目/忙碌/历史为空时禁用；笔迹撤销/重做保持独立。
+  - 8 个 `MarkdownEditHistory` JVM 用例及完整 app JVM 测试通过；`markdownUndoRedoCommandsRestoreDraftAndSaveOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖空历史、只读/预览门控、撤销/重做、分支编辑、文末光标和按页保存；`:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-edit-undo-redo.md`，实施拆分见 `markdown-edit-undo-redo-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
