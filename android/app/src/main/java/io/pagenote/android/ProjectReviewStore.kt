@@ -4,7 +4,9 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import io.pagenote.feature.annotations.ReviewCreate
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -23,6 +25,8 @@ class ProjectReviewStore(
   private val sourceDirectoryUri: Uri,
   reviewsUri: Uri?,
 ) {
+  private data class ReviewSnapshot(val raw: String, val records: JsonArray)
+
   private val json = Json { ignoreUnknownKeys = true }
   private val state = states.computeIfAbsent(sourceDirectoryUri.toString()) { StoreState(reviewsUri) }
 
@@ -36,7 +40,7 @@ class ProjectReviewStore(
 
   fun list(page: Int? = null): JsonArray = synchronized(state.lock) {
     val uri = state.reviewsUri ?: return@synchronized JsonArray(emptyList())
-    val records = readRecords(uri)
+    val records = readSnapshot(uri).records
     if (page == null) records else JsonArray(records.filter {
       (it as? JsonObject)?.get("page")?.jsonPrimitive?.content?.toIntOrNull() == page
     })
@@ -56,20 +60,21 @@ class ProjectReviewStore(
     validate(input)
     return synchronized(state.lock) {
       val uri = ensureFile()
-      val records = readRecords(uri).toMutableList()
+      val snapshot = readSnapshot(uri)
+      val records = snapshot.records.toMutableList()
       val number = (records.mapNotNull {
         (it as? JsonObject)?.get("number")?.jsonPrimitive?.content?.toIntOrNull()
       }.maxOrNull() ?: 0) + 1
       val record = buildRecord(input, number)
       records.add(record)
-      writeRecords(uri, JsonArray(records))
+      writeRecords(uri, JsonArray(records), snapshot.raw)
       record
     }
   }
 
   fun find(id: String): JsonObject? = synchronized(state.lock) {
     val uri = state.reviewsUri ?: return@synchronized null
-    readRecords(uri).firstOrNull {
+    readSnapshot(uri).records.firstOrNull {
       (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id
     } as? JsonObject
   }
@@ -91,7 +96,8 @@ class ProjectReviewStore(
     authorizeApplied: (JsonObject) -> Boolean,
   ): JsonObject {
     val uri = state.reviewsUri ?: throw NoSuchElementException("review not found")
-    val records = readRecords(uri).toMutableList()
+    val snapshot = readSnapshot(uri)
+    val records = snapshot.records.toMutableList()
     val index = records.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id }
     if (index < 0) throw NoSuchElementException("review not found")
     val current = records[index] as? JsonObject ?: throw NoSuchElementException("review not found")
@@ -108,16 +114,17 @@ class ProjectReviewStore(
       "updated" to JsonPrimitive(java.time.Instant.now().toString()),
     ))
     records[index] = updated
-    writeRecords(uri, JsonArray(records))
+    writeRecords(uri, JsonArray(records), snapshot.raw)
     return updated
   }
 
   fun delete(id: String): Boolean = synchronized(state.lock) {
     val uri = state.reviewsUri ?: return@synchronized false
-    val records = readRecords(uri)
+    val snapshot = readSnapshot(uri)
+    val records = snapshot.records
     val kept = records.filterNot { (it as? JsonObject)?.get("id")?.jsonPrimitive?.content == id }
     if (kept.size == records.size) return@synchronized false
-    writeRecords(uri, JsonArray(kept))
+    writeRecords(uri, JsonArray(kept), snapshot.raw)
     true
   }
 
@@ -165,28 +172,136 @@ class ProjectReviewStore(
       resolver, sourceDirectoryUri, "application/json", "ai-reviews.json",
     ) ?: throw IOException("无法创建项目 JSON 文件")
     state.reviewsUri = created
-    resolver.openOutputStream(created, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
-      it.write("[]")
-    } ?: throw IOException("无法写入项目 JSON 文件")
+    writeRecords(created, JsonArray(emptyList()), readRaw(created))
     return created
   }
 
-  private fun readRecords(uri: Uri): JsonArray {
-    val text = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-      ?: throw IOException("无法读取项目 JSON 文件")
+  private fun readSnapshot(uri: Uri): ReviewSnapshot {
+    val text = readRaw(uri)
     try {
       val element = json.parseToJsonElement(text)
-      return element as? JsonArray ?: throw IOException("项目 JSON 文件格式无效")
+      val records = element as? JsonArray ?: throw IOException("项目 JSON 文件格式无效")
+      return ReviewSnapshot(text, records)
     } catch (error: IllegalArgumentException) {
       throw IOException("项目 JSON 文件格式无效", error)
     }
   }
 
-  private fun writeRecords(uri: Uri, records: JsonArray) {
-    resolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
-      it.write(Json.encodeToString(JsonArray.serializer(), records))
-    } ?: throw IOException("无法写入项目 JSON 文件")
+  private fun readRaw(uri: Uri): String {
+    val input = resolver.openInputStream(uri) ?: throw IOException("无法读取项目 JSON 文件")
+    val output = ByteArrayOutputStream()
+    input.use { stream ->
+      val buffer = ByteArray(8192)
+      var total = 0L
+      while (true) {
+        val remainingWithOverflowByte = MAX_REVIEW_JSON_BYTES + 1 - total
+        val count = stream.read(
+          buffer,
+          0,
+          minOf(buffer.size.toLong(), remainingWithOverflowByte).toInt(),
+        )
+        if (count < 0) break
+        if (total + count > MAX_REVIEW_JSON_BYTES) {
+          throw IOException("project review JSON exceeds the 64 MiB UTF-8 read limit")
+        }
+        output.write(buffer, 0, count)
+        total += count
+      }
+    }
+    return output.toByteArray().toString(Charsets.UTF_8)
   }
+
+  private fun writeRecords(uri: Uri, records: JsonArray, expectedOriginal: String) {
+    val encoded = Json.encodeToString(JsonArray.serializer(), records)
+    if (encoded.toByteArray(Charsets.UTF_8).size > MAX_REVIEW_JSON_BYTES) {
+      throw IOException("project review JSON exceeds the 64 MiB UTF-8 write limit")
+    }
+    RecoverableDocumentWrite(
+      readTarget = { readRaw(uri) },
+      overwriteTarget = { content -> overwrite(uri, content) },
+      createBackup = ::createRecoveryCopy,
+      deleteBackup = { copy ->
+        if (!DocumentsContract.deleteDocument(resolver, copy.uri)) {
+          throw IOException("Unable to delete review recovery copy")
+        }
+      },
+      backupName = ReviewRecoveryCopy::displayName,
+      documentLabel = "review JSON",
+    ).write(updated = encoded, expectedOriginal = expectedOriginal)
+  }
+
+  private fun overwrite(target: Uri, content: String) {
+    val output = resolver.openOutputStream(target, "wt")
+      ?: throw IOException("无法写入项目 JSON 文件")
+    output.use { it.write(content.toByteArray(Charsets.UTF_8)) }
+  }
+
+  private fun createRecoveryCopy(original: String): RecoveryCopyPreparation<ReviewRecoveryCopy> {
+    val target = state.reviewsUri ?: throw IOException("review JSON file is unavailable")
+    val parentPath = DocumentsContract.findDocumentPath(resolver, target)?.path
+      ?: throw IOException("Unable to determine review JSON parent")
+    if (parentPath.size < 2) throw IOException("Unable to determine review JSON parent")
+    val parent = DocumentsContract.buildDocumentUriUsingTree(
+      target,
+      parentPath[parentPath.lastIndex - 1],
+    )
+    val displayName = "pagenote-recovery-${UUID.randomUUID()}.json"
+    val preparation = RecoveryCopyPreparation.fromProvider(
+      findParent = { parent },
+      supportsCreate = { supportsFlag(it, DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) },
+      create = { directory ->
+        DocumentsContract.createDocument(resolver, directory, "application/json", displayName)
+          ?.let { ReviewRecoveryCopy(it, displayName) }
+      },
+    )
+    val copy = when (preparation) {
+      RecoveryCopyPreparation.Unsupported -> return preparation
+      is RecoveryCopyPreparation.Available -> preparation.copy
+    }
+
+    val canDelete = runCatching {
+      supportsFlag(copy.uri, DocumentsContract.Document.FLAG_SUPPORTS_DELETE)
+    }.getOrElse { error ->
+      removeRecoveryCopyOrThrow(copy, error)
+      throw IOException("Unable to verify review recovery-copy cleanup: $displayName", error)
+    }
+    if (!canDelete) {
+      removeRecoveryCopyOrThrow(copy)
+      throw IOException("SAF provider cannot clean up review recovery copy: $displayName")
+    }
+
+    return try {
+      overwrite(copy.uri, original)
+      RecoveryCopyPreparation.Available(copy)
+    } catch (error: Exception) {
+      removeRecoveryCopyOrThrow(copy, error)
+      throw IOException("Unable to write review recovery copy: $displayName", error)
+    }
+  }
+
+  private fun supportsFlag(document: Uri, flag: Int): Boolean {
+    val cursor = resolver.query(
+      document,
+      arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+      null,
+      null,
+      null,
+    ) ?: throw IOException("Unable to read SAF document capabilities")
+    return cursor.use {
+      if (!it.moveToFirst()) throw IOException("SAF document capability query returned no row")
+      val index = it.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+      if (index < 0) throw IOException("SAF document capability flags are unavailable")
+      (it.getInt(index) and flag) != 0
+    }
+  }
+
+  private fun removeRecoveryCopyOrThrow(copy: ReviewRecoveryCopy, cause: Throwable? = null) {
+    val removed = runCatching { DocumentsContract.deleteDocument(resolver, copy.uri) }
+      .getOrDefault(false)
+    if (!removed) throw IOException("Unable to remove review recovery copy: ${copy.displayName}", cause)
+  }
+
+  private data class ReviewRecoveryCopy(val uri: Uri, val displayName: String)
 
   private class StoreState(var reviewsUri: Uri?) {
     val lock = Any()
@@ -194,6 +309,7 @@ class ProjectReviewStore(
 
   companion object {
     private val states = ConcurrentHashMap<String, StoreState>()
+    private const val MAX_REVIEW_JSON_BYTES = 64L * 1024 * 1024
 
     internal fun authorizesApplied(
       record: JsonObject,

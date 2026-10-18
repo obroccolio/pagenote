@@ -89,6 +89,7 @@
   <string name="reader_menu_office_edit">编辑 Office 文档</string>
   <string name="reader_menu_selection_to_annotation">将选中文字转为 AI 批注</string>
   <string name="reader_menu_selection_required">请在可写笔记中选择非空白文本。</string>
+  <string name="reader_menu_selection_too_large">所选文本或页面过大，无法进行审阅。</string>
   <string name="reader_menu_save_return">保存并返回阅读</string>
   <string name="reader_menu_about">关于 pagenote</string>
   <string name="reader_menu_shortcuts">键盘快捷键</string>

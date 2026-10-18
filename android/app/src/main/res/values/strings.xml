@@ -89,6 +89,7 @@
   <string name="reader_menu_office_edit">Edit Office document</string>
   <string name="reader_menu_selection_to_annotation">Selected text to AI annotation</string>
   <string name="reader_menu_selection_required">Select non-whitespace text in the writable note.</string>
+  <string name="reader_menu_selection_too_large">The selection or page is too large to review.</string>
   <string name="reader_menu_save_return">Save and return to reading</string>
   <string name="reader_menu_about">About pagenote</string>
   <string name="reader_menu_shortcuts">Keyboard shortcuts</string>

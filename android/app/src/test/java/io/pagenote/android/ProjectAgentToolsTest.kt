@@ -134,6 +134,39 @@ class ProjectAgentToolsTest {
   }
 
   @Test
+  fun reviewDetailFormattingRejectsJsonOverEightMiBUtf8() {
+    val record = buildJsonObject {
+      put("quote", JsonPrimitive("界".repeat(2_800_000)))
+    }
+
+    val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+      ProjectAgentTools.formatReviewDetail(record)
+    }
+
+    assertTrue(error.message.orEmpty().contains("8 MiB"))
+  }
+
+  @Test
+  fun reviewListNullsMetadataOutsideSpecBounds() {
+    val record = buildJsonObject {
+      put("id", JsonPrimitive("i".repeat(129)))
+      put("side", JsonPrimitive("s".repeat(17)))
+      put("kind", JsonPrimitive("k".repeat(17)))
+      put("page", JsonPrimitive(10_000_000_000L))
+      put("status", JsonPrimitive("t".repeat(17)))
+      put("revision", JsonPrimitive("r".repeat(129)))
+    }
+
+    val summary = Json.parseToJsonElement(
+      ProjectAgentTools.formatReviewSummaries(listOf(record)),
+    ).jsonArray.single().jsonObject
+
+    listOf("id", "side", "kind", "page", "status", "revision").forEach { field ->
+      assertEquals("$field should be null when outside its SPEC bound", kotlinx.serialization.json.JsonNull, summary[field])
+    }
+  }
+
+  @Test
   fun matchingChangedWriteAuthorizesItsReview() {
     val evidence = requireNotNull(
       ProjectAgentTools.rewriteEvidenceFrom(

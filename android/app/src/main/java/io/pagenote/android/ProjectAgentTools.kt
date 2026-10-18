@@ -22,6 +22,9 @@ object ProjectAgentTools {
   data class ParsedPatch(val start: Int, val end: Int, val replacement: String)
   internal data class RewriteEvidence(val page: Int, val expectedRevision: String)
 
+  private const val MAX_REVIEW_ID_LENGTH = 128
+  private const val MAX_REVIEW_DETAIL_BYTES = 8L * 1024 * 1024
+
   fun parsePatch(args: Map<String, String>, pageLength: Int): ParsedPatch {
     val replacement = args["replacement"] ?: throw IllegalArgumentException("missing replacement")
     val start = args["start"]?.toIntOrNull() ?: throw IllegalArgumentException("bad start")
@@ -45,15 +48,46 @@ object ProjectAgentTools {
     val fields = listOf("id", "side", "kind", "page", "status", "revision")
     return JsonArray(records.take(20).map { record ->
       buildJsonObject {
-        fields.forEach { field -> put(field, record[field] ?: JsonNull) }
+        fields.forEach { field -> put(field, boundedReviewMetadata(record[field], field)) }
         put("instruction", JsonPrimitive(reviewPreview(record, "instruction", 160)))
         put("quote", JsonPrimitive(reviewPreview(record, "quote", 320)))
       }
     }).toString()
   }
 
-  internal fun formatReviewDetail(record: JsonObject): String =
-    Json.encodeToString(JsonObject.serializer(), record)
+  private fun boundedReviewMetadata(value: kotlinx.serialization.json.JsonElement?, field: String) =
+    when (field) {
+      "page" -> {
+        val primitive = value as? JsonPrimitive
+        val digits = primitive?.content
+        if (digits != null && digits.length in 1..10 && digits.all { it in '0'..'9' }) {
+          primitive
+        } else {
+          JsonNull
+        }
+      }
+      else -> {
+        val limit = when (field) {
+          "id", "revision" -> 128
+          "side", "kind", "status" -> 16
+          else -> 0
+        }
+        val primitive = value as? JsonPrimitive
+        if (limit > 0 && primitive?.isString == true && primitive.content.length <= limit) {
+          primitive
+        } else {
+          JsonNull
+        }
+      }
+    }
+
+  internal fun formatReviewDetail(record: JsonObject): String {
+    val detail = Json.encodeToString(JsonObject.serializer(), record)
+    if (detail.toByteArray(Charsets.UTF_8).size > MAX_REVIEW_DETAIL_BYTES) {
+      throw IllegalArgumentException("review detail exceeds the 8 MiB UTF-8 output limit")
+    }
+    return detail
+  }
 
   internal fun rewriteEvidenceFrom(
     args: Map<String, String>,
@@ -150,6 +184,9 @@ object ProjectAgentTools {
       val store = ProjectReviewStore(resolver, project.sourceDirectoryUri, project.reviewsUri)
       val id = request.args["id"]
       if (id != null) {
+        if (id.length > MAX_REVIEW_ID_LENGTH) {
+          return ToolResult(ok = false, detail = "review id must be at most 128 characters")
+        }
         val record = store.find(id) ?: return ToolResult(ok = false, detail = "review not found")
         return ToolResult(ok = true, detail = formatReviewDetail(record))
       }

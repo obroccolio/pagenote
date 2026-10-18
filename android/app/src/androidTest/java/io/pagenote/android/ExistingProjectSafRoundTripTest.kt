@@ -22,10 +22,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class ExistingProjectSafRoundTripTest {
@@ -135,6 +137,68 @@ class ExistingProjectSafRoundTripTest {
     assertEquals("preserved", existing["desktopOnly"]?.jsonObject?.get("nested")?.jsonPrimitive?.content)
     assertEquals("review-10", store.find("review-10")?.get("id")?.jsonPrimitive?.content)
     assertNull(store.find("review-1-missing"))
+    assertEquals(emptyList<String>(), recoveryCopyNames())
+  }
+
+  @Test
+  fun oversizedReviewJsonIsRejectedAtThe64MiBUtf8ReadLimit() {
+    installFixture()
+    resolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_WRITE_OVERSIZED_REVIEWS,
+      null,
+      Bundle().apply { putLong(ExistingProjectSafTestProvider.EXTRA_SIZE, 64L * 1024 * 1024 + 1) },
+    )
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, opened.reviewsUri)
+
+    val error = org.junit.Assert.assertThrows(IOException::class.java) { store.list() }
+
+    assertEquals(true, error.message.orEmpty().contains("64 MiB"))
+  }
+
+  @Test
+  fun partialReviewWriteRestoresOriginalAndRemovesRecoveryCopy() {
+    installFixture()
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val reviewsUri = requireNotNull(opened.reviewsUri)
+    val original = readReviews(reviewsUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, reviewsUri)
+    configureReviewWriteFailures(1)
+
+    org.junit.Assert.assertThrows(IOException::class.java) {
+      store.create(selectionReviewInput(context = "c".repeat(1_000_000)))
+    }
+
+    assertEquals(original, readReviews(reviewsUri))
+    assertEquals(emptyList<String>(), recoveryCopyNames())
+    assertEquals(2, reviewWriteCount())
+  }
+
+  @Test
+  fun failedReviewRollbackRetainsPopulatedRecoveryCopyAndReportsItsName() {
+    installFixture()
+    val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    val reviewsUri = requireNotNull(opened.reviewsUri)
+    val original = readReviews(reviewsUri)
+    val store = ProjectReviewStore(resolver, opened.sourceDirectoryUri, reviewsUri)
+    configureReviewWriteFailures(2)
+
+    val error = org.junit.Assert.assertThrows(IOException::class.java) {
+      store.create(selectionReviewInput(context = "c".repeat(1_000_000)))
+    }
+
+    val copies = recoveryCopies()
+    assertEquals(
+      "expected failed rollback to retain a copy; writes=${reviewWriteCount()}, " +
+        "failuresRemaining=${reviewWriteFailuresRemaining()}, error=${error.message}",
+      1,
+      copies.size,
+    )
+    val recovery = copies.single()
+    assertEquals(original, recovery.second)
+    assertTrue(error.message.orEmpty().contains(recovery.first))
+    assertEquals(false, error.message.orEmpty().contains("note write"))
   }
 
   @Test
@@ -227,6 +291,50 @@ class ExistingProjectSafRoundTripTest {
     null,
     null,
   )?.getInt(ExistingProjectSafTestProvider.EXTRA_COUNT) ?: -1
+
+  private fun reviewWriteFailuresRemaining(): Int = resolver.call(
+    ExistingProjectSafTestProvider.AUTHORITY,
+    ExistingProjectSafTestProvider.METHOD_GET_REVIEW_WRITE_COUNT,
+    null,
+    null,
+  )?.getInt(ExistingProjectSafTestProvider.EXTRA_FAILURES) ?: -1
+
+  private fun configureReviewWriteFailures(count: Int) {
+    resolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_CONFIGURE_REVIEW_WRITE_FAILURE,
+      null,
+      Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, count) },
+    )
+  }
+
+  private fun recoveryCopies(): List<Pair<String, String>> {
+    val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, ExistingProjectSafTestProvider.SRC_ID)
+    return resolver.query(
+      children,
+      arrayOf(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+      ),
+      null,
+      null,
+      null,
+    )!!.use { cursor ->
+      buildList {
+        val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+        val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+        while (cursor.moveToNext()) {
+          val name = cursor.getString(nameColumn)
+          if (name.startsWith("pagenote-recovery-")) {
+            val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(idColumn))
+            add(name to readReviews(uri))
+          }
+        }
+      }
+    }
+  }
+
+  private fun recoveryCopyNames(): List<String> = recoveryCopies().map { it.first }
 
   private fun fixtureNotes(): String = PageNotes.join(fixtureNotesPages())
 

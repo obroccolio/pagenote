@@ -5,6 +5,32 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
+internal enum class SelectionReviewReadiness {
+  AVAILABLE,
+  SELECTION_REQUIRED,
+  TOO_LARGE,
+}
+
+internal fun selectionReviewReadiness(
+  start: Int?,
+  end: Int?,
+  markdown: String,
+): SelectionReviewReadiness {
+  if (start == null || end == null) return SelectionReviewReadiness.SELECTION_REQUIRED
+  val selectionStart = minOf(start, end)
+  val selectionEnd = maxOf(start, end)
+  if (selectionStart < 0 || selectionStart >= selectionEnd || selectionEnd > markdown.length) {
+    return SelectionReviewReadiness.SELECTION_REQUIRED
+  }
+  if (markdown.substring(selectionStart, selectionEnd).isBlank()) {
+    return SelectionReviewReadiness.SELECTION_REQUIRED
+  }
+  if (markdown.length > 1_000_000 || selectionEnd - selectionStart > 100_000) {
+    return SelectionReviewReadiness.TOO_LARGE
+  }
+  return SelectionReviewReadiness.AVAILABLE
+}
+
 class NoteSelectionReviewDraft private constructor(
   val quote: String,
   val context: String,

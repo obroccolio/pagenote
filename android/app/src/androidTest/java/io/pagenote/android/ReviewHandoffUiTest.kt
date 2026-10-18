@@ -355,6 +355,18 @@ class ReviewHandoffUiTest {
     assertTrue(summaries.none { it.jsonObject["id"]?.jsonPrimitive?.content == dismissedId })
   }
 
+  @Test
+  fun readReviewHandlerRejectsIdsLongerThan128Characters() = runBlocking {
+    val project = installProject()
+    val handler = ProjectAgentTools.handlers(testResolver, project, null, currentPage = 1)
+      .getValue("read_review")
+
+    val result = handler(ToolRequest("read_review", mapOf("id" to "i".repeat(129))))
+
+    assertFalse(result.ok)
+    assertTrue(result.detail.contains("128"))
+  }
+
   private fun installProject(): OpenedProject {
     return installProject("Review fixture note")
   }

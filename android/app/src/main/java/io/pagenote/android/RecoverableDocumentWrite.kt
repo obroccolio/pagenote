@@ -25,6 +25,7 @@ internal class RecoverableDocumentWrite<T>(
   private val createBackup: (String) -> RecoveryCopyPreparation<T>,
   private val deleteBackup: (T) -> Unit,
   private val backupName: (T) -> String,
+  private val documentLabel: String = "project note",
 ) {
   fun write(updated: String, expectedOriginal: String): String? {
     val original = readTarget()
@@ -38,12 +39,12 @@ internal class RecoverableDocumentWrite<T>(
       readTarget()
     } catch (error: Exception) {
       val retained = cleanupBackup(backup)
-      if (retained != null) throw NoteRecoveryCopyRetainedException(retained, error)
+      if (retained != null) throw NoteRecoveryCopyRetainedException(retained, error, documentLabel)
       throw error
     }
     if (latest != expectedOriginal) {
       val retained = cleanupBackup(backup)
-      throw NoteDocumentConflictException(retained)
+      throw NoteDocumentConflictException(retained, documentLabel)
     }
 
     try {
@@ -52,12 +53,14 @@ internal class RecoverableDocumentWrite<T>(
       val rollbackFailure = runCatching { overwriteTarget(original) }.exceptionOrNull()
       if (rollbackFailure == null) {
         val retained = cleanupBackup(backup)
-        if (retained != null) throw NoteWriteRecoveryException(retained, true, writeFailure)
+        if (retained != null) {
+          throw NoteWriteRecoveryException(retained, true, writeFailure, documentLabel)
+        }
         throw writeFailure
       }
 
       writeFailure.addSuppressed(rollbackFailure)
-      throw NoteWriteRecoveryException(backup?.let(backupName), false, writeFailure)
+      throw NoteWriteRecoveryException(backup?.let(backupName), false, writeFailure, documentLabel)
     }
     return cleanupBackup(backup)
   }
@@ -70,30 +73,33 @@ internal class RecoverableDocumentWrite<T>(
 
 class NoteDocumentConflictException(
   val recoveryCopyName: String? = null,
+  documentLabel: String = "project note",
 ) : IOException(
   if (recoveryCopyName == null) {
-    "project note changed during write preparation"
+    "$documentLabel changed during write preparation"
   } else {
-    "project note changed during write preparation; recovery copy remains: $recoveryCopyName"
+    "$documentLabel changed during write preparation; recovery copy remains: $recoveryCopyName"
   },
 )
 
 class NoteRecoveryCopyRetainedException(
   val recoveryCopyName: String,
   cause: Throwable,
-) : IOException("recovery copy remains in the project folder: $recoveryCopyName", cause)
+  documentLabel: String = "project note",
+) : IOException("recovery copy for $documentLabel remains in the project folder: $recoveryCopyName", cause)
 
 class NoteWriteRecoveryException(
   val recoveryCopyName: String?,
   val rollbackSucceeded: Boolean,
   cause: Throwable,
+  documentLabel: String = "note",
 ) : IOException(
   if (rollbackSucceeded) {
-    "note write failed and original content was restored; recovery copy remains: $recoveryCopyName"
+    "$documentLabel write failed and original content was restored; recovery copy remains: $recoveryCopyName"
   } else if (recoveryCopyName == null) {
-    "note write failed and could not be restored; no recovery copy is available"
+    "$documentLabel write failed and could not be restored; no recovery copy is available"
   } else {
-    "note write failed and could not be restored; recovery copy: $recoveryCopyName"
+    "$documentLabel write failed and could not be restored; recovery copy: $recoveryCopyName"
   },
   cause,
 )

@@ -1636,14 +1636,22 @@ private fun ReaderHome(
         actionCommand(
           "selection_to_annotation",
           R.string.reader_menu_selection_to_annotation,
-          enabled = activeProject != null && selectionToAnnotationEnabled(
-            selection = noteSelection,
-            markdown = noteDraft,
-            writable = noteWritable,
-            readerIdle = !menuBusy,
-          ),
+          enabled = activeProject != null && noteWritable && !menuBusy &&
+            selectionReviewReadiness(
+              start = noteSelection?.start,
+              end = noteSelection?.end,
+              markdown = noteDraft,
+            ) == SelectionReviewReadiness.AVAILABLE,
           disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
-            context.getString(R.string.reader_menu_selection_required),
+            context.getString(
+              if (selectionReviewReadiness(
+                  start = noteSelection?.start,
+                  end = noteSelection?.end,
+                  markdown = noteDraft,
+                ) == SelectionReviewReadiness.TOO_LARGE
+              ) R.string.reader_menu_selection_too_large
+              else R.string.reader_menu_selection_required,
+            ),
         ) {
           val selection = noteSelection ?: return@actionCommand
           val selectedMarkdown = noteDraft
@@ -2624,11 +2632,9 @@ internal fun selectionToAnnotationEnabled(
   writable: Boolean,
   readerIdle: Boolean,
 ): Boolean {
-  if (!writable || !readerIdle || selection == null || markdown.length > 1_000_000) return false
-  val start = minOf(selection.start, selection.end)
-  val end = maxOf(selection.start, selection.end)
-  return start >= 0 && start < end && end <= markdown.length &&
-    end - start <= 100_000 && markdown.substring(start, end).isNotBlank()
+  if (!writable || !readerIdle) return false
+  return selectionReviewReadiness(selection?.start, selection?.end, markdown) ==
+    SelectionReviewReadiness.AVAILABLE
 }
 
 @Composable

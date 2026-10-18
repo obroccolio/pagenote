@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -32,8 +33,9 @@ import io.pagenote.core.project.PageNotes
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import java.util.concurrent.atomic.AtomicReference
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -179,6 +181,84 @@ class NoteSelectionReviewUiTest {
       readerIdle.value = false
     }
     composeRule.onNodeWithTag("reader_menu_command_selection_to_annotation").assertIsNotEnabled()
+  }
+
+  @Test
+  fun oversizedSelectionReasonIsLocalizedAndShownByTheMenu() {
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    val reasonId = appContext.resources.getIdentifier(
+      "reader_menu_selection_too_large",
+      "string",
+      appContext.packageName,
+    )
+    assertTrue("selection size feedback resource should exist", reasonId != 0)
+
+    assertEquals(
+      SelectionReviewReadiness.AVAILABLE,
+      selectionReviewReadiness(0, 100_000, "q".repeat(100_000)),
+    )
+    assertEquals(
+      SelectionReviewReadiness.TOO_LARGE,
+      selectionReviewReadiness(0, 100_001, "q".repeat(100_001)),
+    )
+    assertEquals(
+      SelectionReviewReadiness.AVAILABLE,
+      selectionReviewReadiness(0, 1, "c".repeat(1_000_000)),
+    )
+    val readiness = selectionReviewReadiness(0, 1, "c".repeat(1_000_001))
+    assertEquals(SelectionReviewReadiness.TOO_LARGE, readiness)
+
+    val disabledReason = when (readiness) {
+      SelectionReviewReadiness.TOO_LARGE -> appContext.getString(reasonId)
+      SelectionReviewReadiness.AVAILABLE -> error("oversized selection must be disabled")
+      SelectionReviewReadiness.SELECTION_REQUIRED -> error("valid range must not be reported missing")
+    }
+    val english = appContext.getString(reasonId)
+    assertEquals("The selection or page is too large to review.", english)
+    assertEquals(english, disabledReason)
+    val chineseConfig = Configuration(appContext.resources.configuration).apply {
+      setLocale(Locale.SIMPLIFIED_CHINESE)
+    }
+    val chinese = appContext.createConfigurationContext(chineseConfig).getString(reasonId)
+    assertEquals("所选文本或页面过大，无法进行审阅。", chinese)
+    val chineseDisabledReason = when (readiness) {
+      SelectionReviewReadiness.TOO_LARGE ->
+        appContext.createConfigurationContext(chineseConfig).getString(reasonId)
+      SelectionReviewReadiness.AVAILABLE -> error("oversized selection must be disabled")
+      SelectionReviewReadiness.SELECTION_REQUIRED -> error("valid range must not be reported missing")
+    }
+    assertEquals(chinese, chineseDisabledReason)
+
+    @androidx.compose.runtime.Composable
+    fun showDisabledReason(reason: String) {
+      MaterialTheme {
+        ReaderAdaptiveMenu(
+          layout = ReaderMenuLayout.COMPACT_DRAWER,
+          groups = listOf(
+            ReaderMenuSection(
+              group = ReaderMenuGroup.WORD_EDITING,
+              label = "Word Editing",
+              commands = listOf(
+                ReaderMenuCommand(
+                  id = "selection_to_annotation",
+                  label = "Selected text to AI review",
+                  enabled = false,
+                  disabledReason = reason,
+                  onSelect = {},
+                ),
+              ),
+            ),
+          ),
+          expanded = true,
+          onExpandedChange = {},
+          drawerOpen = true,
+          onDrawerOpenChange = {},
+        ) { Column {} }
+      }
+    }
+
+    composeRule.setContent { showDisabledReason(disabledReason) }
+    composeRule.onNodeWithText(disabledReason).assertIsDisplayed()
   }
 
   @Test
