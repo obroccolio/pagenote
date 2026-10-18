@@ -18,6 +18,10 @@ class ProjectPenStore(
 ) {
   private var annotationsUri: Uri? = annotationsUri
 
+  @Volatile
+  internal var lastRetainedRecoveryCopyName: String? = null
+    private set
+
   fun supportsWrite(): Boolean {
     val uri = annotationsUri ?: sourceDirectoryUri
     val flag = if (annotationsUri == null) {
@@ -64,6 +68,7 @@ class ProjectPenStore(
   }
 
   fun writePage(side: PenSide, page: Int, strokes: List<PenStroke>) {
+    lastRetainedRecoveryCopyName = null
     require(page >= 1) { "bad page: $page" }
     var uri = annotationsUri
     if (uri == null && strokes.isEmpty()) return
@@ -80,21 +85,28 @@ class ProjectPenStore(
         createdUri = uri
       }
 
-      val latest = if (createdUri == null) {
-        readRoot(uri)
+      val original = if (createdUri == null) {
+        readRawRoot(uri)
       } else {
-        JSONObject().put("document", JSONObject()).put("note", JSONObject())
+        null
       }
+      val latest = original?.let(::parseRoot)
+        ?: JSONObject().put("document", JSONObject()).put("note", JSONObject())
       val updated = AnnotationPageMerger.replacePage(
         root = latest.toKotlinMap(),
         side = side.key,
         page = page,
         strokes = strokes,
       )
-      val output = resolver.openOutputStream(uri, "wt")
-        ?: throw IOException("无法写入项目 annotations.json")
-      output.bufferedWriter(Charsets.UTF_8).use {
-        it.write(updated.toJsonObject().toString())
+      val encoded = updated.toJsonObject().toString()
+      if (original == null) {
+        overwrite(uri, encoded)
+      } else {
+        lastRetainedRecoveryCopyName = SafRecoverableDocumentWriter(
+          resolver,
+          uri,
+          "annotations.json",
+        ).write(encoded, original)
       }
       annotationsUri = uri
     } catch (error: Exception) {
@@ -104,14 +116,25 @@ class ProjectPenStore(
   }
 
   private fun readRoot(uri: Uri): JSONObject {
-    val text = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-      it.readText()
-    } ?: throw IOException("无法读取项目 annotations.json")
+    return parseRoot(readRawRoot(uri))
+  }
+
+  private fun readRawRoot(uri: Uri): String = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+    it.readText()
+  } ?: throw IOException("无法读取项目 annotations.json")
+
+  private fun parseRoot(text: String): JSONObject {
     return try {
       JSONObject(text)
     } catch (error: JSONException) {
       throw IOException("项目 annotations.json 格式无效", error)
     }
+  }
+
+  private fun overwrite(target: Uri, content: String) {
+    val output = resolver.openOutputStream(target, "wt")
+      ?: throw IOException("无法写入项目 annotations.json")
+    output.use { it.write(content.toByteArray(Charsets.UTF_8)) }
   }
 
   private fun freehandItems(items: JSONArray): List<Map<String, Any?>> =

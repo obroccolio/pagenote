@@ -205,8 +205,10 @@
   <string name="annotation_add">Add</string>
   <string name="annotation_empty">No text notes on this page yet.</string>
   <string name="annotation_saved">Note added.</string>
+  <string name="annotation_saved_recovery_copy">Note saved; recovery copy remains: %1$s</string>
   <string name="annotation_save_failed">Unable to save note: %1$s</string>
   <string name="annotation_deleted">Note deleted.</string>
+  <string name="annotation_deleted_recovery_copy">Note deleted; recovery copy remains: %1$s</string>
   <string name="annotation_other_type">%1$s note (view only)</string>
   <string name="delete">Delete</string>
   <string name="review_action">Review</string>
@@ -247,6 +249,7 @@
   <string name="retry">Retry</string>
   <string name="pen_read_only">Read-only project: ink cannot be edited</string>
   <string name="pen_saved">Ink saved</string>
+  <string name="pen_saved_recovery_copy">Ink saved; recovery copy remains: %1$s</string>
   <string name="pen_not_saved">Ink not saved: %1$s</string>
   <string name="readonly_pen_cannot_save">Read-only project: ink cannot be saved</string>
   <string name="opening_project_message">Opening project…</string>

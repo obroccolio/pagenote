@@ -57,10 +57,11 @@
   - [x] 6.3 PDF `line`/`arrow`/`rect`/`ellipse` 拖拽创建，包含视口逆变换、实时预览、SAF 合并写入、失败清理预览和列表删除；mapper/draft 聚焦 JVM 测试通过，单项 Compose 拖拽与像素测试在唯一 API 34 平板 AVD 通过，Debug 应用/测试 APK 构建通过。小米平板 5 Pro 实机验收仍待 task 12；契约见 `features/pdf-vector-annotation-authoring.md`。
   - [x] AI review 列表与 overall 创建、dismiss、删除已落地；`applied` 受同轮实际改写授权，见 `features/review-handoff-ui.md`。
   - [x] 当前页 Markdown 编辑区可创建带 quote/context/revision/UTF-16 anchor 的 selection review，Agent 可读且仅在同轮成功修改目标页后应用。最终审查硬化已落地：超限选区显示本地化原因并在扫描/物化文本前快速拒绝；畸形 UTF-8 在写入前拒绝；Agent review JSON/详情/列表元数据均有限额；SAF 在支持时恢复部分写入，成功写入后清理失败会报告保留副本名，首次初始化清理双重失败会提示不完整文件残留风险。新鲜 app/Agent JVM 测试 175/175、56/56；四个聚焦仪器测试类在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过 33/33；Android 测试源码编译和 debug APK 构建通过，独立审查无遗留 findings。实现已提交并推送至个人 fork 的 `codex/android-port`（`cff73e4`）。完整 Activity 打开项目和 dirty-save 失败交互未端到端测试，PDF/Office 文字选择未实现，实体设备/手写笔未测试。SAF 仅应用进程内串行化，不提供跨进程 CAS；未保存草稿进程回收恢复已在 task 15 单独实现并测试。契约与结果见 `features/note-selection-ai-review.md` 及实施计划 `note-selection-ai-review-plan.md`。
+  - [x] 6.4 既有 `annotations.json` 的批注写入/删页接入可恢复 SAF 写入器；覆盖中断时回滚原文，双重失败保留并报告恢复副本，成功写入但清理失败时在状态栏报告副本名。API 34 定向仪器回归 5/5、app JVM 测试及 Debug 构建通过；契约见 `features/annotation-saf-write-recovery.md`。
   - [x] 交接读写 UI 与 stale 处理已落地（本页交接预览、stale 警告、过期 revision 拒绝覆盖；契约见 `features/review-handoff-ui.md`）。
   - _Requirement: 标注_
 
-- [x] 7. 手写笔迹（原生 View、压感、分页编辑、SAF 保存、撤销/重做/清除均已落地，真机延迟/误触待 task 12）
+- [x] 7. 手写笔迹（原生 View、压感、分页编辑、可恢复 SAF 保存、撤销/重做/清除均已落地，真机基础书写/侧键验收待 task 12）
   - [x] 原生 View 笔/荧光笔/橡皮、stylus 侧键与硬件橡皮输入、撤销、重做、按页清除。
   - [x] 笔迹按页存取并保留 annotations.json 中的其他批注、页面和未知字段。
   - [x] 7.1 手写菜单颜色/宽度已接入：支持 8 个色板、有效 `#RRGGBB` 自定义色与桌面四档宽度，应用于新建笔/荧光笔及 PDF 线条、形状、文字/区域批注。聚焦 style/vector/text/region JVM 类通过；API 34 平板 AVD 上单项 Compose 测试通过；Debug 应用/测试 APK 构建通过。小米 Pad 5 Pro 实体笔体验仍待 task 12；契约见 `features/pen-style-controls.md`。

@@ -392,6 +392,7 @@ private fun ReaderHome(
     isAnnotationSaving = true
     noteStatus = context.getString(R.string.annotation_saving)
     scope.launch {
+      var retainedRecoveryCopyName: String? = null
       try {
         penSaveMutex.withLock {
           val store = ProjectAnnotationStore(
@@ -405,10 +406,13 @@ private fun ReaderHome(
           val merged = existing.toMutableList().apply { add(draft.toItem().toJsonElement()) }
           withContext(Dispatchers.IO) {
             store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(merged))
+            retainedRecoveryCopyName = store.lastRetainedRecoveryCopyName
           }
         }
         annotationOverlayReload += 1
-        noteStatus = context.getString(R.string.annotation_saved)
+        noteStatus = retainedRecoveryCopyName?.let {
+          context.getString(R.string.annotation_saved_recovery_copy, it)
+        } ?: context.getString(R.string.annotation_saved)
       } catch (error: Exception) {
         noteStatus = context.getString(R.string.annotation_save_failed, error.message ?: "")
       } finally {
@@ -470,7 +474,9 @@ private fun ReaderHome(
         }
       }
       if (failedPenSave?.first == targetPage) failedPenSave = null
-      penStatus = context.getString(R.string.pen_saved)
+      penStatus = store.lastRetainedRecoveryCopyName?.let {
+        context.getString(R.string.pen_saved_recovery_copy, it)
+      } ?: context.getString(R.string.pen_saved)
     } catch (error: Exception) {
       if (error is CancellationException) throw error
       failedPenSave = targetPage to snapshot
@@ -2341,6 +2347,7 @@ private fun ReaderHome(
             project!!.annotationsUri,
           )
           try {
+            var retainedRecoveryCopyName: String? = null
             val useRegion = annotateIsRegion
             val item = if (useRegion) {
               AnnotationRegionDraft.defaultSize(
@@ -2359,10 +2366,13 @@ private fun ReaderHome(
               merged.add(item.toJsonElement())
               withContext(Dispatchers.IO) {
                 store.writePage("document", pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
+                retainedRecoveryCopyName = store.lastRetainedRecoveryCopyName
               }
             }
             annotationOverlayReload += 1
-            noteStatus = context.getString(R.string.annotation_saved)
+            noteStatus = retainedRecoveryCopyName?.let {
+              context.getString(R.string.annotation_saved_recovery_copy, it)
+            } ?: context.getString(R.string.annotation_saved)
           } catch (error: Exception) {
             noteStatus = context.getString(R.string.annotation_save_failed, error.message ?: "")
           } finally {
@@ -2416,7 +2426,7 @@ private fun ReaderHome(
       onDismiss = { showAnnotations = false },
       onChanged = { noteStatus = it },
       onDelete = { targetPage, targetIndex ->
-        penSaveMutex.withLock {
+        val retainedRecoveryCopyName = penSaveMutex.withLock {
           withContext(Dispatchers.IO) {
             val store = ProjectAnnotationStore(
               context.contentResolver,
@@ -2426,9 +2436,11 @@ private fun ReaderHome(
             val current = store.readPage("document", targetPage).toMutableList()
             current.removeAt(targetIndex)
             store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(current))
+            store.lastRetainedRecoveryCopyName
           }
         }
         annotationOverlayReload += 1
+        retainedRecoveryCopyName
       },
     )
   }
@@ -2772,7 +2784,7 @@ internal fun AnnotationListDialog(
   project: OpenedProject,
   onDismiss: () -> Unit,
   onChanged: (String) -> Unit,
-  onDelete: (suspend (Int, Int) -> Unit)? = null,
+  onDelete: (suspend (Int, Int) -> String?)? = null,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -2857,7 +2869,7 @@ internal fun AnnotationListDialog(
             val target = pendingDelete ?: return@TextButton
             scope.launch {
               try {
-                if (onDelete != null) {
+                val retainedRecoveryCopyName = if (onDelete != null) {
                   onDelete(page, target)
                 } else {
                   withContext(Dispatchers.IO) {
@@ -2867,10 +2879,13 @@ internal fun AnnotationListDialog(
                     val current = store.readPage("document", page).toMutableList()
                     current.removeAt(target)
                     store.writePage("document", page, kotlinx.serialization.json.JsonArray(current))
+                    store.lastRetainedRecoveryCopyName
                   }
                 }
                 items = items.toMutableList().also { it.removeAt(target) }
-                onChanged(context.getString(R.string.annotation_deleted))
+                onChanged(retainedRecoveryCopyName?.let {
+                  context.getString(R.string.annotation_deleted_recovery_copy, it)
+                } ?: context.getString(R.string.annotation_deleted))
               } catch (error: Exception) {
                 onChanged(context.getString(R.string.annotation_save_failed, error.message ?: ""))
               } finally {

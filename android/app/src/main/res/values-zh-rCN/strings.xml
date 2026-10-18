@@ -205,8 +205,10 @@
   <string name="annotation_add">添加</string>
   <string name="annotation_empty">这一页还没有文字附注。</string>
   <string name="annotation_saved">已添加附注。</string>
+  <string name="annotation_saved_recovery_copy">附注已保存，恢复副本仍保留：%1$s</string>
   <string name="annotation_save_failed">无法保存附注：%1$s</string>
   <string name="annotation_deleted">已删除附注。</string>
+  <string name="annotation_deleted_recovery_copy">附注已删除，恢复副本仍保留：%1$s</string>
   <string name="annotation_other_type">%1$s 附注（仅查看）</string>
   <string name="delete">删除</string>
   <string name="review_action">审阅</string>
@@ -247,6 +249,7 @@
   <string name="retry">重试</string>
   <string name="pen_read_only">只读项目：笔迹不可编辑</string>
   <string name="pen_saved">笔迹已保存</string>
+  <string name="pen_saved_recovery_copy">笔迹已保存，恢复副本仍保留：%1$s</string>
   <string name="pen_not_saved">笔迹未保存：%1$s</string>
   <string name="readonly_pen_cannot_save">只读项目：无法保存笔迹</string>
   <string name="opening_project_message">正在打开项目…</string>

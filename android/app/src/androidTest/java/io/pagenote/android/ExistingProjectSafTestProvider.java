@@ -32,10 +32,12 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String PDF_ID = SRC_ID + "/pattern-recognition.pdf";
   public static final String NOTES_ID = SRC_ID + "/notes.md";
   public static final String REVIEWS_ID = SRC_ID + "/ai-reviews.json";
+  public static final String ANNOTATIONS_ID = SRC_ID + "/annotations.json";
   public static final String METHOD_INSTALL = "installFixture";
   public static final String METHOD_REPLACE_NOTES = "replaceNotes";
   public static final String METHOD_GET_REVIEW_WRITE_COUNT = "getReviewWriteCount";
   public static final String METHOD_CONFIGURE_REVIEW_WRITE_FAILURE = "configureReviewWriteFailure";
+  public static final String METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE = "configureAnnotationWriteFailure";
   public static final String METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE = "configureRecoveryDeleteFailure";
   public static final String METHOD_WRITE_OVERSIZED_REVIEWS = "writeOversizedReviews";
   public static final String METHOD_PAUSE_NEXT_REVIEW_READ = "pauseNextReviewRead";
@@ -64,8 +66,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private static final String PDF_FILE = "pattern-recognition.pdf";
   private static final String NOTES_FILE = "notes.md";
   private static final String REVIEWS_FILE = "ai-reviews.json";
+  private static final String ANNOTATIONS_FILE = "annotations.json";
   private int reviewWriteCount;
   private int reviewWriteFailuresRemaining;
+  private int annotationWriteFailuresRemaining;
   private int recoveryDeleteFailuresRemaining;
   private final Map<String, String> recoveryFiles = new HashMap<>();
   private static volatile ReviewReadPause reviewReadPause;
@@ -103,8 +107,13 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         } else {
           writeFixtureFile(REVIEWS_FILE, requiredBytes(extras, EXTRA_REVIEWS));
         }
+        writeFixtureFile(ANNOTATIONS_FILE, (
+            "{\"document\":{\"2\":[{\"type\":\"pen\",\"color\":\"#112233\",\"width\":2," +
+                "\"points\":[[10,20]],\"pressures\":[1]}]},\"note\":{},\"desktopOnly\":{\"keep\":true}}"
+            ).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         reviewWriteCount = 0;
         reviewWriteFailuresRemaining = 0;
+        annotationWriteFailuresRemaining = 0;
         recoveryDeleteFailuresRemaining = 0;
         releaseReviewReadPause();
         releaseNoteWritePause();
@@ -122,6 +131,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       }
       if (METHOD_CONFIGURE_REVIEW_WRITE_FAILURE.equals(method)) {
         reviewWriteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
+        return Bundle.EMPTY;
+      }
+      if (METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE.equals(method)) {
+        annotationWriteFailuresRemaining = extras == null ? 0 : extras.getInt(EXTRA_FAILURES);
         return Bundle.EMPTY;
       }
       if (METHOD_CONFIGURE_RECOVERY_DELETE_FAILURE.equals(method)) {
@@ -248,6 +261,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     } else if (SRC_ID.equals(parentDocumentId)) {
       children = new ArrayList<>(Arrays.asList(PDF_ID, NOTES_ID));
       if (new File(fixtureDir(), REVIEWS_FILE).exists()) children.add(REVIEWS_ID);
+      if (new File(fixtureDir(), ANNOTATIONS_FILE).exists()) children.add(ANNOTATIONS_ID);
       children.addAll(recoveryFiles.keySet());
     } else {
       throw new FileNotFoundException(parentDocumentId);
@@ -272,8 +286,12 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       reviewWriteCount++;
       if (reviewWriteFailuresRemaining > 0) {
         reviewWriteFailuresRemaining--;
-        failAfterPartialTruncate(file);
+        failAfterPartialTruncate(file, "review JSON");
       }
+    }
+    if (ANNOTATIONS_ID.equals(documentId) && mode.contains("w") && annotationWriteFailuresRemaining > 0) {
+      annotationWriteFailuresRemaining--;
+      failAfterPartialTruncate(file, "annotation JSON");
     }
     if (NOTES_ID.equals(documentId) && mode.contains("w")) {
       NoteWritePause pause = noteWritePause;
@@ -298,7 +316,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
   }
 
-  private void failAfterPartialTruncate(File target) throws FileNotFoundException {
+  private void failAfterPartialTruncate(File target, String label) throws FileNotFoundException {
     try (FileOutputStream output = new FileOutputStream(target, false)) {
       output.write('[');
       output.flush();
@@ -307,7 +325,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       failure.initCause(error);
       throw failure;
     }
-    throw new FileNotFoundException("injected failure after truncating and partially writing review JSON");
+    throw new FileNotFoundException("injected failure after truncating and partially writing " + label);
   }
 
   private ParcelFileDescriptor pausedReviewRead(File file, ReviewReadPause pause) throws FileNotFoundException {
@@ -406,7 +424,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     } else if (MANIFEST_ID.equals(documentId) || SRC_ID.equals(documentId)) {
       path = Arrays.asList(ROOT_ID, documentId);
     } else if (PDF_ID.equals(documentId) || NOTES_ID.equals(documentId) || REVIEWS_ID.equals(documentId) ||
-        recoveryFiles.containsKey(documentId)) {
+        ANNOTATIONS_ID.equals(documentId) || recoveryFiles.containsKey(documentId)) {
       path = Arrays.asList(ROOT_ID, SRC_ID, documentId);
     } else {
       throw new FileNotFoundException(documentId);
@@ -436,6 +454,13 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
       return reviewsFile.exists()
           ? fileValues(REVIEWS_ID, "ai-reviews.json", "application/json",
               DocumentsContract.Document.FLAG_SUPPORTS_WRITE, REVIEWS_FILE)
+          : null;
+    }
+    if (ANNOTATIONS_ID.equals(documentId)) {
+      File annotationsFile = new File(fixtureDir(), ANNOTATIONS_FILE);
+      return annotationsFile.exists()
+          ? fileValues(ANNOTATIONS_ID, ANNOTATIONS_FILE, "application/json",
+              DocumentsContract.Document.FLAG_SUPPORTS_WRITE, ANNOTATIONS_FILE)
           : null;
     }
     String recoveryName = recoveryFiles.get(documentId);
@@ -494,6 +519,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     if (PDF_ID.equals(documentId)) return new File(fixtureDir(), PDF_FILE);
     if (NOTES_ID.equals(documentId)) return new File(fixtureDir(), NOTES_FILE);
     if (REVIEWS_ID.equals(documentId)) return new File(fixtureDir(), REVIEWS_FILE);
+    if (ANNOTATIONS_ID.equals(documentId)) return new File(fixtureDir(), ANNOTATIONS_FILE);
     String recoveryName = recoveryFiles.get(documentId);
     if (recoveryName != null) return new File(fixtureDir(), recoveryName);
     return null;

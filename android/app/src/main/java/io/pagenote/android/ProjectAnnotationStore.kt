@@ -22,6 +22,10 @@ class ProjectAnnotationStore(
   private val json = Json { ignoreUnknownKeys = true }
   private var annotationsUri: Uri? = annotationsUri
 
+  @Volatile
+  internal var lastRetainedRecoveryCopyName: String? = null
+    private set
+
   fun readPage(side: String, page: Int): JsonArray {
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
@@ -34,6 +38,7 @@ class ProjectAnnotationStore(
   }
 
   fun writePage(side: String, page: Int, items: JsonArray): Boolean {
+    lastRetainedRecoveryCopyName = null
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
     AnnotationValidation.validateItems(items)
@@ -49,7 +54,8 @@ class ProjectAnnotationStore(
         createdUri = created
       }
       val target = checkNotNull(uri)
-      val current = if (createdUri == null) readKotlinRoot(target) else emptyRoot()
+      val original = if (createdUri == null) readRawRoot(target) else null
+      val current = original?.let(::parseKotlinRoot) ?: emptyRoot()
       val sidePages = current[side]
       val currentItems = if (sidePages is Map<*, *>) sidePages[page.toString()] as? List<*> else null
       if (currentItems != null) {
@@ -59,9 +65,16 @@ class ProjectAnnotationStore(
       val updated = AnnotationSafBoundary.replacePage(
         current, side, page, items.map { (it as JsonObject).toKotlinMap() },
       )
-      val output = resolver.openOutputStream(target, "wt")
-        ?: throw IOException("无法写入项目 annotations.json")
-      output.bufferedWriter(Charsets.UTF_8).use { it.write(updated.toJsonObject().toString()) }
+      val encoded = updated.toJsonObject().toString()
+      if (original == null) {
+        overwrite(target, encoded)
+      } else {
+        lastRetainedRecoveryCopyName = SafRecoverableDocumentWriter(
+          resolver,
+          target,
+          "annotations.json",
+        ).write(encoded, original)
+      }
       annotationsUri = target
       return true
     } catch (error: Exception) {
@@ -72,16 +85,20 @@ class ProjectAnnotationStore(
   }
 
   fun deletePage(side: String, page: Int): Boolean {
+    lastRetainedRecoveryCopyName = null
     AnnotationValidation.validateSide(side)
     AnnotationValidation.validatePage(page)
     val uri = resolveAnnotationsUri() ?: return false
-    val current = readKotlinRoot(uri)
+    val original = readRawRoot(uri)
+    val current = parseKotlinRoot(original)
     val sidePages = current[side]
     if (sidePages !is Map<*, *> || !sidePages.containsKey(page.toString())) return false
     val updated = AnnotationSafBoundary.removePage(current, side, page)
-    val output = resolver.openOutputStream(uri, "wt")
-      ?: throw IOException("无法写入项目 annotations.json")
-    output.bufferedWriter(Charsets.UTF_8).use { it.write(updated.toJsonObject().toString()) }
+    lastRetainedRecoveryCopyName = SafRecoverableDocumentWriter(
+      resolver,
+      uri,
+      "annotations.json",
+    ).write(updated.toJsonObject().toString(), original)
     return true
   }
 
@@ -133,14 +150,22 @@ class ProjectAnnotationStore(
     }
   }
 
-  private fun readKotlinRoot(uri: Uri): Map<String, Any?> {
-    val text = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-      ?: throw IOException("无法读取项目 annotations.json")
+  private fun readRawRoot(uri: Uri): String = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+    it.readText()
+  } ?: throw IOException("无法读取项目 annotations.json")
+
+  private fun parseKotlinRoot(text: String): Map<String, Any?> {
     try {
       return JSONObject(text).toKotlinMap()
     } catch (error: JSONException) {
       throw IOException("项目 annotations.json 格式无效", error)
     }
+  }
+
+  private fun overwrite(target: Uri, content: String) {
+    val output = resolver.openOutputStream(target, "wt")
+      ?: throw IOException("无法写入项目 annotations.json")
+    output.use { it.write(content.toByteArray(Charsets.UTF_8)) }
   }
 
   private fun JSONObject.toKotlinMap(): Map<String, Any?> {
