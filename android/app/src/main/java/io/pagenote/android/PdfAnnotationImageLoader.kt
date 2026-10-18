@@ -11,6 +11,11 @@ internal class PdfAnnotationImageLoader(
   private val resolver: ContentResolver,
   private val sourceDirectoryUri: Uri,
 ) {
+  fun hasAsset(assetName: String): Boolean {
+    if (PdfAnnotationImageReference.assetName("/attachments/$assetName") != assetName) return false
+    return findChild(findChild(sourceDirectoryUri, "assets") ?: return false, assetName) != null
+  }
+
   fun load(assetName: String): Bitmap? {
     if (PdfAnnotationImageReference.assetName("/attachments/$assetName") != assetName) return null
     return runCatching { decodeAsset(assetName) }.getOrNull()

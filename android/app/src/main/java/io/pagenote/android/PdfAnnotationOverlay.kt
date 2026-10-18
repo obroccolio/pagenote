@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -36,6 +37,7 @@ data class PdfAnnotationOverlayItem(
   val width: Double,
   val text: String?,
   val imageAssetName: String? = null,
+  val sourceIndex: Int = -1,
 ) {
   companion object {
     private val colorPattern = Regex("^#[a-fA-F0-9]{6}$")
@@ -43,10 +45,10 @@ data class PdfAnnotationOverlayItem(
 
     fun fromPage(page: JsonElement): List<PdfAnnotationOverlayItem> {
       val items = page as? JsonArray ?: return emptyList()
-      return items.mapNotNull(::parseItem)
+      return items.mapIndexedNotNull(::parseItem)
     }
 
-    private fun parseItem(element: JsonElement): PdfAnnotationOverlayItem? {
+    private fun parseItem(sourceIndex: Int, element: JsonElement): PdfAnnotationOverlayItem? {
       val item = element as? JsonObject ?: return null
       val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?: return null
@@ -109,6 +111,7 @@ data class PdfAnnotationOverlayItem(
         width = width,
         text = text,
         imageAssetName = imageAssetName,
+        sourceIndex = sourceIndex,
       )
     }
 
@@ -121,6 +124,8 @@ internal fun PdfAnnotationOverlay(
   items: List<PdfAnnotationOverlayItem>,
   modifier: Modifier = Modifier,
   images: Map<String, Bitmap> = emptyMap(),
+  selectedBounds: PdfAnnotationBounds? = null,
+  showResizeHandle: Boolean = true,
 ) {
   Canvas(modifier.fillMaxSize().testTag("pdf_annotation_overlay")) {
     val pageWidthScale = size.width / 1000f
@@ -239,6 +244,30 @@ internal fun PdfAnnotationOverlay(
             style = vectorStroke,
           )
         }
+      }
+    }
+    selectedBounds?.let { bounds ->
+      val topLeft = toPixel(bounds.left - 5.0 to bounds.top - 5.0)
+      val bottomRight = toPixel(bounds.right + 5.0 to bounds.bottom + 5.0)
+      val frameWidth = (2f * density).coerceAtLeast(1f)
+      drawRect(
+        color = Color(0xFF185ABD),
+        topLeft = topLeft,
+        size = Size(bottomRight.x - topLeft.x, bottomRight.y - topLeft.y),
+        style = Stroke(width = frameWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f * density, 4f * density))),
+      )
+      if (showResizeHandle) {
+        drawCircle(
+          color = Color.White,
+          radius = 8f * density,
+          center = bottomRight,
+        )
+        drawCircle(
+          color = Color(0xFF185ABD),
+          radius = 8f * density,
+          center = bottomRight,
+          style = Stroke(width = frameWidth),
+        )
       }
     }
   }

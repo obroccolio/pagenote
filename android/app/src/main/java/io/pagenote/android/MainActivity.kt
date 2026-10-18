@@ -12,10 +12,11 @@ import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Choreographer
 import android.view.Gravity
-import android.text.InputType
+import android.view.MotionEvent
 import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -139,7 +140,9 @@ import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
 import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -148,6 +151,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.hypot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
@@ -156,6 +160,17 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 private const val MAX_ANNOTATION_PAGE_IMAGE_PIXELS = 4_000_000L
+
+private data class PdfAnnotationSelectionGesture(
+  val sourceIndex: Int,
+  val startX: Double,
+  val startY: Double,
+  val originalItem: JsonObject,
+  val originalPage: JsonArray,
+  val bounds: PdfAnnotationBounds,
+  val resizing: Boolean,
+  val moved: Boolean = false,
+)
 
 class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
@@ -335,6 +350,13 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val systemClipboard = remember(context) { context.getSystemService(ClipboardManager::class.java) }
+  var clipboardRevision by remember { mutableIntStateOf(0) }
+  DisposableEffect(systemClipboard) {
+    val listener = ClipboardManager.OnPrimaryClipChangedListener { clipboardRevision++ }
+    systemClipboard?.addPrimaryClipChangedListener(listener)
+    onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
+  }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
   val recentProjects by produceState(
     initialValue = emptyList<RecentProjectEntry>(),
@@ -454,8 +476,23 @@ private fun ReaderHome(
   var showAnnotationShapePicker by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
   var annotationOverlayItems by remember { mutableStateOf(emptyList<PdfAnnotationOverlayItem>()) }
+  var annotationPageItems by remember(project?.manifest?.id, pageIndex) {
+    mutableStateOf(JsonArray(emptyList()))
+  }
   var annotationOverlayImages by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
+  var selectedAnnotationIndex by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf<Int?>(null)
+  }
+  var annotationGesture by remember(project?.manifest?.id, pageIndex) {
+    mutableStateOf<PdfAnnotationSelectionGesture?>(null)
+  }
+  val annotationEditHistory = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    PdfAnnotationEditHistory()
+  }
+  val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    mutableMapOf<Int, Boolean>()
+  }
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
   var markdownEditor by remember { mutableStateOf<EditText?>(null) }
@@ -488,6 +525,7 @@ private fun ReaderHome(
     annotationPreview = null
     annotateMode = false
     annotationTextToolMode = false
+    if (tool != null) selectedAnnotationIndex = null
   }
 
   fun handleAnnotationDrag(
@@ -609,6 +647,7 @@ private fun ReaderHome(
         }
       }
       if (failedPenSave?.first == targetPage) failedPenSave = null
+      lastEditWasAnnotation[targetPage] = false
       penStatus = store.lastRetainedRecoveryCopyName?.let {
         context.getString(R.string.pen_saved_recovery_copy, it)
       } ?: context.getString(R.string.pen_saved)
@@ -655,31 +694,243 @@ private fun ReaderHome(
     }
   }
 
+  fun annotationClipboardText(): String? = context.getSystemService(ClipboardManager::class.java)
+    ?.primaryClip
+    ?.takeIf { it.itemCount > 0 }
+    ?.getItemAt(0)
+    ?.text
+    ?.toString()
+
+  fun nativeAnnotationClipboardForPaste(): JsonObject? {
+    val item = annotationClipboardText()?.let(PdfAnnotationClipboard::decode) ?: return null
+    if (item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "image") {
+      val assetName = item["url"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        ?.let(PdfAnnotationImageReference::assetName) ?: return null
+      val targetProject = project ?: return null
+      val exists = runCatching {
+        PdfAnnotationImageLoader(context.contentResolver, targetProject.sourceDirectoryUri).hasAsset(assetName)
+      }.getOrDefault(false)
+      if (!exists) return null
+    }
+    return item
+  }
+
+  fun selectedInkCanBeCopied(): Boolean =
+    selectedPenIndex?.let { it in penStrokes.indices } == true ||
+      selectedAnnotationIndex?.let { index ->
+        annotationPageItems.getOrNull(index) is JsonObject &&
+          PdfAnnotationClipboard.decode(
+            PdfAnnotationClipboard.MARKER + annotationPageItems[index].toString(),
+          ) != null
+      } == true
+
+  fun persistNativeAnnotationPage(
+    targetPage: Int,
+    before: JsonArray,
+    after: JsonArray,
+    selectedAfter: Int? = null,
+    recordHistory: Boolean = true,
+    onFailure: (() -> Unit)? = null,
+  ) {
+    val targetProject = project ?: return
+    val targetProjectId = targetProject.manifest.id
+    isAnnotationSaving = true
+    penStatus = context.getString(R.string.annotation_saving)
+    scope.launch {
+      try {
+        penSaveMutex.withLock {
+          if (readerSession.project.value?.manifest?.id != targetProjectId) {
+            throw IllegalStateException(context.getString(R.string.annotation_project_changed))
+          }
+          withContext(Dispatchers.IO) {
+            ProjectAnnotationStore(
+              context.contentResolver,
+              targetProject.sourceDirectoryUri,
+              targetProject.annotationsUri,
+            ).writePage("document", targetPage, after)
+          }
+        }
+        if (recordHistory) annotationEditHistory.record(targetProjectId, targetPage, before, after)
+        lastEditWasAnnotation[targetPage] = true
+        if (readerSession.project.value?.manifest?.id == targetProjectId &&
+          readerSession.pageIndex.intValue + 1 == targetPage
+        ) {
+          annotationPageItems = after
+          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(after)
+          selectedAnnotationIndex = selectedAfter
+          selectedPenIndex = null
+          annotationOverlayReload++
+        }
+        penStatus = context.getString(R.string.pen_annotation_saved)
+      } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        onFailure?.invoke()
+        if (readerSession.project.value?.manifest?.id == targetProjectId &&
+          readerSession.pageIndex.intValue + 1 == targetPage
+        ) {
+          annotationPageItems = before
+          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(before)
+        }
+        penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
+      } finally {
+        isAnnotationSaving = false
+      }
+    }
+  }
+
+  fun undoNativeAnnotationPage(): Boolean {
+    val targetProject = project ?: return false
+    val targetPage = pageIndex + 1
+    val restored = annotationEditHistory.undo(targetProject.manifest.id, targetPage) ?: return false
+    persistNativeAnnotationPage(
+      targetPage = targetPage,
+      before = annotationPageItems,
+      after = restored,
+      selectedAfter = selectedAnnotationIndex?.takeIf { restored.getOrNull(it) is JsonObject },
+      recordHistory = false,
+      onFailure = { annotationEditHistory.redo(targetProject.manifest.id, targetPage) },
+    )
+    return true
+  }
+
+  fun redoNativeAnnotationPage(): Boolean {
+    val targetProject = project ?: return false
+    val targetPage = pageIndex + 1
+    val restored = annotationEditHistory.redo(targetProject.manifest.id, targetPage) ?: return false
+    persistNativeAnnotationPage(
+      targetPage = targetPage,
+      before = annotationPageItems,
+      after = restored,
+      selectedAfter = selectedAnnotationIndex?.takeIf { restored.getOrNull(it) is JsonObject },
+      recordHistory = false,
+      onFailure = { annotationEditHistory.undo(targetProject.manifest.id, targetPage) },
+    )
+    return true
+  }
+
   fun undoPenPage() {
     val targetPage = pageIndex + 1
+    val projectId = project?.manifest?.id
+    val preferAnnotation = projectId != null && lastEditWasAnnotation[targetPage] == true
+    if (preferAnnotation && undoNativeAnnotationPage()) return
     if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
       selectedPenIndex = null
+      selectedAnnotationIndex = null
+      lastEditWasAnnotation[targetPage] = false
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
+      return
     }
+    if (undoNativeAnnotationPage()) lastEditWasAnnotation[targetPage] = true
   }
 
   fun redoPenPage() {
     val targetPage = pageIndex + 1
+    val projectId = project?.manifest?.id
+    val preferAnnotation = projectId != null && lastEditWasAnnotation[targetPage] == true
+    if (preferAnnotation && redoNativeAnnotationPage()) return
     if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
       selectedPenIndex = null
+      selectedAnnotationIndex = null
+      lastEditWasAnnotation[targetPage] = false
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
+      return
     }
+    if (redoNativeAnnotationPage()) lastEditWasAnnotation[targetPage] = true
   }
 
-  fun selectedInkCanBeCopied(): Boolean = selectedPenIndex?.let { it in penStrokes.indices } == true
+  fun handleNativeAnnotationSelectionTouch(event: MotionEvent, viewWidth: Float, pointerIndex: Int): Boolean {
+    if (viewWidth <= 0f) return false
+    if (pointerIndex !in 0 until event.pointerCount && event.actionMasked != MotionEvent.ACTION_CANCEL) return false
+    // PenCanvasView uses the shared 1000-unit page space at width/1000 scale.
+    val scale = 1000.0 / viewWidth
+    val safePointerIndex = pointerIndex.takeIf { it in 0 until event.pointerCount } ?: 0
+    val x = if (event.pointerCount > 0) event.getX(safePointerIndex) * scale else 0.0
+    val y = if (event.pointerCount > 0) event.getY(safePointerIndex) * scale else 0.0
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        val activeIndex = selectedAnnotationIndex
+        val activeBounds = activeIndex?.let { index ->
+          (annotationPageItems.getOrNull(index) as? JsonObject)?.let(PdfAnnotationClipboard::bounds)
+        }
+        val handleRadius = 24.0
+        val resize = activeBounds?.let { bounds ->
+          hypot(x - bounds.right - 5.0, y - bounds.bottom - 5.0) <= handleRadius
+        } == true
+        val hit = if (resize) activeIndex else PdfAnnotationClipboard.hitTest(
+          annotationPageItems,
+          x,
+          y,
+          tolerance = (18.0 * densityScale * scale).coerceAtLeast(18.0),
+        )
+        if (hit == null) {
+          selectedAnnotationIndex = null
+          annotationGesture = null
+          return false
+        }
+        val item = annotationPageItems.getOrNull(hit) as? JsonObject ?: return false
+        val bounds = PdfAnnotationClipboard.bounds(item) ?: return false
+        selectedAnnotationIndex = hit
+        selectedPenIndex = null
+        annotationGesture = PdfAnnotationSelectionGesture(
+          sourceIndex = hit,
+          startX = x,
+          startY = y,
+          originalItem = item,
+          originalPage = annotationPageItems,
+          bounds = bounds,
+          resizing = resize && item["type"]?.let { it.jsonPrimitive.content } != "text",
+        )
+        return true
+      }
+      MotionEvent.ACTION_MOVE -> {
+        val gesture = annotationGesture ?: return false
+        val moved = kotlin.math.hypot(x - gesture.startX, y - gesture.startY) > 3.0
+        if (!moved) return true
+        val updated = if (gesture.resizing) {
+          PdfAnnotationClipboard.resize(gesture.originalItem, gesture.bounds, x, y)
+        } else {
+          PdfAnnotationClipboard.translate(gesture.originalItem, x - gesture.startX, y - gesture.startY)
+        } ?: return true
+        val page = gesture.originalPage.toMutableList().apply { this[gesture.sourceIndex] = updated }
+        annotationPageItems = JsonArray(page)
+        annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(annotationPageItems)
+        annotationGesture = gesture.copy(moved = true)
+        return true
+      }
+      MotionEvent.ACTION_UP -> {
+        val gesture = annotationGesture
+        annotationGesture = null
+        if (gesture?.moved == true) {
+          persistNativeAnnotationPage(
+            targetPage = pageIndex + 1,
+            before = gesture.originalPage,
+            after = annotationPageItems,
+            selectedAfter = gesture.sourceIndex,
+          )
+        }
+        return gesture != null
+      }
+      MotionEvent.ACTION_CANCEL -> {
+        val gesture = annotationGesture
+        annotationGesture = null
+        if (gesture?.moved == true) {
+          annotationPageItems = gesture.originalPage
+          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(gesture.originalPage)
+        }
+        return gesture != null
+      }
+    }
+    return annotationGesture != null
+  }
 
   fun copySelectedInk() {
     val stroke = selectedPenIndex?.let(penStrokes::getOrNull)
-    if (stroke == null) {
+    val annotation = selectedAnnotationIndex?.let { annotationPageItems.getOrNull(it) as? JsonObject }
+    if (stroke == null && annotation == null) {
       penStatus = context.getString(R.string.pen_selection_required)
       return
     }
@@ -692,7 +943,7 @@ private fun ReaderHome(
       clipboard.setPrimaryClip(
         ClipData.newPlainText(
           context.getString(R.string.reader_menu_copy_ink),
-          PenClipboardCodec.encode(stroke),
+          stroke?.let(PenClipboardCodec::encode) ?: PdfAnnotationClipboard.encode(checkNotNull(annotation)),
         ),
       )
       penStatus = context.getString(R.string.pen_copied)
@@ -715,7 +966,21 @@ private fun ReaderHome(
   fun pasteInk() {
     val stroke = clipboardInkForPaste()
     if (stroke == null) {
-      penStatus = context.getString(R.string.pen_clipboard_invalid)
+      val item = nativeAnnotationClipboardForPaste()
+      val targetProject = project
+      val pasted = item?.let(PdfAnnotationClipboard::pasteAt)
+      if (pasted == null || targetProject == null) {
+        penStatus = context.getString(R.string.pen_clipboard_invalid)
+        return
+      }
+      val before = annotationPageItems
+      val after = JsonArray(before + pasted)
+      persistNativeAnnotationPage(
+        targetPage = pageIndex + 1,
+        before = before,
+        after = after,
+        selectedAfter = after.lastIndex,
+      )
       return
     }
     val targetPage = pageIndex + 1
@@ -733,6 +998,19 @@ private fun ReaderHome(
   }
 
   fun deleteSelectedInk() {
+    val annotationIndex = selectedAnnotationIndex?.takeIf { it in annotationPageItems.indices }
+    if (annotationIndex != null) {
+      val before = annotationPageItems
+      val after = JsonArray(before.filterIndexed { index, _ -> index != annotationIndex })
+      selectedAnnotationIndex = null
+      persistNativeAnnotationPage(
+        targetPage = pageIndex + 1,
+        before = before,
+        after = after,
+      )
+      penStatus = context.getString(R.string.pen_deleted)
+      return
+    }
     val index = selectedPenIndex?.takeIf { it in penStrokes.indices } ?: return
     selectedPenIndex = null
     erasePenStroke(index)
@@ -2435,11 +2713,12 @@ private fun ReaderHome(
     annotationOverlayReload,
   ) {
     annotationOverlayItems = emptyList()
+    annotationPageItems = JsonArray(emptyList())
     annotationOverlayImages.values.forEach { if (!it.isRecycled) it.recycle() }
     annotationOverlayImages = emptyMap()
     val currentProject = activeProject
     if (currentProject != null && activeRenderer != null) {
-      val loaded: Pair<List<PdfAnnotationOverlayItem>, Map<String, Bitmap>> = withContext(Dispatchers.IO) {
+      val loaded: Triple<JsonArray, List<PdfAnnotationOverlayItem>, Map<String, Bitmap>> = withContext(Dispatchers.IO) {
         runCatching {
           val page = ProjectAnnotationStore(
             context.contentResolver,
@@ -2462,11 +2741,14 @@ private fun ReaderHome(
                 image.recycle()
               }
             }
-          items to images
-        }.getOrElse { emptyList<PdfAnnotationOverlayItem>() to emptyMap<String, Bitmap>() }
+          Triple(page, items, images)
+        }.getOrElse {
+          Triple(JsonArray(emptyList()), emptyList<PdfAnnotationOverlayItem>(), emptyMap<String, Bitmap>())
+        }
       }
-      annotationOverlayItems = loaded.first
-      annotationOverlayImages = loaded.second
+      annotationPageItems = loaded.first
+      annotationOverlayItems = loaded.second
+      annotationOverlayImages = loaded.third
     }
   }
   val totalPages = when {
@@ -2701,7 +2983,9 @@ private fun ReaderHome(
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
-  val hasValidInkClipboard = clipboardInkForPaste() != null
+  val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
+    clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null
+  }
 
   fun pdfImageInsertionContextIsCurrent(pending: PendingPdfImageInsertion): Boolean =
     project === pending.project &&
@@ -3164,6 +3448,7 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) {
           selectedPenIndex = null
+          selectedAnnotationIndex = null
           selectAnnotationDrawTool(null)
           penTool = PenCanvasTool.SELECT
         },
@@ -3171,17 +3456,17 @@ private fun ReaderHome(
           "pen", R.string.pen, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.PEN },
+        ) { selectedPenIndex = null; selectedAnnotationIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.PEN },
         actionCommand(
           "highlighter", R.string.highlighter, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.HIGHLIGHTER },
+        ) { selectedPenIndex = null; selectedAnnotationIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.HIGHLIGHTER },
         actionCommand(
           "eraser", R.string.eraser, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_pen_unavailable),
-        ) { selectedPenIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.ERASER },
+        ) { selectedPenIndex = null; selectedAnnotationIndex = null; selectAnnotationDrawTool(null); penTool = PenCanvasTool.ERASER },
         actionCommand(
           "line", R.string.reader_menu_line, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -3228,13 +3513,15 @@ private fun ReaderHome(
         },
         actionCommand(
           "pen_undo", R.string.undo,
-          canUsePen && penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1),
+          canUsePen && (penPageStore.canUndo(PenSide.DOCUMENT, pageIndex + 1) ||
+            project?.manifest?.id?.let { annotationEditHistory.canUndo(it, pageIndex + 1) } == true),
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_nothing_to_undo),
         ) { undoPenPage() },
         actionCommand(
           "pen_redo", R.string.redo,
-          canUsePen && penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1),
+          canUsePen && (penPageStore.canRedo(PenSide.DOCUMENT, pageIndex + 1) ||
+            project?.manifest?.id?.let { annotationEditHistory.canRedo(it, pageIndex + 1) } == true),
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
             context.getString(R.string.reader_menu_nothing_to_redo),
         ) { redoPenPage() },
@@ -3504,6 +3791,13 @@ private fun ReaderHome(
                 annotations = annotationOverlayItems + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
                 ),
+                selectedAnnotationBounds = selectedAnnotationIndex?.let { index ->
+                  (annotationPageItems.getOrNull(index) as? JsonObject)?.let(PdfAnnotationClipboard::bounds)
+                },
+                selectedAnnotationResizable = selectedAnnotationIndex?.let { index ->
+                  (annotationPageItems.getOrNull(index) as? JsonObject)?.get("type")
+                    ?.let { runCatching { it.jsonPrimitive.content != "text" }.getOrNull() }
+                } == true,
               annotationImages = annotationOverlayImages,
                 loading = isRendering,
                 strokes = penStrokes,
@@ -3514,6 +3808,7 @@ private fun ReaderHome(
                 onStrokeErased = ::erasePenStroke,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
+                onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
@@ -3608,6 +3903,13 @@ private fun ReaderHome(
                 annotations = annotationOverlayItems + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
                 ),
+                selectedAnnotationBounds = selectedAnnotationIndex?.let { index ->
+                  (annotationPageItems.getOrNull(index) as? JsonObject)?.let(PdfAnnotationClipboard::bounds)
+                },
+                selectedAnnotationResizable = selectedAnnotationIndex?.let { index ->
+                  (annotationPageItems.getOrNull(index) as? JsonObject)?.get("type")
+                    ?.let { runCatching { it.jsonPrimitive.content != "text" }.getOrNull() }
+                } == true,
               annotationImages = annotationOverlayImages,
                 loading = isRendering,
                 strokes = penStrokes,
@@ -3618,6 +3920,7 @@ private fun ReaderHome(
                 onStrokeErased = ::erasePenStroke,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
+                onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
@@ -5078,6 +5381,8 @@ internal fun PdfPageViewport(
   page: Int,
   annotations: List<PdfAnnotationOverlayItem> = emptyList(),
   annotationImages: Map<String, Bitmap> = emptyMap(),
+  selectedAnnotationBounds: PdfAnnotationBounds? = null,
+  selectedAnnotationResizable: Boolean = false,
   loading: Boolean,
   strokes: List<PenStroke>,
   tool: PenCanvasTool,
@@ -5086,6 +5391,7 @@ internal fun PdfPageViewport(
   onStrokeErased: (Int) -> Unit,
   selectedStrokeIndex: Int? = null,
   onSelectedStrokeChanged: (Int?) -> Unit = {},
+  onAnnotationSelectionTouch: (MotionEvent, Float, Int) -> Boolean = { _, _, _ -> false },
   transform: PdfViewportTransform,
   onTransformChanged: (PdfViewportTransform) -> Unit,
   onBoundsChanged: (PdfViewportBounds) -> Unit,
@@ -5111,6 +5417,7 @@ internal fun PdfPageViewport(
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
+  val latestOnAnnotationSelectionTouch by rememberUpdatedState(onAnnotationSelectionTouch)
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),
@@ -5298,7 +5605,12 @@ internal fun PdfPageViewport(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
           )
-          PdfAnnotationOverlay(annotations, images = annotationImages)
+          PdfAnnotationOverlay(
+            annotations,
+            images = annotationImages,
+            selectedBounds = selectedAnnotationBounds,
+            showResizeHandle = selectedAnnotationResizable,
+          )
           AndroidView(
             modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
             factory = { viewContext -> PenCanvasView(viewContext) },
@@ -5312,6 +5624,7 @@ internal fun PdfPageViewport(
               view.onStrokeAdded = onStrokeAdded
               view.onStrokeErased = onStrokeErased
               view.onSelectionChanged = latestOnSelectedStrokeChanged
+              view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
             },
           )
           OcrSelectionOverlay(selection)

@@ -256,3 +256,9 @@
   - 6 个 feature-pen 聚焦 JVM codec 用例、真实 PDF reader 的 API 34 平板 AVD 流程（1/1）、`:app:compileDebugAndroidTestKotlin` 与 `:app:assembleDebug` 通过；流程覆盖点选、marker、粘贴坐标、删除及页内撤销/重做。小米 Pad 5 Pro 实体笔体验仍归 task 12。
   - 范围和 EARS 契约见 `features/ink-selection-clipboard.md`，实施拆分见 `ink-selection-clipboard-plan.md`。
   - _Requirement: 手写笔迹操作、桌面剪贴板数据兼容_
+
+- [x] 29. PDF 原生批注选择与剪贴板（线/箭头/矩形/椭圆/文字/项目图片，单选、拖动、复制、粘贴、删除与页级撤销）
+  - 与笔迹选择共用 Select/Copy/Paste/Delete 菜单，但普通 overlay 批注继续由 `ProjectAnnotationStore` 管理；笔/荧光笔仍走独立 `PenPageStore`。Android 暂不支持的 HTML 批注拒绝粘贴；图片仅允许引用当前项目已有资源。
+  - 契约见 `features/pdf-annotation-selection-clipboard.md`，实施拆分见 `pdf-annotation-selection-clipboard-plan.md`。唯一 Android 14/API 34 平板 AVD 聚焦验证；小米 Pad 5 Pro 实机验收仍归 task 12。
+  - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
+  - _Requirement: 桌面批注选择/剪贴板语义一致、项目数据兼容_

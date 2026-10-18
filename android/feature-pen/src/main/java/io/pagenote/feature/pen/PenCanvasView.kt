@@ -35,6 +35,7 @@ class PenCanvasView @JvmOverloads constructor(
   private var internalStrokes: List<PenStroke> = emptyList()
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
+  private var annotationSelectionPointerId = INVALID_POINTER
   private var gestureTool: PenCanvasTool? = null
   private var eraseModeLatched = false
   private var activeColor = "#dc3545"
@@ -68,6 +69,7 @@ class PenCanvasView @JvmOverloads constructor(
   var onStrokeAdded: ((PenStroke) -> Unit)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
+  var onAnnotationSelectionTouch: ((MotionEvent, Float, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
   var selectedIndex: Int? = null
     set(value) {
@@ -236,10 +238,39 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun handleSelectionTouch(event: MotionEvent): Boolean {
+    if (annotationSelectionPointerId != INVALID_POINTER) {
+      onAnnotationSelectionTouch?.invoke(
+        event,
+        width.toFloat(),
+        event.findPointerIndex(annotationSelectionPointerId),
+      )
+      when (event.actionMasked) {
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+          annotationSelectionPointerId = INVALID_POINTER
+          selectionPointerId = INVALID_POINTER
+        }
+        MotionEvent.ACTION_POINTER_UP -> {
+          if (event.getPointerId(event.actionIndex) == annotationSelectionPointerId) {
+            annotationSelectionPointerId = INVALID_POINTER
+            selectionPointerId = INVALID_POINTER
+          }
+        }
+      }
+      return true
+    }
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         val pointerIndex = event.actionIndex
         if (!isSupportedTool(event.getToolType(pointerIndex))) return false
+        if (onAnnotationSelectionTouch?.invoke(event, width.toFloat(), pointerIndex) == true) {
+          annotationSelectionPointerId = event.getPointerId(pointerIndex)
+          selectionPointerId = annotationSelectionPointerId
+          selectedIndex = null
+          onSelectionChanged?.invoke(null)
+          requestUnbufferedDispatch(event)
+          invalidate()
+          return true
+        }
         selectionPointerId = event.getPointerId(pointerIndex)
         requestUnbufferedDispatch(event)
         val radius = 18f * resources.displayMetrics.density
@@ -262,6 +293,7 @@ class PenCanvasView @JvmOverloads constructor(
       }
       MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
         val hadSelectionGesture = selectionPointerId != INVALID_POINTER
+        onAnnotationSelectionTouch?.invoke(event, width.toFloat(), event.actionIndex)
         selectionPointerId = INVALID_POINTER
         return hadSelectionGesture
       }
