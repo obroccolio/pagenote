@@ -105,6 +105,11 @@
   <string name="reader_menu_image_import_failed">The image could not be imported. The note was left unchanged.</string>
   <string name="reader_menu_image_context_changed">The note changed before the image was inserted. The image was not added.</string>
   <string name="reader_menu_image_orphaned">The image was not added. Remove this unused project asset: %1$s</string>
+  <string name="reader_menu_pdf_image_import_failed">The image could not be added to this PDF page.</string>
+  <string name="reader_menu_pdf_image_context_changed">The PDF page or project changed before the image was added. The image was not added.</string>
+  <string name="reader_menu_pdf_image_orphaned">The image annotation was not added. Remove this unused project asset: %1$s</string>
+  <string name="reader_menu_pdf_image_saved">Image added to this PDF page.</string>
+  <string name="reader_menu_pdf_image_saved_recovery_copy">Image added; recovery copy remains: %1$s</string>
   <string name="reader_menu_paste_image">Paste image</string>
   <string name="reader_menu_paste_image_no_image">No supported image is available in the clipboard.</string>
   <string name="reader_menu_paste_image_alt">clipboard image</string>

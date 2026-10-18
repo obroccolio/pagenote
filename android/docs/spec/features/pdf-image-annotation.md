@@ -10,8 +10,8 @@
 - 选择器取消、拒绝的文件或上下文失效不得写入 annotation。开始选择时捕获项目身份、PDF session、页码和当前笔颜色/宽度；返回后若项目、session 或页码已变化，拒绝提交。
 - 复用 `ProjectImageImporter` 的格式/尺寸校验与 SAF 清理，图片写入项目 `src/assets/`。导入成功后再以 `ProjectAnnotationStore` 追加 annotation；保存失败时删除本次新资源，清理失败须报告残留资源名。
 - 插入位置沿用桌面可见区域语义：宽度 1000 坐标中的 `x=80`；Y 对齐当前页面可见顶部下方 80 dp，且最小为 90。图片宽度为 350 单位，高度按像素宽高比计算。
-- 持久化对象使用标准 `{type:"image", color, width, points:[[x1,y1],[x2,y2]], url:"assets/<uuid>.<ext>"}`。颜色和线宽捕获当前笔样式；只追加当前页，不改写其他批注、页面或项目原文。
-- 图片通过 SAF 项目资源离线读取，并与 PDF 同步缩放、平移和裁剪。仅接受项目相对 `assets/<uuid>.(png|jpg|jpeg|gif|webp)` 路径，绝不加载 HTTP(S)、绝对路径或任意 URI。缺失/损坏资源显示可见占位，不得导致 PDF 页面失败。
+- 持久化对象使用桌面标准 `{type:"image", color, width, points:[[x1,y1],[x2,y2]], url:"/attachments/<uuid>.<ext>"}`。项目包中的图片文件存放在 `src/assets/<uuid>.<ext>`；桌面项目导入/导出负责在 `/attachments/` 与 `assets/` 间映射，Android 在 SAF 中按 UUID 从 `src/assets/` 解析标准批注 URL。颜色和线宽捕获当前笔样式；只追加当前页，不改写其他批注、页面或项目原文。
+- 图片通过 SAF 项目资源离线读取，并与 PDF 同步缩放、平移和裁剪。批注 URL 仅接受标准 `/attachments/<uuid>.(png|jpg|jpeg|gif|webp)`，只映射到项目 `src/assets/` 下的单个文件名；绝不加载 HTTP(S)、外部绝对路径或任意 URI。缺失/损坏资源显示可见占位，不得导致 PDF 页面失败。
 - 预览解码在后台执行，仅为当前页保留有界解码结果；长边不超过 2048 px。页面或项目变化后旧页结果不得绘入新页。
 
 ## Acceptance (EARS)

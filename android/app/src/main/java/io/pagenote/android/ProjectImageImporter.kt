@@ -11,7 +11,13 @@ import java.io.IOException
 import java.util.Locale
 import java.util.UUID
 
-internal data class ImportedProjectImage(val assetName: String, val altText: String, val documentUri: Uri)
+internal data class ImportedProjectImage(
+  val assetName: String,
+  val altText: String,
+  val documentUri: Uri,
+  val pixelWidth: Int,
+  val pixelHeight: Int,
+)
 
 internal class ProjectImageImportException(
   val residualAssetName: String? = null,
@@ -62,7 +68,13 @@ internal class ProjectImageImporter(
               ?: throw IOException("The project image could not be opened for writing")
             output.buffered().use { input.copyTo(it, BUFFER_SIZE) }
           }
-          return ImportedProjectImage(candidate, imageInfo.altText, assetUri!!)
+          return ImportedProjectImage(
+            assetName = candidate,
+            altText = imageInfo.altText,
+            documentUri = assetUri!!,
+            pixelWidth = bounds.outWidth,
+            pixelHeight = bounds.outHeight,
+          )
         }
       }
       throw IOException("Could not reserve a project image name")

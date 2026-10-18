@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.graphics.Bitmap
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,10 +9,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.testTag
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -30,6 +35,7 @@ data class PdfAnnotationOverlayItem(
   val color: String,
   val width: Double,
   val text: String?,
+  val imageAssetName: String? = null,
 ) {
   companion object {
     private val colorPattern = Regex("^#[a-fA-F0-9]{6}$")
@@ -44,7 +50,7 @@ data class PdfAnnotationOverlayItem(
       val item = element as? JsonObject ?: return null
       val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?: return null
-      if (type != "rect" && type != "text" && type !in vectorTypes) return null
+      if (type != "rect" && type != "text" && type != "image" && type !in vectorTypes) return null
       val color = item["color"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?.takeIf(colorPattern::matches) ?: return null
       val width = item["width"]?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
@@ -81,9 +87,29 @@ data class PdfAnnotationOverlayItem(
       } else {
         completePoints
       }
+      val imageAssetName = if (type == "image") {
+        val rawUrl = item["url"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+          ?: return null
+        PdfAnnotationImageReference.assetName(rawUrl) ?: return null
+      } else {
+        null
+      }
+      if (type == "image" &&
+        (normalizedPoints[1].first <= normalizedPoints[0].first ||
+          normalizedPoints[1].second <= normalizedPoints[0].second)
+      ) {
+        return null
+      }
       val text = item["text"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
       if (type == "text" && text.isNullOrBlank()) return null
-      return PdfAnnotationOverlayItem(type, normalizedPoints, color, width, text)
+      return PdfAnnotationOverlayItem(
+        type = type,
+        points = normalizedPoints,
+        color = color,
+        width = width,
+        text = text,
+        imageAssetName = imageAssetName,
+      )
     }
 
     private const val MAX_COORDINATE = 1_000_000.0
@@ -94,6 +120,7 @@ data class PdfAnnotationOverlayItem(
 internal fun PdfAnnotationOverlay(
   items: List<PdfAnnotationOverlayItem>,
   modifier: Modifier = Modifier,
+  images: Map<String, Bitmap> = emptyMap(),
 ) {
   Canvas(modifier.fillMaxSize().testTag("pdf_annotation_overlay")) {
     val pageWidthScale = size.width / 1000f
@@ -111,6 +138,38 @@ internal fun PdfAnnotationOverlay(
         join = StrokeJoin.Round,
       )
       when (item.type) {
+        "image" -> {
+          val first = item.points[0]
+          val second = item.points[1]
+          val topLeft = toPixel(first)
+          val width = ((second.first - first.first) * pageWidthScale).toFloat()
+          val height = ((second.second - first.second) * pageWidthScale).toFloat()
+          if (width > 0f && height > 0f) {
+            val asset = item.imageAssetName?.let(images::get)
+            if (asset != null && !asset.isRecycled) {
+              drawImage(
+                image = asset.asImageBitmap(),
+                dstOffset = IntOffset(topLeft.x.toInt(), topLeft.y.toInt()),
+                dstSize = IntSize(width.toInt().coerceAtLeast(1), height.toInt().coerceAtLeast(1)),
+                filterQuality = FilterQuality.Medium,
+              )
+            } else {
+              val imageSize = Size(width, height)
+              val background = Color(0xFFFFF4D6)
+              val marker = Color(0xFFC05040)
+              drawRect(background, topLeft, imageSize)
+              drawRect(
+                color = marker,
+                topLeft = topLeft,
+                size = imageSize,
+                style = Stroke(width = strokeWidth),
+              )
+              val inset = minOf(width, height) * 0.2f
+              drawLine(marker, topLeft + Offset(inset, inset), topLeft + Offset(width - inset, height - inset), strokeWidth)
+              drawLine(marker, topLeft + Offset(width - inset, inset), topLeft + Offset(inset, height - inset), strokeWidth)
+            }
+          }
+        }
         "rect" -> {
           val first = item.points[0]
           val second = item.points[1]

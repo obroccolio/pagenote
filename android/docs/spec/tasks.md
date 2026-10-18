@@ -60,7 +60,7 @@
   - [x] 通用标注 SAF 数据边界已落地（`ProjectAnnotationStore` 全类型读写/删页，`AnnotationSafBoundary` 纯函数，与笔迹写共存；契约见 `features/annotation-saf-boundary.md`）。
   - [x] 文字批注创建/列表/删除 UI 已落地（批注模式点选落点、文本输入、全量页写回、非笔迹列表与删除；契约见 `features/annotation-text-ui.md`）。
   - [x] 6.6 Handwriting > Text 专用点选批注模式（桌面兼容 `type=text`；区别于通用文字/区域 Annotate 模式）；空项目和 Markdown 阅读态禁用，有可写 PDF 时启用。API 34 平板 AVD 单项闭环 1/1、app JVM 测试及 `:app:assembleDebug` 通过，覆盖取消不落盘、纯文字 dialog、宽度 1000 坐标、当前页 SAF 保存与 overlay 刷新。小米平板 5 Pro 真机/手写笔仍待 task 12。契约见 `features/pdf-text-annotation-tool.md`，计划见 `pdf-text-annotation-tool-plan.md`。
-  - [ ] 6.7 Handwriting > Insert Image：复用 SAF 项目资源导入，在 PDF 当前页创建标准离线 `type=image` annotation 并绘制 overlay；契约见 `features/pdf-image-annotation.md`，计划见 `pdf-image-annotation-plan.md`。
+  - [x] 6.7 Handwriting > Insert Image：复用 SAF 项目资源导入，在 PDF 当前页创建桌面兼容 `/attachments/<uuid>` `type=image` 批注，离线映射到项目 `src/assets/` 并绘制 overlay；7 个聚焦 JVM 用例、API 34 平板 AVD 的 Activity 3/3 与 overlay 2/2、`compileDebugAndroidTestKotlin` 和 `assembleDebug` 通过。AVD 仅作代理，小米平板 5 Pro/手写笔真机验收仍待 task 12。契约见 `features/pdf-image-annotation.md`，计划见 `pdf-image-annotation-plan.md`。
   - [x] 区域批注创建/列表/删除 UI 已落地（批注模式 rect 对角落盘、零面积拒绝、空文本允许、列表可删；契约见 `features/annotation-region-ui.md`）。
   - [x] 6.1 PDF `rect`/`text` 批注按桌面宽度坐标叠加绘制，随页面缩放/平移并在创建/删除后刷新；兼容项目打开后新建的 `annotations.json`。两个聚焦 JVM 测试类、API 34 平板 AVD 两项仪器测试、Debug 应用与测试 APK 构建通过；仅目标 AVD 验证，实机仍待 task 12。契约见 `features/pdf-annotation-overlay.md`。
   - [x] 6.2 PDF `line`/`arrow`/`ellipse` 按桌面坐标绘制，箭头几何、反向椭圆边界、单点回退及异常坐标有覆盖；两个聚焦 JVM 测试类、API 34 平板 AVD 三项 overlay 仪器测试、Debug 应用与测试 APK 构建通过。实机仍待 task 12；契约见 `features/pdf-vector-annotation-overlay.md`。

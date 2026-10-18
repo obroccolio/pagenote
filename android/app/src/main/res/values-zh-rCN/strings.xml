@@ -105,6 +105,11 @@
   <string name="reader_menu_image_import_failed">无法导入图片，笔记内容未更改。</string>
   <string name="reader_menu_image_context_changed">插入前笔记已更改，图片未添加。</string>
   <string name="reader_menu_image_orphaned">图片未添加。请删除这个未引用的项目资源：%1$s</string>
+  <string name="reader_menu_pdf_image_import_failed">无法将图片添加到此 PDF 页面。</string>
+  <string name="reader_menu_pdf_image_context_changed">选择期间 PDF 页面或项目已更改，图片未添加。</string>
+  <string name="reader_menu_pdf_image_orphaned">图片批注未添加。请删除这个未引用的项目资源：%1$s</string>
+  <string name="reader_menu_pdf_image_saved">图片已添加到此 PDF 页面。</string>
+  <string name="reader_menu_pdf_image_saved_recovery_copy">图片已添加，但恢复副本仍保留：%1$s</string>
   <string name="reader_menu_paste_image">粘贴图片</string>
   <string name="reader_menu_paste_image_no_image">剪贴板中没有受支持的图片。</string>
   <string name="reader_menu_paste_image_alt">剪贴板图片</string>

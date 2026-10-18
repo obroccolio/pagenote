@@ -151,9 +151,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
+private const val MAX_ANNOTATION_PAGE_IMAGE_PIXELS = 4_000_000L
+
 class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
   internal var markdownImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
+  internal var pdfImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
@@ -274,6 +277,16 @@ private data class PendingMarkdownImageInsertion(
   val altTextOverride: String? = null,
 )
 
+private data class PendingPdfImageInsertion(
+  val project: OpenedProject,
+  val projectId: String,
+  val sourceDirectoryUri: Uri,
+  val renderer: PdfDocumentSession,
+  val pageIndex: Int,
+  val visibleTopY: Double,
+  val style: PenStyle,
+)
+
 private data class PendingNoteImportContext(
   val projectId: String,
   val sourceDirectoryUri: Uri,
@@ -301,6 +314,7 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val densityScale = LocalDensity.current.density
   val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
@@ -355,6 +369,7 @@ private fun ReaderHome(
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
+  var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
@@ -406,6 +421,7 @@ private fun ReaderHome(
   var showAnnotationShapePicker by remember { mutableStateOf(false) }
   var showAnnotations by remember { mutableStateOf(false) }
   var annotationOverlayItems by remember { mutableStateOf(emptyList<PdfAnnotationOverlayItem>()) }
+  var annotationOverlayImages by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
@@ -2261,18 +2277,38 @@ private fun ReaderHome(
     annotationOverlayReload,
   ) {
     annotationOverlayItems = emptyList()
+    annotationOverlayImages.values.forEach { if (!it.isRecycled) it.recycle() }
+    annotationOverlayImages = emptyMap()
     val currentProject = activeProject
     if (currentProject != null && activeRenderer != null) {
-      annotationOverlayItems = withContext(Dispatchers.IO) {
+      val loaded: Pair<List<PdfAnnotationOverlayItem>, Map<String, Bitmap>> = withContext(Dispatchers.IO) {
         runCatching {
           val page = ProjectAnnotationStore(
             context.contentResolver,
             currentProject.sourceDirectoryUri,
             currentProject.annotationsUri,
           ).readPage("document", pageIndex + 1)
-          PdfAnnotationOverlayItem.fromPage(page)
-        }.getOrElse { emptyList() }
+          val items = PdfAnnotationOverlayItem.fromPage(page)
+          val imageLoader = PdfAnnotationImageLoader(context.contentResolver, currentProject.sourceDirectoryUri)
+          val images = linkedMapOf<String, Bitmap>()
+          var decodedPixels = 0L
+          items.mapNotNull(PdfAnnotationOverlayItem::imageAssetName)
+            .distinct()
+            .forEach { assetName ->
+              val image = imageLoader.load(assetName) ?: return@forEach
+              val pixels = image.width.toLong() * image.height
+              if (decodedPixels + pixels <= MAX_ANNOTATION_PAGE_IMAGE_PIXELS) {
+                images[assetName] = image
+                decodedPixels += pixels
+              } else {
+                image.recycle()
+              }
+            }
+          items to images
+        }.getOrElse { emptyList<PdfAnnotationOverlayItem>() to emptyMap<String, Bitmap>() }
       }
+      annotationOverlayItems = loaded.first
+      annotationOverlayImages = loaded.second
     }
   }
   val totalPages = when {
@@ -2506,6 +2542,173 @@ private fun ReaderHome(
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
+
+  fun pdfImageInsertionContextIsCurrent(pending: PendingPdfImageInsertion): Boolean =
+    project === pending.project &&
+      project?.manifest?.id == pending.projectId &&
+      project?.sourceDirectoryUri == pending.sourceDirectoryUri &&
+      renderer === pending.renderer &&
+      pageIndex == pending.pageIndex &&
+      penWritable &&
+      markdownSource == null
+
+  fun capturePdfImageInsertion(): PendingPdfImageInsertion? {
+    val activeProject = project ?: return null
+    val activeRenderer = renderer ?: return null
+    if (!penWritable || markdownSource != null || menuBusy || readerInputLocked || isAnnotationSaving) {
+      return null
+    }
+    val visibleTopY = PdfImageAnnotationDraft.visibleTopY(
+      bounds = viewportBounds,
+      transform = viewportTransform,
+      density = densityScale,
+    ) ?: return null
+    return PendingPdfImageInsertion(
+      project = activeProject,
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri,
+      renderer = activeRenderer,
+      pageIndex = pageIndex,
+      visibleTopY = visibleTopY,
+      style = penStyle,
+    )
+  }
+
+  fun handlePdfImageResult(sourceUri: Uri?) {
+    val pending = pendingPdfImageInsertion
+    pendingPdfImageInsertion = null
+    if (sourceUri == null || pending == null) {
+      isImageImporting = false
+      return
+    }
+    scope.launch {
+      var importedForCleanup: ImportedProjectImage? = null
+      val importer = ProjectImageImporter(
+        context.contentResolver,
+        context.cacheDir,
+        pending.sourceDirectoryUri,
+      )
+      try {
+        if (!pdfImageInsertionContextIsCurrent(pending)) {
+          noteStatus = context.getString(R.string.reader_menu_pdf_image_context_changed)
+          return@launch
+        }
+        val imported = withContext(NonCancellable + Dispatchers.IO) {
+          importer.import(sourceUri).also { importedForCleanup = it }
+        }
+        if (!pdfImageInsertionContextIsCurrent(pending)) {
+          val removed = withContext(NonCancellable + Dispatchers.IO) {
+            importer.deleteImported(imported.documentUri)
+          }
+          importedForCleanup = null
+          noteStatus = if (removed) {
+            context.getString(R.string.reader_menu_pdf_image_context_changed)
+          } else {
+            context.getString(R.string.reader_menu_pdf_image_orphaned, imported.assetName)
+          }
+          return@launch
+        }
+        val draft = PdfImageAnnotationDraft.create(
+          assetName = imported.assetName,
+          pixelWidth = imported.pixelWidth,
+          pixelHeight = imported.pixelHeight,
+          visibleTopY = pending.visibleTopY,
+          style = pending.style,
+        ) ?: throw IllegalArgumentException("The selected image geometry is not supported")
+
+        var contextChanged = false
+        var retainedRecoveryCopyName: String? = null
+        penSaveMutex.withLock {
+          if (!pdfImageInsertionContextIsCurrent(pending)) {
+            contextChanged = true
+            return@withLock
+          }
+          val store = ProjectAnnotationStore(
+            context.contentResolver,
+            pending.sourceDirectoryUri,
+            pending.project.annotationsUri,
+          )
+          val existing = withContext(Dispatchers.IO) {
+            store.readPage("document", pending.pageIndex + 1)
+          }
+          if (!pdfImageInsertionContextIsCurrent(pending)) {
+            contextChanged = true
+            return@withLock
+          }
+          val merged = existing.toMutableList().apply { add(draft) }
+          withContext(Dispatchers.IO) {
+            store.writePage("document", pending.pageIndex + 1, kotlinx.serialization.json.JsonArray(merged))
+            retainedRecoveryCopyName = store.lastRetainedRecoveryCopyName
+          }
+        }
+        if (contextChanged) {
+          val removed = withContext(NonCancellable + Dispatchers.IO) {
+            importer.deleteImported(imported.documentUri)
+          }
+          importedForCleanup = null
+          noteStatus = if (removed) {
+            context.getString(R.string.reader_menu_pdf_image_context_changed)
+          } else {
+            context.getString(R.string.reader_menu_pdf_image_orphaned, imported.assetName)
+          }
+          return@launch
+        }
+        importedForCleanup = null
+        annotationOverlayReload++
+        noteStatus = retainedRecoveryCopyName?.let {
+          context.getString(R.string.reader_menu_pdf_image_saved_recovery_copy, it)
+        } ?: context.getString(R.string.reader_menu_pdf_image_saved)
+      } catch (cancelled: CancellationException) {
+        importedForCleanup?.let { imported ->
+          withContext(NonCancellable + Dispatchers.IO) { importer.deleteImported(imported.documentUri) }
+        }
+        throw cancelled
+      } catch (error: ProjectImageImportException) {
+        noteStatus = error.residualAssetName?.let {
+          context.getString(R.string.reader_menu_pdf_image_orphaned, it)
+        } ?: context.getString(R.string.reader_menu_pdf_image_import_failed)
+      } catch (error: Exception) {
+        importedForCleanup?.let { imported ->
+          val removed = withContext(NonCancellable + Dispatchers.IO) {
+            importer.deleteImported(imported.documentUri)
+          }
+          importedForCleanup = null
+          if (!removed) {
+            noteStatus = context.getString(R.string.reader_menu_pdf_image_orphaned, imported.assetName)
+            return@launch
+          }
+        }
+        noteStatus = context.getString(R.string.reader_menu_pdf_image_import_failed)
+      } finally {
+        isImageImporting = false
+      }
+    }
+  }
+
+  val pdfImagePicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument(),
+    onResult = ::handlePdfImageResult,
+  )
+
+  fun choosePdfImage() {
+    val pending = capturePdfImageInsertion()
+    if (pending == null) {
+      noteStatus = context.getString(R.string.reader_menu_busy)
+      return
+    }
+    pendingPdfImageInsertion = pending
+    isImageImporting = true
+    try {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.pdfImagePickerForTesting
+      if (pickerForTesting == null) pdfImagePicker.launch(arrayOf("image/*"))
+      else pickerForTesting(::handlePdfImageResult)
+    } catch (_: Exception) {
+      pendingPdfImageInsertion = null
+      isImageImporting = false
+      noteStatus = context.getString(R.string.reader_menu_pdf_image_import_failed)
+    }
+  }
+
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
     NoteHistoryMirror.directory(context.filesDir, it) != null
   } == true
@@ -2870,7 +3073,10 @@ private fun ReaderHome(
         ) { redoPenPage() },
         pendingCommand("copy_ink", R.string.reader_menu_copy_ink),
         pendingCommand("paste_ink", R.string.reader_menu_paste_ink),
-        pendingCommand("insert_ink_image", R.string.reader_menu_insert_image),
+        actionCommand(
+          "insert_ink_image", R.string.reader_menu_insert_image, canUsePen && !menuBusy,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { choosePdfImage() },
         actionCommand(
           "clear_page", R.string.clear_page,
           canUsePen && penStrokes.isNotEmpty(),
@@ -3110,6 +3316,7 @@ private fun ReaderHome(
                 annotations = annotationOverlayItems + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
                 ),
+              annotationImages = annotationOverlayImages,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -3210,6 +3417,7 @@ private fun ReaderHome(
                 annotations = annotationOverlayItems + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
                 ),
+              annotationImages = annotationOverlayImages,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -4649,6 +4857,7 @@ internal fun PdfPageViewport(
   sourceName: String,
   page: Int,
   annotations: List<PdfAnnotationOverlayItem> = emptyList(),
+  annotationImages: Map<String, Bitmap> = emptyMap(),
   loading: Boolean,
   strokes: List<PenStroke>,
   tool: PenCanvasTool,
@@ -4866,7 +5075,7 @@ internal fun PdfPageViewport(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
           )
-          PdfAnnotationOverlay(annotations)
+          PdfAnnotationOverlay(annotations, images = annotationImages)
           AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { viewContext -> PenCanvasView(viewContext) },
