@@ -41,4 +41,22 @@ class PdfAnnotationVectorDraftTest {
     assertNull(PdfAnnotationVectorDraft.create("line", point, 30.0 to 40.0, color = "red"))
     assertNull(PdfAnnotationVectorDraft.create("line", point, 30.0 to 40.0, width = 101.0))
   }
+
+  @Test
+  fun serializesActiveColorAndWidthForNewVectorAnnotations() {
+    val draft = requireNotNull(
+      PdfAnnotationVectorDraft.create(
+        type = "arrow",
+        first = 10.0 to 20.0,
+        second = 40.0 to 50.0,
+        color = "#185abd",
+        width = 10.0,
+      ),
+    )
+
+    assertEquals("#185abd", draft.toItem()["color"])
+    assertEquals(10.0, draft.toItem()["width"])
+    assertEquals("#185abd", draft.toOverlayItem().color)
+    assertEquals(10.0, draft.toOverlayItem().width, 0.0)
+  }
 }

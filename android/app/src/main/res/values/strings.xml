@@ -83,6 +83,12 @@
   <string name="annotation_shape_ellipse">Ellipse</string>
   <string name="annotation_saving">Saving annotation...</string>
   <string name="annotation_drag_invalid">Draw on the PDF page with a non-zero drag.</string>
+  <string name="pen_color_hex_label">Custom RGB color (#RRGGBB)</string>
+  <string name="pen_color_invalid">Enter a six-digit RGB color, such as #185abd.</string>
+  <string name="pen_width_thin">Thin</string>
+  <string name="pen_width_standard">Standard</string>
+  <string name="pen_width_thick">Thick</string>
+  <string name="pen_width_extra_thick">Extra thick</string>
   <string name="reader_menu_text">Text</string>
   <string name="reader_menu_color">Ink color</string>
   <string name="reader_menu_width">Stroke width</string>

@@ -83,6 +83,12 @@
   <string name="annotation_shape_ellipse">椭圆</string>
   <string name="annotation_saving">正在保存批注...</string>
   <string name="annotation_drag_invalid">请在 PDF 页面内拖出非零尺寸。</string>
+  <string name="pen_color_hex_label">自定义 RGB 颜色（#RRGGBB）</string>
+  <string name="pen_color_invalid">请输入六位 RGB 颜色，例如 #185abd。</string>
+  <string name="pen_width_thin">细</string>
+  <string name="pen_width_standard">标准</string>
+  <string name="pen_width_thick">粗</string>
+  <string name="pen_width_extra_thick">特粗</string>
   <string name="reader_menu_text">文字</string>
   <string name="reader_menu_color">笔迹颜色</string>
   <string name="reader_menu_width">笔迹宽度</string>

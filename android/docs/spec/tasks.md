@@ -63,6 +63,7 @@
 - [x] 7. 手写笔迹（原生 View、压感、分页编辑、SAF 保存、撤销/重做/清除均已落地，真机延迟/误触待 task 12）
   - [x] 原生 View 笔/荧光笔/橡皮、stylus 侧键与硬件橡皮输入、撤销、重做、按页清除。
   - [x] 笔迹按页存取并保留 annotations.json 中的其他批注、页面和未知字段。
+  - [x] 7.1 手写菜单颜色/宽度已接入：支持 8 个色板、有效 `#RRGGBB` 自定义色与桌面四档宽度，应用于新建笔/荧光笔及 PDF 线条、形状、文字/区域批注。聚焦 style/vector/text/region JVM 类通过；API 34 平板 AVD 上单项 Compose 测试通过；Debug 应用/测试 APK 构建通过。小米 Pad 5 Pro 实体笔体验仍待 task 12；契约见 `features/pen-style-controls.md`。
   - [x] 主动笔/被动笔兼容与误触抑制逻辑已落地（平台 palm rejection + 单指针锁定 + ACTION_CANCEL 丢弃）；边缘、断触、延迟真机验证待 task 12。
   - [x] 原生 View 仪器测试覆盖合成笔迹坐标/压力、取消/禁用输入和侧键 generic-motion 橡皮擦；3/3 在 API 34 4 KB、API 35 4 KB 与 API 35 16 KB AVD 各通过。该结果只验证应用事件逻辑，实体手写笔的压力、误触和延迟仍待 task 12。
   - _Requirement: 笔迹，布局与适配_

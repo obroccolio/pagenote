@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import io.pagenote.feature.pen.PenStyle
 import kotlin.math.abs
 
 internal enum class PdfAnnotationDrawTool(val type: String) {
@@ -43,8 +44,8 @@ internal class PdfAnnotationVectorDraft private constructor(
       type: String,
       first: Pair<Double, Double>,
       second: Pair<Double, Double>,
-      color: String = "#dc3545",
-      width: Double = 3.0,
+      color: String = PenStyle.DEFAULT.color,
+      width: Double = PenStyle.DEFAULT.width,
     ): PdfAnnotationVectorDraft? {
       if (type !in supportedTypes || !colorPattern.matches(color) ||
         !width.isFinite() || width !in 0.1..100.0

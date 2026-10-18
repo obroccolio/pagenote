@@ -27,6 +27,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -42,11 +44,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -68,6 +74,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -77,6 +85,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -114,6 +125,7 @@ import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenSide
+import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -266,6 +278,13 @@ private fun ReaderHome(
   var penStrokes by readerSession.penStrokes
   var penWritable by readerSession.penWritable
   var penTool by readerSession.penTool
+  var penColor by rememberSaveable { mutableStateOf(PenStyle.DEFAULT.color) }
+  var penWidth by rememberSaveable { mutableStateOf(PenStyle.DEFAULT.width) }
+  var showPenColorPicker by remember { mutableStateOf(false) }
+  var showPenWidthPicker by remember { mutableStateOf(false) }
+  val penStyle = remember(penColor, penWidth) {
+    PenStyle.create(penColor, penWidth) ?: PenStyle.DEFAULT
+  }
   var penStatus by readerSession.penStatus
   var failedPenSave by readerSession.failedPenSave
   var pendingPenSaves by readerSession.pendingPenSaves
@@ -349,7 +368,15 @@ private fun ReaderHome(
     finished: Boolean,
   ) {
     val points = mapPdfAnnotationDragToPoints(start, end, viewportBounds, viewportTransform)
-    val draft = points?.let { PdfAnnotationVectorDraft.create(tool.type, it.first, it.second) }
+    val draft = points?.let {
+      PdfAnnotationVectorDraft.create(
+        tool.type,
+        it.first,
+        it.second,
+        color = penStyle.color,
+        width = penStyle.width,
+      )
+    }
     val targetPage = pageIndex + 1
     annotationPreview = draft?.toOverlayItem()?.let { targetPage to it }
     if (!finished) return
@@ -1772,8 +1799,14 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
         ) { showAnnotationShapePicker = true },
         pendingCommand("ink_text", R.string.reader_menu_text),
-        pendingCommand("ink_color", R.string.reader_menu_color),
-        pendingCommand("ink_width", R.string.reader_menu_width),
+        actionCommand(
+          "ink_color", R.string.reader_menu_color, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { showPenColorPicker = true },
+        actionCommand(
+          "ink_width", R.string.reader_menu_width, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
+        ) { showPenWidthPicker = true },
         actionCommand(
           "annotate_mode", R.string.annotate, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
@@ -2027,6 +2060,7 @@ private fun ReaderHome(
                 onAnnotationDrag = { start, end, finished ->
                   annotationDrawTool?.let { handleAnnotationDrag(it, start, end, finished) }
                 },
+                penStyle = penStyle,
                 modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
               )
             }
@@ -2098,6 +2132,7 @@ private fun ReaderHome(
                 onAnnotationDrag = { start, end, finished ->
                   annotationDrawTool?.let { handleAnnotationDrag(it, start, end, finished) }
                 },
+                penStyle = penStyle,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
               )
             }
@@ -2309,11 +2344,11 @@ private fun ReaderHome(
             val useRegion = annotateIsRegion
             val item = if (useRegion) {
               AnnotationRegionDraft.defaultSize(
-                point.first, point.second, "#dc3545", 3.0, annotateText,
+                point.first, point.second, penStyle.color, penStyle.width, annotateText,
               )
             } else {
               AnnotationTextDraft.toItem(
-                point.first, point.second, "#dc3545", 3.0, annotateText,
+                point.first, point.second, penStyle.color, penStyle.width, annotateText,
               )
             }
             penSaveMutex.withLock {
@@ -2343,6 +2378,26 @@ private fun ReaderHome(
         annotateText = ""
         annotateIsRegion = false
       },
+    )
+  }
+  if (showPenColorPicker) {
+    InkColorPickerDialog(
+      currentColor = penStyle.color,
+      onApply = { color ->
+        penColor = color
+        showPenColorPicker = false
+      },
+      onDismiss = { showPenColorPicker = false },
+    )
+  }
+  if (showPenWidthPicker) {
+    InkWidthPickerDialog(
+      currentWidth = penStyle.width,
+      onApply = { width ->
+        penWidth = width
+        showPenWidthPicker = false
+      },
+      onDismiss = { showPenWidthPicker = false },
     )
   }
   if (showAnnotationShapePicker) {
@@ -2587,6 +2642,127 @@ internal fun AnnotationShapePickerDialog(
       }
     },
     confirmButton = {},
+  )
+}
+
+@Composable
+internal fun InkColorPickerDialog(
+  currentColor: String,
+  onApply: (String) -> Unit,
+  onDismiss: () -> Unit,
+) {
+  var draftColor by remember(currentColor) { mutableStateOf(currentColor) }
+  val colorIsValid = PenStyle.isValidColor(draftColor)
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.reader_menu_color)) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          PenStyle.COLOR_SWATCHES.forEach { (name, hex) ->
+            val isSelected = draftColor.equals(hex, ignoreCase = true)
+            Box(
+              modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color(android.graphics.Color.parseColor(hex)))
+                .border(
+                  width = if (isSelected) 3.dp else 1.dp,
+                  color = if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline,
+                  shape = CircleShape,
+                )
+                .clickable { draftColor = hex }
+                .semantics {
+                  contentDescription = "$name $hex"
+                  selected = isSelected
+                }
+                .testTag("ink_color_swatch_$name"),
+            )
+          }
+        }
+        OutlinedTextField(
+          modifier = Modifier.fillMaxWidth().testTag("ink_color_hex"),
+          value = draftColor,
+          onValueChange = { draftColor = it },
+          label = { Text(stringResource(R.string.pen_color_hex_label)) },
+          singleLine = true,
+          isError = !colorIsValid,
+        )
+        if (!colorIsValid) {
+          Text(
+            text = stringResource(R.string.pen_color_invalid),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+          )
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(
+        modifier = Modifier.testTag("ink_color_apply"),
+        enabled = colorIsValid,
+        onClick = { onApply(draftColor.lowercase(Locale.ROOT)) },
+      ) { Text(stringResource(R.string.save)) }
+    },
+    dismissButton = {
+      TextButton(modifier = Modifier.testTag("ink_color_cancel"), onClick = onDismiss) {
+        Text(stringResource(R.string.cancel))
+      }
+    },
+  )
+}
+
+@Composable
+internal fun InkWidthPickerDialog(
+  currentWidth: Double,
+  onApply: (Double) -> Unit,
+  onDismiss: () -> Unit,
+) {
+  var selectedWidth by remember(currentWidth) { mutableStateOf(currentWidth) }
+  val widthLabels = listOf(
+    R.string.pen_width_thin,
+    R.string.pen_width_standard,
+    R.string.pen_width_thick,
+    R.string.pen_width_extra_thick,
+  )
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.reader_menu_width)) },
+    text = {
+      Column {
+        PenStyle.WIDTH_OPTIONS.forEachIndexed { index, width ->
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { selectedWidth = width }
+              .testTag("ink_width_${width.toInt()}"),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            RadioButton(
+              selected = selectedWidth == width,
+              onClick = { selectedWidth = width },
+            )
+            Text("${stringResource(widthLabels[index])} ($width)")
+          }
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(
+        modifier = Modifier.testTag("ink_width_apply"),
+        onClick = { onApply(selectedWidth) },
+      ) { Text(stringResource(R.string.save)) }
+    },
+    dismissButton = {
+      TextButton(modifier = Modifier.testTag("ink_width_cancel"), onClick = onDismiss) {
+        Text(stringResource(R.string.cancel))
+      }
+    },
   )
 }
 
@@ -3166,6 +3342,7 @@ internal fun PdfPageViewport(
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   annotationDrawTool: PdfAnnotationDrawTool? = null,
   onAnnotationDrag: (PdfSelectionPoint, PdfSelectionPoint, Boolean) -> Unit = { _, _, _ -> },
+  penStyle: PenStyle = PenStyle.DEFAULT,
   modifier: Modifier = Modifier,
 ) {
   val latestTransform by rememberUpdatedState(transform)
@@ -3331,6 +3508,8 @@ internal fun PdfPageViewport(
             update = { view ->
               view.strokes = strokes
               view.selectedTool = tool
+              view.penColor = penStyle.color
+              view.penWidth = penStyle.width
               view.inputEnabled = inputEnabled
               view.onStrokeAdded = onStrokeAdded
               view.onStrokeErased = onStrokeErased
