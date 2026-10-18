@@ -1765,6 +1765,20 @@ private fun ReaderHome(
     editor.setSelection(edit.cursor)
   }
 
+  fun applyMarkdownCodeBlockInsertion() {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val edit = MarkdownCodeBlockInsertion.createEdit(
+      markdown = editor.text.toString(),
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+      placeholder = context.getString(R.string.reader_menu_code_placeholder),
+    )
+    editor.requestFocus()
+    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+  }
+
   fun pendingCommand(id: String, labelRes: Int) = actionCommand(
     id = id,
     labelRes = labelRes,
@@ -1957,7 +1971,9 @@ private fun ReaderHome(
       ReaderMenuGroup.INSERT,
       R.string.reader_menu_group_insert,
       listOf(
-        pendingCommand("code", R.string.reader_menu_code),
+        actionCommand(
+          "code", R.string.reader_menu_code, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownCodeBlockInsertion() },
         pendingCommand("formula", R.string.reader_menu_formula),
         pendingCommand("table", R.string.reader_menu_table),
         pendingCommand("link", R.string.reader_menu_link),

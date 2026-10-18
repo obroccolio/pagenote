@@ -156,6 +156,48 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(expected, session.noteDraft.value)
   }
 
+  @Test
+  fun codeBlockCommandWrapsSelectionAndSavesOnlyCurrentPage() {
+    val savedPages = listOf("Lead Selected tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    insertCommand("code").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    insertCommand("code").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    selectCurrentWord()
+    insertCommand("code").assertIsEnabled().performClick()
+    val expected = "Lead \n```python\nSelected\n```\n tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    val editor = requireNotNull(findNoteEditor())
+    val selectedStart = expected.indexOf("Selected")
+    assertEquals(selectedStart, editor.selectionStart)
+    assertEquals(selectedStart + "Selected".length, editor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("Selected") != null }
+    val rendered = findRenderedPreview("Selected")?.text?.toString()
+      ?: error("code block preview must render the selected source")
+    assertTrue("preview must retain code", rendered.contains("Selected"))
+    assertTrue("preview must not expose Markdown fences", !rendered.contains("```"))
+    assertEquals(expected, session.noteDraft.value)
+  }
+
   private fun formatCommand(id: String) = run {
     val commandTag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
@@ -178,6 +220,22 @@ class NoteMarkdownFormatActivityTest {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun insertCommand(id: String) = run {
+    val commandTag = "reader_menu_command_$id"
+    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
