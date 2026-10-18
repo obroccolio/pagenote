@@ -38,7 +38,7 @@
 - [ ] On Xiaomi Pad 5 Pro / Android 14, verify the app returns normally after dismissing the SAF picker; this remains part of task 12 hardware acceptance.
 - [x] Record that the connected device uses 4 KB pages; it does not validate 16 KB runtime behavior.
 - [x] Run `testDebugUnitTest`, `assembleDebug`, and `compileDebugAndroidTestKotlin`; `connectedDebugAndroidTest` stopped before executing tests because device installation was cancelled.
-- [ ] Push reviewed feature commits to `fork/codex/android-port` only after all relevant checks and ensure the pushed range includes the Unreleased changelog updates.
+- [x] Push reviewed feature commits to `fork/codex/android-port` only after all relevant checks and ensure the pushed range includes the Unreleased changelog updates. Verified 2026-10-19: remote and local both point to `b875b72`; the pushed commits include their Unreleased records.
 
 ## Task 5: Android 15 16 KB Runtime Verification
 
