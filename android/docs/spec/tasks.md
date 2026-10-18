@@ -221,3 +221,9 @@
   - 9 个段落 helper JVM 用例、`paragraphCommandsPrefixSelectedLinesAndSaveOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖预览门控、任务前缀、按页保存、相邻页隔离及未完成 `TaskListSpan`；完整 `:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-task-list-insertion.md`，实施拆分见 `markdown-task-list-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
+
+- [ ] 24. Markdown 编辑器撤销/重做（页级内存历史；500ms 合并输入，最多 80 步；新编辑清 redo）
+  - 通过原生 watcher 记录键入与工具栏修改；Undo/Redo 更新当前页草稿，不自动保存，保存仍按 revision 保护。
+  - 项目/页切换或编辑器重载清栈；只读/预览/无项目/忙碌/历史为空时禁用；笔迹撤销/重做保持独立。
+  - 契约见 `features/markdown-edit-undo-redo.md`，实施拆分见 `markdown-edit-undo-redo-plan.md`。
+  - _Requirement: 桌面菜单语义一致、阅读与笔记_
