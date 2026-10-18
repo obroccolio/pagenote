@@ -226,6 +226,9 @@
   <string name="new_project_title">New project</string>
   <string name="new_project_name">Project name</string>
   <string name="new_project_choose_dir">Choose folder</string>
+  <string name="new_project_choose_pdf">Choose PDF (optional)</string>
+  <string name="new_project_clear_pdf">Remove PDF</string>
+  <string name="new_project_pdf_access_failed">Unable to keep access to this PDF. Choose it again.</string>
   <string name="new_project_creating">Creating…</string>
   <string name="new_project_create">Create</string>
   <string name="new_project_bad_name">Enter a valid project name.</string>

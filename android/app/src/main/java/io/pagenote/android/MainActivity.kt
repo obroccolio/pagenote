@@ -154,6 +154,8 @@ class MainActivity : ComponentActivity() {
   internal var markdownImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
+  internal var newProjectPdfPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
 
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
@@ -1266,13 +1268,14 @@ private fun ReaderHome(
   var showNewProject by rememberSaveable { mutableStateOf(false) }
   var newProjectName by rememberSaveable { mutableStateOf("") }
   var newProjectDir by rememberSaveable { mutableStateOf<Uri?>(null) }
+  var newProjectPdfUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+  var newProjectPdfName by rememberSaveable { mutableStateOf<String?>(null) }
   var isCreatingProject by remember { mutableStateOf(false) }
   var isChoosingNewProjectDir by rememberSaveable { mutableStateOf(false) }
+  var isChoosingNewProjectPdf by rememberSaveable { mutableStateOf(false) }
   var newProjectError by remember { mutableStateOf<String?>(null) }
 
-  val newProjectDirPicker = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.OpenDocumentTree(),
-  ) { treeUri: Uri? ->
+  fun handleNewProjectDirectoryResult(treeUri: Uri?) {
     isChoosingNewProjectDir = false
     showNewProject = true
     if (treeUri != null) {
@@ -1287,9 +1290,99 @@ private fun ReaderHome(
     }
   }
 
+  val newProjectDirPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocumentTree(),
+    onResult = ::handleNewProjectDirectoryResult,
+  )
+
   fun chooseNewProjectDirectory() {
     isChoosingNewProjectDir = true
-    newProjectDirPicker.launch(null)
+    val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectDirectoryPickerForTesting
+    if (pickerForTesting == null) newProjectDirPicker.launch(null)
+    else pickerForTesting(::handleNewProjectDirectoryResult)
+  }
+
+  fun releaseNewProjectPdfPermission(uri: Uri?) {
+    if (uri == null) return
+    scope.launch(Dispatchers.IO) {
+      runCatching {
+        context.contentResolver.releasePersistableUriPermission(
+          uri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+      }
+    }
+  }
+
+  fun clearNewProjectPdf() {
+    val previous = newProjectPdfUri
+    newProjectPdfUri = null
+    newProjectPdfName = null
+    releaseNewProjectPdfPermission(previous)
+  }
+
+  fun handleNewProjectPdfResult(uri: Uri?) {
+    showNewProject = true
+    if (uri == null) {
+      isChoosingNewProjectPdf = false
+      return
+    }
+    scope.launch {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectPdfPickerForTesting
+      val persistGrant = pickerForTesting == null
+      try {
+        val displayName = withContext(Dispatchers.IO) {
+          if (persistGrant) {
+            context.contentResolver.takePersistableUriPermission(
+              uri,
+              Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+          }
+          runCatching {
+            context.contentResolver.query(
+              uri,
+              arrayOf(OpenableColumns.DISPLAY_NAME),
+              null,
+              null,
+              null,
+            )?.use { cursor ->
+              val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+            }
+          }.getOrNull()?.takeIf(String::isNotBlank) ?: "document.pdf"
+        }
+        val previous = newProjectPdfUri
+        newProjectPdfUri = uri
+        newProjectPdfName = displayName
+        newProjectError = null
+        if (previous != uri) releaseNewProjectPdfPermission(previous)
+      } catch (_: SecurityException) {
+        if (persistGrant) releaseNewProjectPdfPermission(uri)
+        newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+      } catch (_: Exception) {
+        if (persistGrant) releaseNewProjectPdfPermission(uri)
+        newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+      } finally {
+        isChoosingNewProjectPdf = false
+      }
+    }
+  }
+
+  val newProjectPdfPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument(),
+    onResult = ::handleNewProjectPdfResult,
+  )
+
+  fun chooseNewProjectPdf() {
+    isChoosingNewProjectPdf = true
+    try {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectPdfPickerForTesting
+      if (pickerForTesting == null) newProjectPdfPicker.launch(arrayOf("application/pdf"))
+      else pickerForTesting(arrayOf("application/pdf"), ::handleNewProjectPdfResult)
+    } catch (_: Exception) {
+      isChoosingNewProjectPdf = false
+      newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+    }
   }
 
   fun assetChildExists(assetsUri: Uri, treeUri: Uri, name: String): Boolean {
@@ -1497,8 +1590,11 @@ private fun ReaderHome(
   }
 
   fun createNewProject() {
+    if (isCreatingProject || isChoosingNewProjectDir || isChoosingNewProjectPdf) return
     val name = newProjectName.trim()
     val dir = newProjectDir
+    val pdfUri = newProjectPdfUri
+    val pdfName = newProjectPdfName
     if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
       newProjectError = context.getString(R.string.new_project_bad_name)
       return
@@ -1512,11 +1608,12 @@ private fun ReaderHome(
       newProjectError = null
       try {
         val projectTarget = withContext(Dispatchers.IO) {
-          ProjectCreator(context.contentResolver).create(dir, name)
+          ProjectCreator(context.contentResolver, context.cacheDir).create(dir, name, pdfUri, pdfName)
         }
         showNewProject = false
         newProjectName = ""
         newProjectDir = null
+        clearNewProjectPdf()
         if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
         openProjectTree(projectTarget, manageOpening = true)
       } catch (error: Exception) {
@@ -3200,14 +3297,23 @@ private fun ReaderHome(
       name = newProjectName,
       onNameChange = { newProjectName = it },
       hasDir = newProjectDir != null,
+      pdfDisplayName = newProjectPdfName,
       error = newProjectError,
       creating = isCreatingProject,
       onChooseDir = { chooseNewProjectDirectory() },
+      onChoosePdf = { chooseNewProjectPdf() },
+      onClearPdf = { clearNewProjectPdf() },
       onConfirm = { createNewProject() },
       onDismiss = {
-        if (NewProjectDialogPolicy.canDismiss(isCreatingProject, isChoosingNewProjectDir)) {
+        if (NewProjectDialogPolicy.canDismiss(
+            isCreatingProject,
+            isChoosingNewProjectDir,
+            isChoosingNewProjectPdf,
+          )
+        ) {
           showNewProject = false
           newProjectError = null
+          clearNewProjectPdf()
         }
       },
     )
@@ -3449,9 +3555,12 @@ internal fun NewProjectDialog(
   name: String,
   onNameChange: (String) -> Unit,
   hasDir: Boolean,
+  pdfDisplayName: String?,
   error: String?,
   creating: Boolean,
   onChooseDir: () -> Unit,
+  onChoosePdf: () -> Unit,
+  onClearPdf: () -> Unit,
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
 ) {
@@ -3460,28 +3569,12 @@ internal fun NewProjectDialog(
     title = { Text(stringResource(R.string.new_project_title)) },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.new_project_name))
-        AndroidView(
-          factory = { viewContext ->
-            EditText(viewContext).apply {
-              inputType = InputType.TYPE_CLASS_TEXT
-              setText(name)
-              setSelection(text.length)
-              addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-                override fun afterTextChanged(editable: Editable?) {
-                  onNameChange(editable?.toString().orEmpty())
-                }
-              })
-            }
-          },
-          update = { editText ->
-            if (editText.text.toString() != name) {
-              editText.setText(name)
-              editText.setSelection(editText.text.length)
-            }
-          },
+        OutlinedTextField(
+          value = name,
+          onValueChange = onNameChange,
+          modifier = Modifier.fillMaxWidth().testTag("new_project_name_input"),
+          label = { Text(stringResource(R.string.new_project_name)) },
+          singleLine = true,
         )
         TextButton(
           modifier = Modifier.testTag("new_project_choose_dir"),
@@ -3492,6 +3585,33 @@ internal fun NewProjectDialog(
             if (hasDir) stringResource(R.string.new_project_choose_dir) + " ✓"
             else stringResource(R.string.new_project_choose_dir),
           )
+        }
+        TextButton(
+          modifier = Modifier.testTag("new_project_choose_pdf"),
+          onClick = onChoosePdf,
+          enabled = !creating,
+        ) {
+          Text(stringResource(R.string.new_project_choose_pdf))
+        }
+        pdfDisplayName?.let { selectedName ->
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = selectedName,
+              modifier = Modifier.weight(1f),
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis,
+            )
+            TextButton(
+              modifier = Modifier.testTag("new_project_clear_pdf"),
+              onClick = onClearPdf,
+              enabled = !creating,
+            ) {
+              Text(stringResource(R.string.new_project_clear_pdf))
+            }
+          }
         }
         error?.let {
           Text(it, color = MaterialTheme.colorScheme.error)

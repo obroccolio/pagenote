@@ -226,6 +226,9 @@
   <string name="new_project_title">新建项目</string>
   <string name="new_project_name">项目名称</string>
   <string name="new_project_choose_dir">选择目录</string>
+  <string name="new_project_choose_pdf">选择 PDF（可选）</string>
+  <string name="new_project_clear_pdf">移除 PDF</string>
+  <string name="new_project_pdf_access_failed">无法保留此 PDF 的访问权限，请重新选择。</string>
   <string name="new_project_creating">创建中…</string>
   <string name="new_project_create">创建</string>
   <string name="new_project_bad_name">请输入有效的项目名称。</string>

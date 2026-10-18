@@ -45,14 +45,14 @@
 **Interface:**
 
 - Extend `NewProjectDialogPolicy.canDismiss(isCreating: Boolean, isChoosingDirectory: Boolean, isChoosingPdf: Boolean): Boolean` so neither picker nor creation can dismiss the dialog.
-- Extend `NewProjectDialog` with `hasPdf`, `onChoosePdf`, and `onClearPdf`; preserve existing directory selection API.
+- Extend `NewProjectDialog` with `pdfDisplayName: String?`, `onChoosePdf`, and `onClearPdf`; preserve existing directory selection API.
 - Add `NewProjectManifestPolicy.create(name: String, pdfDisplayName: String? = null): ProjectManifest`; no PDF retains `src/left.md`, while a selected PDF sets `src/document.pdf` and `leftName`.
 
-- [ ] Write failing policy/Compose assertions for the optional PDF button, selected/clear state, and dismissal blocking while either picker is active.
-- [ ] Write failing `NewProjectManifestPolicyTest` assertions for Markdown defaults and PDF source/metadata mapping.
-- [ ] Run the focused policy/manifest JVM tests and `:app:compileDebugAndroidTestKotlin`; confirm the new assertions fail before implementation.
-- [ ] Add the localized optional-PDF control, saved URI/selection state, read-only persistable URI grant lifecycle, and an `OpenDocument` launcher restricted to `application/pdf`.
-- [ ] Run the focused JVM tests and instrumentation compilation; verify cancel/reselect preserves project name and folder.
+- [x] Write failing policy/Compose assertions for the optional PDF button, selected filename/clear state, and dismissal blocking while either picker is active.
+- [x] Write failing `NewProjectManifestPolicyTest` assertions for Markdown defaults and PDF source/metadata mapping.
+- [x] Run the focused policy/manifest JVM tests and `:app:compileDebugAndroidTestKotlin`; confirm the new assertions fail before implementation.
+- [x] Add the localized optional-PDF control, saved URI/selection state, read-only persistable URI grant lifecycle, and an `OpenDocument` launcher restricted to `application/pdf`.
+- [x] Run the focused JVM tests and instrumentation compilation; verify cancel/reselect preserves project name and folder. API 34 AVD: 3 Compose tests passed; focused JVM tests passed.
 
 ### Task 2: Project Creator PDF Import
 
@@ -68,10 +68,10 @@
 - Extend `ProjectCreator.create(parentTreeUri: Uri, name: String, sourcePdfUri: Uri? = null, sourceDisplayName: String? = null): ProjectOpenTarget`.
 - PDF mode writes `src/document.pdf`, `src/right.md`, `src/assets/`, then a v1 manifest whose `left` is `src/document.pdf` and `leftName` is the external display name. Markdown mode keeps the current structure.
 
-- [ ] Add one API 34 end-to-end activity test that supplies a generated valid blank one-page PDF and asserts copied bytes, manifest links, page count, and direct-open state; recreate the Activity with the selection pending, include the no-PDF Markdown branch and malformed-PDF cleanup assertion.
-- [ ] Run only `:app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=io.pagenote.android.ProjectCreateOptionalPdfActivityTest'` on the API 34 tablet AVD and observe the expected failure.
-- [ ] Implement SAF copy, `PdfRenderer` validation (`pageCount > 0`), manifest encoding, and reverse-order cleanup while retaining existing same-name protection.
-- [ ] Re-run the same API 34 test; assert the imported PDF is project-local and the original source URI is not written to the manifest.
+- [x] Add one API 34 end-to-end activity test that supplies a generated valid blank one-page PDF and asserts copied bytes, manifest links, page count, and direct-open state; recreate the Activity with the selection pending, include the no-PDF Markdown branch and malformed-PDF cleanup assertion.
+- [x] Run the focused activity test on the API 34 tablet AVD; correct the SAF test fixture and test-only input interaction based on the observed failures.
+- [x] Implement SAF copy, source and copied-file `PdfRenderer` validation (`pageCount > 0`), manifest encoding, and reverse-order cleanup while retaining existing same-name protection.
+- [x] Re-run the API 34 activity test; assert the imported PDF is project-local and the original source URI is not written to the manifest. All 3 activity tests passed.
 
 ### Task 3: Final Verification and Tracking
 
@@ -81,7 +81,9 @@
 - Modify: `android/docs/spec/project-create-optional-pdf-plan.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] Run focused `NewProjectDialogPolicyTest`, the single API 34 activity test, and `:app:assembleDebug`.
-- [ ] Run `git diff --check`; confirm no API/device matrix or unrelated suites were run.
-- [ ] Record exact results, mark task 19 complete, and keep hardware acceptance in task 12.
-- [ ] Commit the feature with its changelog entry and push to `fork/codex/android-port`.
+- [x] Run focused `NewProjectDialogPolicyTest`, `NewProjectManifestPolicyTest`, the new-project dialog and activity tests on the API 34 AVD, and `:app:assembleDebug`.
+- [x] Run `git diff --check`; final device verification used only the API 34 AVD and no unrelated test suites.
+- [x] Record exact results, mark task 19 complete, and keep hardware acceptance in task 12.
+- [x] Commit the feature with its changelog entry and push to `fork/codex/android-port`.
+
+Verification note: an early connected-test invocation saw a concurrently running API 35/16 KB AVD and ran the 3 dialog tests there before the target mismatch was noticed. That AVD was shut down; all final focused instrumentation tests ran only on API 34. No other app was opened.

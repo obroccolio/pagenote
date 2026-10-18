@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.platform.testTag
@@ -31,9 +32,12 @@ class NewProjectDialogTest {
           name = name,
           onNameChange = { name = it },
           hasDir = true,
+          pdfDisplayName = null,
           error = null,
           creating = false,
           onChooseDir = {},
+          onChoosePdf = {},
+          onClearPdf = {},
           onConfirm = { confirmed = true },
           onDismiss = {},
         )
@@ -56,9 +60,12 @@ class NewProjectDialogTest {
           name = "",
           onNameChange = {},
           hasDir = false,
+          pdfDisplayName = null,
           error = null,
           creating = false,
           onChooseDir = {},
+          onChoosePdf = {},
+          onClearPdf = {},
           onConfirm = {},
           onDismiss = { dismissed = true },
         )
@@ -67,5 +74,33 @@ class NewProjectDialogTest {
 
     composeRule.onNodeWithTag("new_project_cancel").performClick()
     composeRule.runOnIdle { assert(dismissed) }
+  }
+
+  @Test
+  fun optionalPdfCanBeSelectedAndClearedWithoutLosingDialog() {
+    composeRule.setContent {
+      MaterialTheme {
+        var pdfName by remember { mutableStateOf<String?>(null) }
+        NewProjectDialog(
+          name = "Blank worksheet",
+          onNameChange = {},
+          hasDir = true,
+          pdfDisplayName = pdfName,
+          error = null,
+          creating = false,
+          onChooseDir = {},
+          onChoosePdf = { pdfName = "whiteboard.pdf" },
+          onClearPdf = { pdfName = null },
+          onConfirm = {},
+          onDismiss = {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("new_project_choose_pdf").assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("whiteboard.pdf").assertIsDisplayed()
+    composeRule.onNodeWithTag("new_project_clear_pdf").performClick()
+    composeRule.onNodeWithText("Choose PDF (optional)").assertIsDisplayed()
+    composeRule.onNodeWithTag("new_project_confirm").assertIsDisplayed()
   }
 }

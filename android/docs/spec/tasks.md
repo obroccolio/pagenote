@@ -192,8 +192,8 @@
   - 契约见 `features/note-import.md`，实施拆分见 `note-import-plan.md`。
   - _Requirement: 桌面菜单分组与数据导入/导出一致性_
 
-- [ ] 19. 新建项目可选 PDF 原文（新建窗口保留目录必选、PDF 可选；选中的 PDF 复制进 v1 项目并作为原文直接打开）
+- [x] 19. 新建项目可选 PDF 原文（新建窗口保留目录必选、PDF 可选；选中的 PDF 复制进 v1 项目并作为原文直接打开）
   - 空白页 PDF 可正常创建；未选择 PDF 时仍生成当前 Markdown 空白项目。
-  - 仅运行聚焦创建逻辑/JVM 检查、一个 Android 14/API 34 平板 AVD 创建闭环和 `:app:assembleDebug`；不扩展设备/API 矩阵。
+  - 2 个聚焦 JVM 测试、6 个 Android 14/API 34 平板 AVD 对话框/创建流程测试、`:app:assembleDebug` 通过；真机验收仍按 task 12。
   - 契约见 `features/project-create-optional-pdf.md`，实施拆分见 `project-create-optional-pdf-plan.md`。
   - _Requirement: 项目与数据兼容、PDF 阅读与笔记_
