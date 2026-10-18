@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
@@ -37,6 +38,10 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val noteBaseRevision: MutableState<String> = mutableStateOf(PageNotes.revision(""))
   val noteWritable: MutableState<Boolean> = mutableStateOf(false)
   val noteStatus: MutableState<String?> = mutableStateOf(null)
+  internal val pendingNoteExport: MutableState<NoteExportFile?> = mutableStateOf(null)
+  internal val isRestoringPendingNoteExport: MutableState<Boolean> = mutableStateOf(false)
+  internal val isHandlingNoteExportResult: MutableState<Boolean> = mutableStateOf(false)
+  internal val isPendingNoteExportRecovered: MutableState<Boolean> = mutableStateOf(false)
   val penStore: MutableState<ProjectPenStore?> = mutableStateOf(null)
   val penPageStore: MutableState<PenPageStore> = mutableStateOf(PenPageStore())
   val penStrokes: MutableState<List<PenStroke>> = mutableStateOf(emptyList())
@@ -55,6 +60,7 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Main.immediate)
   private var applicationContext: Context? = null
   private var recoveryStore: NoteDraftRecoveryStore? = null
+  private var noteExportSnapshotStore: NoteExportSnapshotStore? = null
   private var draftWriteJob: Job? = null
   private val recoveryMutex = Any()
   private val draftGeneration = AtomicLong()
@@ -67,6 +73,91 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     val appContext = context.applicationContext
     applicationContext = appContext
     recoveryStore = AtomicFileNoteDraftRecoveryStore(File(appContext.filesDir, "reader-draft-recovery"))
+    noteExportSnapshotStore = NoteExportSnapshotStore(File(appContext.filesDir, "reader-note-export"))
+    restorePendingNoteExport()
+  }
+
+  internal suspend fun storePendingNoteExport(file: NoteExportFile) {
+    val store = checkNotNull(noteExportSnapshotStore) { "Note export storage is not initialized" }
+    try {
+      withContext(Dispatchers.IO) { store.write(file.content) }
+      savedStateHandle[KEY_NOTE_EXPORT_MIME] = file.mimeType
+      savedStateHandle[KEY_NOTE_EXPORT_FILE_NAME] = file.fileName
+      pendingNoteExport.value = file
+      isPendingNoteExportRecovered.value = false
+    } catch (error: Throwable) {
+      withContext(NonCancellable + Dispatchers.IO) { store.clear() }
+      clearPendingNoteExportMetadata()
+      pendingNoteExport.value = null
+      throw error
+    }
+  }
+
+  internal suspend fun clearPendingNoteExport() {
+    withContext(NonCancellable + Dispatchers.IO) {
+      runCatching { noteExportSnapshotStore?.clear() }
+    }
+    pendingNoteExport.value = null
+    isPendingNoteExportRecovered.value = false
+    clearPendingNoteExportMetadata()
+  }
+
+  private fun restorePendingNoteExport() {
+    val mimeType = savedStateHandle.get<String>(KEY_NOTE_EXPORT_MIME)
+    val fileName = savedStateHandle.get<String>(KEY_NOTE_EXPORT_FILE_NAME)
+    if (mimeType == null || fileName == null) {
+      pendingNoteExport.value = null
+      isRestoringPendingNoteExport.value = false
+      isPendingNoteExportRecovered.value = false
+      clearPendingNoteExportMetadata()
+      return
+    }
+    val store = noteExportSnapshotStore
+    isPendingNoteExportRecovered.value = pendingNoteExport.value == null
+    isRestoringPendingNoteExport.value = true
+    sessionScope.launch {
+      try {
+        val content = withContext(Dispatchers.IO) { store?.read() }
+        if (pendingNoteExport.value != null || !hasPendingNoteExportMetadata(mimeType, fileName)) return@launch
+        if (content == null) {
+          clearPendingNoteExportState()
+          noteStatus.value = applicationContext?.getString(R.string.reader_menu_export_snapshot_missing)
+          return@launch
+        }
+        pendingNoteExport.value = NoteExportFile(mimeType, fileName, content)
+      } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        if (pendingNoteExport.value == null && hasPendingNoteExportMetadata(mimeType, fileName)) {
+          noteStatus.value = applicationContext?.getString(R.string.reader_menu_export_restore_failed)
+        }
+      } finally {
+        isRestoringPendingNoteExport.value = false
+      }
+    }
+  }
+
+  internal suspend fun readPendingNoteExport(): NoteExportFile? {
+    val mimeType = savedStateHandle.get<String>(KEY_NOTE_EXPORT_MIME) ?: return null
+    val fileName = savedStateHandle.get<String>(KEY_NOTE_EXPORT_FILE_NAME) ?: return null
+    val store = noteExportSnapshotStore ?: return null
+    val content = withContext(Dispatchers.IO) { store.read() } ?: return null
+    return NoteExportFile(mimeType, fileName, content)
+  }
+
+  private fun clearPendingNoteExportState() {
+    pendingNoteExport.value = null
+    isPendingNoteExportRecovered.value = false
+    clearPendingNoteExportMetadata()
+  }
+
+  private fun hasPendingNoteExportMetadata(mimeType: String, fileName: String): Boolean =
+    savedStateHandle.get<String>(KEY_NOTE_EXPORT_MIME) == mimeType &&
+      savedStateHandle.get<String>(KEY_NOTE_EXPORT_FILE_NAME) == fileName
+
+  private fun clearPendingNoteExportMetadata() {
+    savedStateHandle.remove<String>(KEY_NOTE_EXPORT_MIME)
+    savedStateHandle.remove<String>(KEY_NOTE_EXPORT_FILE_NAME)
   }
 
   fun claimRestorationCheckpoint(): ReaderSessionCheckpoint? {
@@ -250,6 +341,8 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
 
   private companion object {
     const val DRAFT_WRITE_DEBOUNCE_MS = 250L
+    const val KEY_NOTE_EXPORT_MIME = "reader.pending-note-export.mime"
+    const val KEY_NOTE_EXPORT_FILE_NAME = "reader.pending-note-export.file-name"
   }
 
   override fun onCleared() {

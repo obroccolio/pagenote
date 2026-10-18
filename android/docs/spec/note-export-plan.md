@@ -43,9 +43,9 @@
 - `NoteExportFile` contains `mimeType`, `fileName`, and complete UTF-8 `content`.
 - The JSON notes object maps every page represented by `PageNotes.split(notesMarkdown)` to a one-based string key. If a current-page override is supplied, apply it before building the JSON object.
 
-- [ ] Write focused tests for the desktop v1 fields, blank intermediate pages, non-ASCII content, current-page override, filename/MIME, and full current-page Markdown; run the class and observe the expected missing-type RED.
-- [ ] Implement the smallest pure payload builder using the existing `PageNotes.split` contract and kotlinx.serialization JSON.
-- [ ] Run the focused JVM test class and confirm all payload assertions pass.
+- [x] Write focused tests for the desktop v1 fields, blank intermediate pages, non-ASCII content, current-page override, filename/MIME, and full current-page Markdown; run the class and observe the expected missing-type RED.
+- [x] Implement the smallest pure payload builder using the existing `PageNotes.split` contract and kotlinx.serialization JSON.
+- [x] Run the focused JVM test class and confirm all payload assertions pass.
 
 ### Task 2: Reader Export and SAF Flow
 
@@ -53,6 +53,7 @@
 
 - Modify: `android/app/src/main/java/io/pagenote/android/MainActivity.kt`
 - Modify: `android/app/src/main/java/io/pagenote/android/ReaderSessionViewModel.kt` only if a captured pending export must survive recreation.
+- Create: `android/app/src/main/java/io/pagenote/android/NoteExportSnapshotStore.kt` for atomic app-private pending-payload recovery.
 - Modify: `android/app/src/main/res/values/strings.xml`
 - Modify: `android/app/src/main/res/values-zh-rCN/strings.xml`
 - Modify: `android/app/src/androidTest/AndroidManifest.xml` and the existing SAF test provider only if needed for an output-document fixture.
@@ -62,11 +63,12 @@
 
 **Produces:** A working File-menu `Export notes` action with two SAF-backed output formats and localized result statuses.
 
-- [ ] Write one focused API 34 activity test covering both output formats, immediate dirty-note export, output MIME/name, and unchanged neighboring page data; verify it fails before the menu action is connected.
-- [ ] Connect the menu action to format choices and the matching `CreateDocument` contracts. Keep the selected export payload stable while the picker is open.
-- [ ] Save a dirty writable page before snapshot creation; abort on conflict/failure. For a read-only recovered draft, override only that page in the export snapshot.
-- [ ] Write selected output to the returned SAF URI on `Dispatchers.IO`; cancellation is a no-op and write failures report failure.
-- [ ] Run the focused activity test on one Android 14/API 34 tablet AVD and confirm both files contain the expected data.
+- [x] Write one focused API 34 activity test covering both output formats, immediate dirty-note export, output MIME/name, and unchanged neighboring page data; verify it fails before the menu action is connected.
+- [x] Connect the menu action to format choices and the matching `CreateDocument` contracts. Keep the selected export payload stable while the picker is open.
+- [x] Save a dirty writable page before snapshot creation; abort on conflict/failure. For a read-only recovered draft, override only that page in the export snapshot.
+- [x] Write selected output to the returned SAF URI on `Dispatchers.IO`; cancellation is a no-op and write failures report failure.
+- [x] Run the focused activity test on one Android 14/API 34 tablet AVD and confirm both files contain the expected data, Activity recreation and fresh-ViewModel snapshot recovery, recovery-state marking, read-only draft, save conflict, write failure, and cancellation behavior. This does not simulate an OS process kill.
+- [x] Provide retry-to-new-destination and discard actions for an interrupted process-restored export so a consumed picker result cannot leave the reader permanently blocked.
 
 ### Task 3: Build and Tracking
 
@@ -75,7 +77,7 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] Run `./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.NoteExportPayloadTest :app:assembleDebug` and confirm focused tests pass and Gradle reports `BUILD SUCCESSFUL`.
-- [ ] Mark the export task complete with actual evidence; keep Xiaomi hardware acceptance in task 12.
-- [ ] Run `git diff --check`; review the final diff for exact schema parity and project non-mutation.
-- [ ] Commit the feature and matching changelog entry, then push to `fork/codex/android-port`.
+- [x] Run `./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.NoteExportPayloadTest :app:assembleDebug` and confirm focused tests pass and Gradle reports `BUILD SUCCESSFUL`.
+- [x] Mark the export task complete with actual evidence; keep Xiaomi hardware acceptance in task 12.
+- [x] Run `git diff --check`; review the final diff for exact schema parity and project non-mutation.
+- [x] Commit the feature and matching changelog entry, then push to `fork/codex/android-port`.

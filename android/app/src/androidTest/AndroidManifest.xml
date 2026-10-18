@@ -9,5 +9,9 @@
       android:authorities="io.pagenote.android.test.existing-project"
       android:exported="true"
       android:grantUriPermissions="true" />
+    <provider
+      android:name="io.pagenote.android.NoteExportSafTestProvider"
+      android:authorities="io.pagenote.android.test.note-export"
+      android:exported="true" />
   </application>
 </manifest>
