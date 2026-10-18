@@ -108,7 +108,8 @@
   - [x] 用户已完成讲解的 69 页课件项目通过真实 DocumentsUI 选取与持久 SAF tree 授权，在 API 35 4 KB 和 16 KB 平板 AVD 均打开并报告 `1 / 69`；4 KB AVD 的第 31 页 PDF、Markdown、LaTeX 和项目相对图片已做实际预览检查。原桌面文件只读，导入测试副本未提交进仓库，详见 `features/existing-project-saf-roundtrip.md` 与 `features/project-assets-saf.md`。
   - [x] 用户 69 页项目第 31 页真实 SAF 笔记保存/应用内重载在 API 35 4 KB 与 16 KB 平板 AVD 通过；第 30/32 页未变，桌面基线未改，模拟器副本已恢复，详见 `features/page-notes.md`。
   - [ ] 手机/平板上的笔记完整交互矩阵、手写笔、OCR 与 Agent 闭环以及实体设备仍待验收；单页 SAF 保存/重载不替代这些检查。
-  - [x] Pixel Tablet API 34 与 API 35 AVD 的完整 app instrumentation suite（最新 71 项）通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；只验证组件与 UI，不等同于真实 SAF 文件、手写笔或 OpenAI 服务端到端验收。当前未修改 USB/安装安全设置。
+  - [x] Pixel Tablet API 34 与 API 35 AVD 的完整 app instrumentation suite（本切片前完整套件 71 项）通过，覆盖 Activity 启动与设置导航、Compose 对话框、Markdown renderer、项目/批注/Agent/OCR 选择组件和自适应菜单；本切片新增的 2 项 Activity 审阅闭环测试另在 API 34 4 KB、API 35 4 KB 和 API 35 16 KB AVD 各通过 2/2。该 fixture 不等同于系统 picker/真实持久授权，也不覆盖手写笔或 OpenAI 服务端端到端验收。当前未修改 USB/安装安全设置。
+  - [x] 选区 AI 审阅的 `MainActivity` 成功保存与 revision 冲突中止闭环（真实菜单 handler + 原生编辑器 + SAF fixture），新增 2 项仪器测试在 API 34 4 KB、API 35 4 KB、API 35 16 KB 平板 AVD 各通过 2/2；系统 picker/真实持久授权另行验收，实施计划见 `note-selection-ai-review-plan.md` task 7。
     - [x] SAF 新建项目在 Xiaomi 真机端到端创建并直开通过；持久权限沿用父 tree、manifest 文件名不追加扩展名、picker 返回后弹窗保留，见 `features/project-create.md`。
     - [x] SAF 打开既有项目及第 31 页笔记保存/重载已通过真实 DocumentsUI 和用户 69 页项目副本验收；笔迹/OCR/Agent 设备交互矩阵仍待验收。
     - [ ] `ProjectCreatorSafTest` 仪器包安装被 MIUI 拒绝（`INSTALL_FAILED_USER_RESTRICTED`）；测试源码可编译，真实 Provider 行为已由手工端到端验证。
@@ -126,7 +127,7 @@
   - Compose 回归测试确认菜单开合不重置工作区状态；实际项目内旋转/断点变化的整机验收仍需在 task 12 补做。
   - _Requirement: 布局与适配、桌面菜单语义一致_
 
-- [x] 15. 阅读器会话恢复（Activity 重建与 Android 系统回收进程后恢复项目、页码、归一化视口、笔工具和未保存笔记草稿；不更改项目文件格式。模拟器 SIGKILL 任务恢复烟测已通过；自然低内存回收与真机验证仍属于 task 12 的环境验收）
+- [x] 15. 阅读器会话恢复（经用户确认，Activity 重建与 Android 系统回收进程后均须恢复项目、页码、归一化视口、笔工具和未保存笔记草稿；不更改项目文件格式。模拟器 SIGKILL 任务恢复烟测已通过；自然低内存回收与真机验证仍属于 task 12 的环境验收）
   - [x] Activity 级 `ReaderSessionViewModel`、紧凑 `SavedStateHandle` 检查点、归一化 PDF 视口书签和按 SAF 目标/项目/页隔离的 app-private `AtomicFile` 草稿日志已实现。
   - [x] JVM 单测、AtomicFile 仪器测试、Activity 重建与 fresh-ViewModel 恢复/版本冲突测试已实现；Pixel Tablet API 34、API 35 各 69 项 app instrumentation tests 通过。
   - [x] `:app:assembleDebug` 通过；四 ABI debug APK 均通过 16 KB 对齐检查。

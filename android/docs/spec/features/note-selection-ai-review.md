@@ -44,6 +44,8 @@ Let a user turn selected Markdown note source into a located `selection` AI revi
 - When a review JSON write fails after truncating or partially writing the target, the app shall restore the original from its snapshot; if restoration fails, it shall retain and report the recovery copy when the Provider supports it.
 - When a review JSON update succeeds but cleanup of its recovery copy fails, the app/Agent shall report the successful update and retained copy name, not a false save failure.
 - When first-time review-file initialization fails and the provider also cannot delete the incomplete file, the app shall warn that `ai-reviews.json` may remain and localize the warning for the current UI language.
+- When a user invokes selection review from the real reader Activity with a dirty note, the app shall save the note against its captured base revision before displaying the review dialog; if that save conflicts, it shall preserve the external note, keep the review dialog closed, and perform no review-file write.
+- When a dirty note saves successfully from the real reader Activity, the app shall display a review draft for the selected quote and persist the exact selection metadata when the user confirms it.
 - When an Agent requests `status=applied`, the tool shall accept it only if that same run has already changed the review's target note page through a successful `write_note` or `patch_note` whose `expectedRevision` equals the review revision; otherwise it shall return a tool failure.
 - When the user dismisses or deletes a review, the app shall not modify its note page.
 
@@ -53,13 +55,15 @@ Let a user turn selected Markdown note source into a located `selection` AI revi
 - [x] Instrumentation tests cover native EditText selection reporting, menu enablement, quote display, cancel-without-write, and a real SAF-provider review JSON round trip.
 - [x] Agent tests cover list summaries, ID detail reads, rich selection metadata, and rejection of premature `applied` status.
 - [x] Final-review hardening tests cover localized oversized-selection feedback, early rejection before scanning/materializing oversized selections, exact quote/context boundaries, bounded review JSON reads/details/metadata, strict UTF-8 input, SAF recovery-copy rollback after a partial write, retained-copy reporting after failed cleanup, and localized incomplete-file warning after failed initialization cleanup. Fresh app/Agent JVM suites pass 175/175 and 56/56. The four focused instrumentation classes pass 33/33 on API 34 4 KB, API 35 4 KB, and API 35 16 KB AVDs. Android test Kotlin compilation and `assembleDebug` pass; independent review reports no remaining findings.
+- [x] Activity integration tests launch `MainActivity`, attach the SAF fixture to its reader session, edit/select text in the native note editor, invoke the real menu command, and verify both successful save-and-review creation and save-conflict abort with zero review writes. The conflict test checks the exact `PageNoteConflictException` message and retained dirty draft. The 2 tests pass on API 34 4 KB, API 35 4 KB, and API 35 16 KB tablet AVDs.
+- [x] After adding Activity integration coverage, fresh app/Agent JVM suites pass 175/175 and 56/56; Android instrumentation Kotlin compilation and `assembleDebug` pass; all four ABI APKs pass the 16 KB checker.
 - [x] `./gradlew :app:testDebugUnitTest :agent:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug --offline` succeeded. The two JVM tasks were up-to-date in this run; a forced fresh rerun of both JVM tasks passed with 171 app tests and 56 Agent tests, with zero failures, errors, or skips. Android test Kotlin compilation and `assembleDebug` succeeded.
 - [x] The focused classes `NoteSelectionReviewUiTest` (7), `ExistingProjectSafRoundTripTest` (6), `ReviewUiErrorMessageTest` (2), and `ReviewHandoffUiTest` (5) passed, 20/20 on each tested AVD: `Pixel_Tablet_API34` (API 34, 4096-byte pages), `Pixel_Tablet` (API 35, 4096-byte pages), and `Pixel_Tablet_16KB` (API 35, 16384-byte pages). Results had zero failures, errors, or skips.
 - [x] After final-review hardening, the focused classes `NoteSelectionReviewUiTest`, `ExistingProjectSafRoundTripTest`, `ReviewHandoffUiTest`, and `ReviewUiErrorMessageTest` pass 25/25 on both `Pixel_Tablet_API34` (API 34, 4096-byte pages) and `Pixel_Tablet_16KB` (API 35, 16384-byte pages). Fresh app/Agent JVM suites pass 173/173 and 56/56; Android test Kotlin compilation and `assembleDebug` succeed.
 
 ## Verification Limits
 
-- Full Activity open-project and dirty-save failure interactions were not end-to-end tested.
+- System picker/SAF grant and full Activity project-open interactions are not covered by the Activity-level selection tests; those tests seed the Activity's existing reader session from the SAF fixture. Dirty-save success and conflict abort are covered through the real Activity menu handler.
 - Source-PDF and Office text selection are not implemented. Physical-device and physical-pen behavior were not tested.
 - Generic SAF has no cross-process compare-and-swap; review-store serialization covers app-process instances only.
 - Unsaved-draft process-reclamation recovery is already implemented and tested separately under task 15, including the API 34 SIGKILL task-recovery smoke test. That coverage is separate from selection-review verification.
@@ -71,3 +75,4 @@ Let a user turn selected Markdown note source into a located `selection` AI revi
 - [x] Extend SAF review creation/list rendering to preserve and display selection fields.
 - [x] Return selection details through Agent review reads and guard applied status using same-run changed-page evidence; remove manual apply status control.
 - [x] Add JVM, Compose/AndroidView, SAF-provider, and Agent regression coverage; build and run focused AVD instrumentation.
+- [x] Add real-Activity selection-review success and save-conflict instrumentation coverage; keep picker/SAF grant validation as a separate acceptance. The real Activity handler saved the dirty page before creating the exact review record, and an external note update caused the expected conflict with zero review writes.

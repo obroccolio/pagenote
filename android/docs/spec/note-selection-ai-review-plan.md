@@ -139,3 +139,28 @@
 - [x] Run all app and Agent JVM tests (175/175 and 56/56), Android test Kotlin compilation, `assembleDebug`, and focused instrumentation tests: four classes 33/33 on API 34 4 KB, API 35 4 KB, and API 35 16 KB AVDs.
 - [x] Update task tracker/SPEC verification and changelog with observed results.
 - [x] Commit `cff73e4` and push to the personal `codex/android-port` branch after independent review; reviewer reported no remaining findings.
+
+### Task 7: Activity Selection-Review Integration Gap
+
+**Files:**
+- Create: `android/app/src/androidTest/java/io/pagenote/android/NoteSelectionReviewActivityTest.kt`
+- Modify: `android/docs/spec/features/note-selection-ai-review.md`
+- Modify: `android/docs/spec/tasks.md`
+- Modify: `CHANGELOG.md`
+
+**Acceptance:**
+- When a user selects text in a dirty note and invokes the selection-review command in `MainActivity`, the Activity shall save the page against its captured revision before showing the review dialog; a successful path shall persist the updated note and exact selection review fields.
+- When the SAF fixture changes the note after the Activity captures its base revision, the command shall leave the dialog closed, preserve the external note, and write no review record.
+- Tests shall exercise the real Activity menu handler and native editor while explicitly not claiming system picker, persisted-grant, or cross-process CAS coverage.
+
+**Steps:**
+- [x] Add two Activity instrumentation tests first: dirty-save success creates an exact review record; stale-save conflict leaves the external note and review JSON unchanged.
+- [x] Compile the tests; fix one test-only API mismatch (`PageNotes.pageAt` -> `NotePage.pageAt`) before runtime.
+- [x] Run on API 34/API 35 4 KB and API 35 16 KB tablet AVDs. Initial success-path run reached the review dialog but Compose `performTextInput` could not request focus; switched to the existing instrumentation pattern `AccessibilityNodeInfo.ACTION_SET_TEXT`. Both tests then passed on all three AVDs.
+- [x] Ruling: the existing production Activity handler already satisfied the new acceptance criteria, so no production code change was needed; the value of this slice is durable regression coverage. The fixture seeds the Activity-scoped reader state and therefore does not claim system picker, persisted grant, or cross-process CAS coverage.
+- [x] Independent review tightened the conflict test: it now requires the exact `PageNoteConflictException` message and confirms the local dirty draft remains in memory, rather than treating any status as proof of a conflict.
+- [x] Reran both tightened tests on API 34 4 KB, API 35 4 KB, and API 35 16 KB AVDs; all 2/2 tests pass on each device.
+- [x] Freshly rerun app/Agent JVM suites (175/175 and 56/56), compile Android instrumentation sources, and build `assembleDebug`.
+- [x] Run the four-ABI APK checker; arm64/x86_64 ELF LOAD segments and all APK ZIP alignments pass the 16 KB checks.
+- [x] Update observed task/SPEC evidence and Unreleased changelog; independent final review found no remaining serious issues after tightening the conflict assertion.
+- [ ] Commit and push this test/spec slice to the personal fork branch; no public release or PR is part of this task.

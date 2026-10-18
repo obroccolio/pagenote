@@ -2,6 +2,8 @@
 
 > Status: implementation slice complete; automated API 34/35 verification and an API 34 process-death/task-restoration smoke are complete. Natural low-memory-killer behavior and physical-device verification remain open.
 
+> Scope confirmation (2026-10-18): the user confirmed that restoring unsaved note drafts after Android reclaims the app process is required, not just Activity recreation. This is included in the acceptance and test scope below.
+
 ## Goal
 
 Keep the active reader session intact across Activity configuration recreation, adaptive window changes, and Android system process reclamation. Recovery includes unsaved page-note drafts without changing the project format or silently writing a draft to the project.
