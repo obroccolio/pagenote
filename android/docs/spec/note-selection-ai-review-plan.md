@@ -163,4 +163,4 @@
 - [x] Freshly rerun app/Agent JVM suites (175/175 and 56/56), compile Android instrumentation sources, and build `assembleDebug`.
 - [x] Run the four-ABI APK checker; arm64/x86_64 ELF LOAD segments and all APK ZIP alignments pass the 16 KB checks.
 - [x] Update observed task/SPEC evidence and Unreleased changelog; independent final review found no remaining serious issues after tightening the conflict assertion.
-- [ ] Commit and push this test/spec slice to the personal fork branch; no public release or PR is part of this task.
+- [x] Commit `2e80782` and push this test/spec slice to `fork/codex/android-port`; no public release or PR is part of this task.
