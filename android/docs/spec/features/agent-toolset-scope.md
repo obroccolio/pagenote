@@ -15,9 +15,10 @@
 
 - When 模型调用 7 个已接线工具时，shall 按各自契约执行并返回 ok/touched/updated。
 - When 模型调用 4 个未接线工具时，shall 返回 unknown tool 并继续循环，不伪称执行。
+- When 未知工具携带页码参数时，shall 不将该参数计入实际触达/完成页。
 - When 模型的已接线工具参数不满足 schema 时，shall 拒绝请求且不调用 handler。
 
 ## Verification
 
-- JVM：`ToolSchemasTest` 覆盖已接线参数与未知工具拒绝；`AgentRunnerTest` 覆盖无效参数在 handler 前被拒绝、unknown tool 中断语义。
+- JVM：`ToolSchemasTest` 覆盖已接线参数与未知工具拒绝；`AgentRunnerTest` 覆盖无效参数在 handler 前被拒绝，以及 unknown tool 错误反馈后继续调用可用工具且不计入其页码。
 - `cd android && ./gradlew :agent:testDebugUnitTest --offline` 通过。

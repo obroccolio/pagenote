@@ -64,14 +64,14 @@ class AgentRunner(
         }
         is StepDecision.UseTool -> {
           val result = (dispatcher ?: tools).dispatch(decision.request)
-          val touched = decision.touchedPage ?: result.touchedPage
-          if (touched != null) completedPages.add(touched)
-          if (result.updatedPage != null) updatedPages.add(result.updatedPage)
+          val unknownTool = !result.ok && result.detail.startsWith("unknown tool:")
+          if (!unknownTool) {
+            val touched = decision.touchedPage ?: result.touchedPage
+            if (touched != null) completedPages.add(touched)
+            if (result.updatedPage != null) updatedPages.add(result.updatedPage)
+          }
           if (!result.ok) {
-            if (isUnknownTool(result)) {
-              return AgentEvent.Failed("unknown tool: ${decision.request.name}")
-            }
-            // revision 冲突等工具失败：把原因回给模型继续循环，不静默覆盖。
+            // 未知工具、参数拒绝与 revision 冲突都反馈给模型继续循环，不静默覆盖。
             history.add(mapOf("role" to "user", "content" to "tool failed: ${result.detail}"))
           } else {
             history.add(mapOf("role" to "user", "content" to "tool ok: ${result.detail}"))
@@ -84,10 +84,6 @@ class AgentRunner(
   private fun isRateLimit(e: IllegalStateException): Boolean {
     val message = e.message.orEmpty().lowercase()
     return message.contains("429") || message.contains("rate") || message.contains("limit")
-  }
-
-  private fun isUnknownTool(result: ToolResult): Boolean {
-    return result.detail.startsWith("unknown tool:")
   }
 
   private fun parse(reply: String): StepDecision {

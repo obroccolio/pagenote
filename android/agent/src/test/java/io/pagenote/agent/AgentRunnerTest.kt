@@ -14,9 +14,11 @@ private class FakeChatClient(
 ) : ChatClient {
   var calls = 0
     private set
+  val histories = mutableListOf<List<Map<String, String>>>()
 
   override suspend fun complete(endpoint: ModelEndpoint, messages: List<Map<String, String>>): String {
     calls++
+    histories += messages
     error?.let { throw it }
     if (replies.isEmpty()) return "DONE"
     return replies[minOf(calls - 1, replies.lastIndex)]
@@ -94,12 +96,32 @@ class AgentRunnerTest {
   }
 
   @Test
-  fun unknownToolIsRejected() = runBlocking {
-    val runner = AgentRunner(FakeChatClient(listOf("TOOL rm_rf_all page=3")), LocalToolDispatcher())
+  fun unknownToolReturnsErrorAndAllowsLoopRecovery() = runBlocking {
+    val chat = FakeChatClient(
+      listOf(
+        "TOOL rm_rf_all page=99",
+        "TOOL write_note page=3 expectedRevision=r1",
+        "DONE",
+      ),
+    )
+    var saved = false
+    val tools = LocalToolDispatcher(mapOf("write_note" to {
+      saved = true
+      ToolResult(ok = true, detail = "saved", updatedPage = 3)
+    }))
+    val runner = AgentRunner(chat, tools)
+
     val event = runner.run(task(), endpoint(), messages())
-    assertTrue(event is AgentEvent.Failed)
-    event as AgentEvent.Failed
-    assertTrue(event.reason.contains("unknown tool"))
+
+    assertTrue(event is AgentEvent.Done)
+    event as AgentEvent.Done
+    assertEquals("unknown tool arguments must not count as a touched page", listOf(3), event.pages)
+    assertEquals(listOf(3), event.updated)
+    assertTrue("unsupported tool must never block a later supported write", saved)
+    assertEquals("the model must receive the unknown-tool error", 3, chat.calls)
+    assertTrue(chat.histories[1].any {
+      it["role"] == "user" && it["content"] == "tool failed: unknown tool: rm_rf_all"
+    })
   }
 
   @Test
