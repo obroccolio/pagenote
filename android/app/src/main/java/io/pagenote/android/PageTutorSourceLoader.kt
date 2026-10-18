@@ -16,38 +16,54 @@ class PageTutorSourceException(message: String, cause: Throwable? = null) : Ille
 
 class PageTutorSourceLoader(
   private val nativeText: suspend (Int) -> PdfTextExtractionResult,
+  private val searchablePdfText: suspend (Int) -> String? = { null },
   private val ocrText: suspend (Int) -> OcrResult,
-  private val hasBitmap: (Int) -> Boolean = { false },
+  private val hasBitmap: suspend (Int) -> Boolean = { false },
 ) {
   suspend fun loadCurrent(pageIndex: Int): PageTutorSourceText {
     require(pageIndex >= 0) { "page index must not be negative" }
     val native = nativeText(pageIndex)
-    return loadFromNative(pageIndex, native)
+    val fallback = searchablePdfFallback(pageIndex, native)
+    return loadFromNative(pageIndex, native, fallback)
   }
 
   suspend fun loadNeighbor(pageIndex: Int): PageTutorSourceText? {
     require(pageIndex >= 0) { "page index must not be negative" }
     val native = nativeText(pageIndex)
-    if (native.status != PdfTextExtractionStatus.AVAILABLE || native.fullText.isBlank()) return null
-    return PageTutorSourceText(text = native.fullText, usedOcr = false)
+    val text = preferredText(native) ?: searchablePdfText(pageIndex)?.takeIf(String::isNotBlank)
+    return text?.let { PageTutorSourceText(text = it, usedOcr = false) }
   }
 
   suspend fun loadNeighborForAgent(pageIndex: Int): PageTutorSourceText {
     require(pageIndex >= 0) { "page index must not be negative" }
     val native = nativeText(pageIndex)
-    return loadFromNative(pageIndex, native)
+    val fallback = searchablePdfFallback(pageIndex, native)
+    return loadFromNative(pageIndex, native, fallback)
+  }
+
+  private suspend fun searchablePdfFallback(
+    pageIndex: Int,
+    native: PdfTextExtractionResult,
+  ): String? = if (preferredText(native) == null) {
+    searchablePdfText(pageIndex)?.takeIf(String::isNotBlank)
+  } else {
+    null
   }
 
   private suspend fun loadFromNative(
     pageIndex: Int,
     native: PdfTextExtractionResult,
+    searchableFallback: String?,
   ): PageTutorSourceText {
+    val sourceText = preferredText(native) ?: searchableFallback.orEmpty()
+    val pageHasBitmap = sourceText.isNotBlank() &&
+      sourceText.length < OcrTrigger.SPARSE_CHARS_WITH_BITMAP && hasBitmap(pageIndex)
     val shouldOcr = OcrTrigger.shouldRun(
-      nativeAvailable = native.status == PdfTextExtractionStatus.AVAILABLE,
-      nativeText = native.fullText,
-      hasBitmap = hasBitmap(pageIndex),
+      nativeAvailable = sourceText.isNotBlank(),
+      nativeText = sourceText,
+      hasBitmap = pageHasBitmap,
     )
-    if (!shouldOcr) return PageTutorSourceText(text = native.fullText, usedOcr = false)
+    if (!shouldOcr) return PageTutorSourceText(text = sourceText, usedOcr = false)
 
     val result = ocrText(pageIndex)
     try {
@@ -66,6 +82,18 @@ class PageTutorSourceLoader(
     if (OcrResultPolicy.needsVisualReview(result)) {
       warnings += "OCR text may be inaccurate. Verify it against the original PDF page."
     }
-    return PageTutorSourceText(text = text, usedOcr = true, warnings = warnings.distinct())
+    val includesPdfText = pageHasBitmap && sourceText.isNotBlank()
+    val combinedText = if (includesPdfText) {
+      "PDF text layer:\n${sourceText.trim()}\n\nOffline OCR:\n$text"
+    } else {
+      text
+    }
+    if (includesPdfText) {
+      warnings += "Both PDF text and OCR text are included. Verify them against the original page."
+    }
+    return PageTutorSourceText(text = combinedText, usedOcr = true, warnings = warnings.distinct())
   }
+
+  private fun preferredText(native: PdfTextExtractionResult): String? =
+    native.fullText.takeIf { native.status == PdfTextExtractionStatus.AVAILABLE && it.isNotBlank() }
 }

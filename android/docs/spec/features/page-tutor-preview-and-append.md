@@ -8,7 +8,7 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 
 1. With a PDF project open, the user opens the page tutor and may edit a default explanation instruction.
 2. Before sending a request, the app saves a dirty current-page note. A failed save aborts the request.
-3. For a normal page request, the app reads selectable PDF text for the current page and its immediate neighbors. If the current page has no usable native text, the app runs bundled offline OCR on that page before using the network. When the request is opened from a successful region OCR result, the app reuses that region's text, confidence, and warnings without running full-page or neighbor OCR again. It never sends an empty source page.
+3. For a normal page request, the app reads PDF text for the current page and its immediate neighbors. It prefers platform text extraction when available, then uses the existing PDFBox text layer on Android 14 before considering OCR. It runs bundled offline OCR when neither text layer provides usable current-page text, or when sparse selectable text occurs on a page with raster images. Mixed-page requests retain both sources. When the request is opened from a successful region OCR result, the app reuses that region's text, confidence, and warnings without running full-page or neighbor OCR again. It never sends an empty source page.
 4. The app sends one page-scoped request through the configured OpenAI-compatible chat client. The current page is the primary material; available previous/next pages are context only. Each page is capped as specified below. Project material is untrusted study content, not tool instructions. No local Agent tools are exposed to this request.
 5. The model response is shown as a preview and does not modify project files automatically.
 6. On explicit confirmation, the app appends the explanation to the current page using the page revision captured before the request. Other pages are preserved. A stale revision rejects the append and leaves the latest note untouched.
@@ -20,6 +20,8 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 - Each PDF page's text sent to the model is capped at 20,000 Kotlin string characters, matching desktop `prepare_task`'s default `maxChars`. Truncation is explicit in the preview warnings; it is never silent.
 - A missing API key opens the existing model settings flow without sending a request. Model, PDF, OCR, timeout, HTTP, and empty-response failures are surfaced without changing notes.
 - OCR-derived input retains its warnings. The preview tells the user to verify OCR-based explanations against the original PDF when the OCR result is incomplete, warned, or low-confidence.
+- Android 14 PDFBox text is searchable-PDF text, not OCR; its successful use must not initialize or invoke the OCR engine. Neighbor context uses the same platform-then-PDFBox text fallback but does not trigger OCR in the non-agent page-tutor path.
+- When a PDFBox page has both a sparse text layer and raster image resources, Page Tutor runs OCR and includes both text sources with a verification warning; image-free searchable pages do not run OCR merely because platform extraction is unavailable.
 - If the user edits the explanation instruction after a response arrives, the old preview remains readable but cannot be appended until a new response is generated.
 - Apply is disabled for read-only notes. The append operation checks `expectedRevision` against the target page immediately before writing.
 - Before overwriting the project note, the Android app rechecks the full note snapshot used to prepare the edit. It creates a same-folder recovery copy when the SAF provider supports creating and deleting documents, restores the original content after a failed write when possible, and retains/reports the recovery copy if rollback also fails.
@@ -31,8 +33,10 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 ## Acceptance (EARS)
 
 - When the user requests an explanation without a valid model configuration, the Android app shall open model settings and shall not call the model.
-- When the current page has native text, the Android app shall use it without invoking OCR.
-- When the current page has no usable native text, the Android app shall use bundled offline OCR before calling the model and shall retain any OCR warnings in the preview.
+- When platform text extraction is available, the Android app shall use it without invoking OCR.
+- When platform text extraction is unavailable and the Android 14 PDFBox text layer contains usable text that does not meet the sparse-image OCR trigger, the Android app shall use that text without invoking OCR.
+- When a PDFBox text layer is sparse and the same page contains raster image resources, the Android app shall run offline OCR, retain both text sources, and warn that the combined source should be checked against the page.
+- When neither platform nor PDFBox text is usable, the Android app shall use bundled offline OCR before calling the model and shall retain any OCR warnings in the preview.
 - When Page Tutor is opened from a successful region OCR result, the Android app shall reuse that result and shall not invoke full-page OCR or neighbor OCR for the same request.
 - When a region-focused request uses low-confidence or partial OCR, the Android app shall retain the confidence warning in the preview and expose the selected excerpt in the dialog before model execution.
 - When the user requests an explanation, the Android app shall send only the target page and available immediate neighbors, with the current page's note and revision, and shall not use the Agent tool loop.
@@ -59,8 +63,8 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 ## Verification
 
 - Agent unit tests prove request scope, page/revision material, raw Markdown response handling, explicit text truncation, and failure behavior with a fake `ChatClient`.
-- Android JVM tests prove native-text preference, OCR fallback only when native text is unavailable/empty, OCR failure stopping before the model call, and low-confidence warning retention.
+- Android JVM tests prove platform-text preference, Android 14 PDFBox-text fallback before OCR, OCR fallback when both text sources are unavailable, OCR failure stopping before the model call, and low-confidence warning retention.
 - Note editor unit tests prove append semantics, preservation of other pages, empty-page behavior, and stale-revision rejection.
 - Recoverable-write unit tests prove rollback after partial writes, recovery-copy retention if rollback fails, cleanup after success, fail-closed behavior when parent/capability discovery or an advertised recovery-copy create operation fails, best-effort writes when recovery copies are explicitly unsupported, residual filename reporting when cleanup fails, and conflict rejection if the source changes during backup preparation.
-- Compose instrumentation tests prove the preview, retry/error state, OCR warnings, stale-instruction gating, and explicit append action are reachable and correctly gated.
-- Run Android unit tests, compile Android instrumentation tests, and build debug APKs. A live model endpoint and a device/emulator are additional acceptance checks, not substitutes for the deterministic tests.
+- One focused API 34 instrumentation flow uses a searchable/mixed PDF fixture through `PdfDocumentSession` and `PageTutorSourceLoader`, proving searchable text avoids OCR and sparse mixed content retains both sources after OCR. This is Android 14 platform evidence, not Xiaomi hardware acceptance.
+- For this feature slice, run the affected JVM tests, compile the focused instrumentation test, execute that single API 34 flow when an API 34 tablet AVD is available, and build the Debug APK. Do not run other API/device or page-position matrices. Xiaomi Pad 5 Pro acceptance remains one representative real-device workflow under `tasks.md` task 12.

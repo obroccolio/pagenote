@@ -32,8 +32,8 @@ class PdfDocumentSession private constructor(
   private val snapshotFile: File?,
 ) : Closeable {
   private var closed = false
-  private val selectableTextCache = object : LinkedHashMap<Int, PdfPageText?>(3, 0.75f, true) {
-    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, PdfPageText?>?): Boolean =
+  private val pdfBoxContentCache = object : LinkedHashMap<Int, PdfBoxPageContent?>(3, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, PdfBoxPageContent?>?): Boolean =
       size > 3
   }
 
@@ -61,10 +61,13 @@ class PdfDocumentSession private constructor(
   @Synchronized
   fun extractSelectableText(pageIndex: Int): PdfPageText? {
     check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
-    if (selectableTextCache.containsKey(pageIndex)) return selectableTextCache[pageIndex]
-    val extracted = snapshotFile?.let { PdfBoxTextExtractor.extract(applicationContext, it, pageIndex) }
-    selectableTextCache[pageIndex] = extracted
-    return extracted
+    return extractPdfBoxPageContent(pageIndex)?.selectableText
+  }
+
+  @Synchronized
+  fun hasRasterImageContent(pageIndex: Int): Boolean {
+    check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
+    return extractPdfBoxPageContent(pageIndex)?.hasRasterImages == true
   }
 
   @Synchronized
@@ -94,7 +97,7 @@ class PdfDocumentSession private constructor(
   override fun close() {
     if (closed) return
     closed = true
-    selectableTextCache.clear()
+    pdfBoxContentCache.clear()
     try {
       renderer.close()
     } finally {
@@ -104,6 +107,13 @@ class PdfDocumentSession private constructor(
         snapshotFile?.delete()
       }
     }
+  }
+
+  private fun extractPdfBoxPageContent(pageIndex: Int): PdfBoxPageContent? {
+    if (pdfBoxContentCache.containsKey(pageIndex)) return pdfBoxContentCache[pageIndex]
+    val extracted = snapshotFile?.let { PdfBoxTextExtractor.inspect(applicationContext, it, pageIndex) }
+    pdfBoxContentCache[pageIndex] = extracted
+    return extracted
   }
 
   @RequiresApi(35)

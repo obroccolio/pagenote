@@ -434,6 +434,9 @@ private fun ReaderHome(
     nativeText = { page ->
       withContext(Dispatchers.IO) { activeRenderer.extractText(page) }
     },
+    searchablePdfText = { page ->
+      withContext(Dispatchers.IO) { activeRenderer.extractSelectableText(page)?.text }
+    },
     ocrText = { page ->
       val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
       withIoOwnedResource(
@@ -441,6 +444,9 @@ private fun ReaderHome(
         dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
         use = { bitmap -> withContext(Dispatchers.Default) { engine.recognize(bitmap) } },
       )
+    },
+    hasBitmap = { page ->
+      withContext(Dispatchers.IO) { activeRenderer.hasRasterImageContent(page) }
     },
   )
 

@@ -26,6 +26,30 @@ class PageTutorSourceLoaderTest {
   }
 
   @Test
+  fun usesSearchablePdfTextBeforeOcrForCurrentAndNeighborPages() = runBlocking {
+    var ocrCalls = 0
+    val loader = PageTutorSourceLoader(
+      nativeText = { PdfTextExtractionResult.unavailableForOcr() },
+      searchablePdfText = { page -> "searchable PDF page ${page + 1}" },
+      ocrText = {
+        ocrCalls += 1
+        error("OCR must not run when the PDF text layer is available")
+      },
+    )
+
+    val current = loader.loadCurrent(0)
+    val neighbor = loader.loadNeighbor(1)
+    val agentNeighbor = loader.loadNeighborForAgent(2)
+
+    assertEquals("searchable PDF page 1", current.text)
+    assertFalse(current.usedOcr)
+    assertEquals("searchable PDF page 2", neighbor?.text)
+    assertEquals("searchable PDF page 3", agentNeighbor.text)
+    assertFalse(agentNeighbor.usedOcr)
+    assertEquals(0, ocrCalls)
+  }
+
+  @Test
   fun fallsBackToOcrForUnavailablePdfText() = runBlocking {
     var ocrCalls = 0
     val loader = PageTutorSourceLoader(
@@ -54,7 +78,7 @@ class PageTutorSourceLoaderTest {
   }
 
   @Test
-  fun supplementsSparseBitmapPageWithOcr() = runBlocking {
+  fun retainsSearchableTextWhenSparseBitmapPageUsesOcr() = runBlocking {
     val loader = PageTutorSourceLoader(
       nativeText = { availableText("图1") },
       ocrText = { recognizedText("recognized page") },
@@ -63,8 +87,10 @@ class PageTutorSourceLoaderTest {
 
     val source = loader.loadCurrent(0)
 
-    assertEquals("recognized page", source.text)
+    assertTrue(source.text.contains("图1"))
+    assertTrue(source.text.contains("recognized page"))
     assertTrue(source.usedOcr)
+    assertTrue(source.warnings.any { it.contains("both", ignoreCase = true) })
   }
 
   @Test

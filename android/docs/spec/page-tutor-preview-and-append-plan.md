@@ -64,19 +64,20 @@
 - [x] **Step 3: Implement `appendPage`** without changing replacement semantics.
 - [x] **Step 4: Run `./gradlew :feature-notes:testDebugUnitTest --offline`** and verify all note editor tests pass.
 
-### Task 3: Native text and OCR source selection
+### Task 3: Platform/PDFBox text and OCR source selection
 
 **Files:**
 - Create: `android/app/src/main/java/io/pagenote/android/PageTutorSourceLoader.kt`
 - Test: `android/app/src/test/java/io/pagenote/android/PageTutorSourceLoaderTest.kt`
 
 **Interfaces:**
-- `PageTutorSourceLoader(nativeText: suspend (Int) -> PdfTextExtractionResult, ocrText: suspend (Int) -> OcrResult)` prefers nonblank native text, invokes OCR only when native text is unavailable/blank, rejects failed/empty OCR, and retains OCR review warnings.
+- `PageTutorSourceLoader(nativeText: suspend (Int) -> PdfTextExtractionResult, searchablePdfText: suspend (Int) -> String? = { null }, ocrText: suspend (Int) -> OcrResult, hasBitmap: suspend (Int) -> Boolean = { false })` prefers platform text, then Android 14 PDFBox searchable text. It uses OCR for unavailable/suspicious text and sparse text on image pages; mixed-page output retains both sources and warnings.
 
-- [x] **Step 1: Write failing JVM tests** named `prefersNativeTextWithoutRunningOcr`, `fallsBackToOcrForBlankOrUnavailablePdfText`, `rejectsFailedOrEmptyOcr`, and `retainsLowConfidenceOcrWarnings`.
-- [x] **Step 2: Run `./gradlew :app:testDebugUnitTest --offline`** and verify the source-policy tests fail because `PageTutorSourceLoader` is not implemented.
-- [x] **Step 3: Implement `PageTutorSourceLoader`** and verify all four source-policy tests pass.
-- [x] **Step 4: Run `./gradlew :app:testDebugUnitTest --offline`** and verify the complete app JVM suite passes.
+- [x] **Step 1: Write failing JVM tests** for platform-text preference, searchable-PDF fallback before OCR, sparse mixed-page source retention, scanned-page OCR fallback, and OCR warning/failure handling.
+- [x] **Step 2: Run only the affected `PageTutorSourceLoaderTest` cases** and verify the new PDFBox fallback assertion fails before implementation.
+- [x] **Step 3: Implement the cached PDFBox text/image inspection and source selection**; verify the affected source-policy tests pass.
+- [x] **Step 4: Add one API 34 instrumentation flow** with searchable and mixed-content PDF pages; assert searchable text skips OCR and mixed text/image content retains both sources.
+- [x] **Step 5: Run the focused API 34 flow and build the Debug APK.** Do not run an API/device matrix for this slice; reserve Xiaomi Pad 5 Pro acceptance for the single representative real-device workflow in task 12.
 
 ### Task 4: Reader preview and explicit page-note append
 

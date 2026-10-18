@@ -98,6 +98,7 @@
   - [x] 写工具已接入（write_note/patch_note/write_review_status/write_handoff：revision 必填，冲突转 ok=false 不覆盖并报告 updatedPage；契约见 `features/agent-write-tools.md`）。
   - [x] 单页任务 UI 闭环已接入（工具栏 Agent 任务入口、当前页上下文组装、工具循环、Done/Failed 范围报告、缺配置开模型设置、当前页被改刷新；契约见 `features/agent-task-run.md`）。
   - [x] Android 14 PDF Agent 上下文准备复用离线 OCR，覆盖当前页和相邻页并向模型传递 OCR 警告；13 项聚焦 JVM 测试、API 34 平板 AVD 的 6 项 Agent 对话框仪器测试、仪器源码编译及 Debug APK 构建通过。真实模型服务和小米真机 OCR 闭环待 task 12，契约见 `features/agent-task-run.md`。
+  - [x] 10.2 Page Tutor 在 Android 14 优先使用 PDFBox 可搜索文字，只有页面无可用文字或稀疏文字叠加图像时才触发离线 OCR；混合页保留两种文字来源并提示核对。相关 JVM 测试、唯一 API 34 AVD 聚焦流程（可搜索页+混合页，1/1）和 Debug 构建通过；不扩展其他设备/API 测试矩阵。契约见 `features/page-tutor-preview-and-append.md`。
   - [x] 批量页任务 UI 已接入（页范围解析、逐页串行、限流即停、真实完成/修改/未完成报告；契约见 `features/agent-batch-pages.md`）。
   - [x] 10.1 未知工具拒绝原因回传模型并允许在步数预算内恢复；未知调用的页码不计入触达/完成范围。AgentRunner 聚焦恢复回归、完整 agent JVM 套件和 Debug APK 构建通过；契约见 `features/agent-toolset-scope.md`。
   - 任务循环、本地工具收敛集、多步上限、revision 冲突处理、实际完成范围报告。

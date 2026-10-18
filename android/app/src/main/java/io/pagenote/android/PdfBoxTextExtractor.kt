@@ -3,6 +3,9 @@ package io.pagenote.android
 import android.content.Context
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDResources
+import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject
+import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.text.TextPosition
 import io.pagenote.core.project.PageNotes
@@ -11,13 +14,20 @@ import io.pagenote.core.reader.PdfTextBounds
 import io.pagenote.core.reader.PdfTextGlyph
 import java.io.File
 import java.io.Writer
+import java.util.Collections
+import java.util.IdentityHashMap
+
+internal data class PdfBoxPageContent(
+  val selectableText: PdfPageText?,
+  val hasRasterImages: Boolean,
+)
 
 internal object PdfBoxTextExtractor {
   @Volatile
   private var initialized = false
 
   @Synchronized
-  fun extract(context: Context, source: File, pageIndex: Int): PdfPageText? {
+  fun inspect(context: Context, source: File, pageIndex: Int): PdfBoxPageContent? {
     if (!source.isFile || pageIndex < 0) return null
     if (!initialized) {
       PDFBoxResourceLoader.init(context.applicationContext)
@@ -30,10 +40,14 @@ internal object PdfBoxTextExtractor {
         val page = document.getPage(pageIndex)
         val cropBox = page.cropBox
         val rotated = page.rotation % 180 != 0
+        val hasRasterImages = hasRasterImages(
+          resources = page.resources,
+          visitedForms = Collections.newSetFromMap(IdentityHashMap()),
+        )
         val stripper = PositionedTextStripper(pageIndex + 1)
         stripper.writeText(document, Writer.nullWriter())
         val text = stripper.pageText()
-        if (text.isBlank() || stripper.glyphs.isEmpty()) {
+        val selectableText = if (text.isBlank() || stripper.glyphs.isEmpty()) {
           null
         } else {
           PdfPageText(
@@ -44,8 +58,25 @@ internal object PdfBoxTextExtractor {
             glyphs = stripper.glyphs.toList(),
           )
         }
+        PdfBoxPageContent(selectableText, hasRasterImages)
       }
     }.getOrNull()
+  }
+
+  private fun hasRasterImages(
+    resources: PDResources?,
+    visitedForms: MutableSet<PDFormXObject>,
+  ): Boolean {
+    if (resources == null) return false
+    for (name in resources.xObjectNames) {
+      when (val xObject = resources.getXObject(name)) {
+        is PDImageXObject -> return true
+        is PDFormXObject -> if (visitedForms.add(xObject) &&
+          hasRasterImages(xObject.resources, visitedForms)
+        ) return true
+      }
+    }
+    return false
   }
 
   private class PositionedTextStripper(private val targetPage: Int) : PDFTextStripper() {
