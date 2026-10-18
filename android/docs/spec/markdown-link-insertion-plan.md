@@ -39,14 +39,14 @@
 - `data class MarkdownLinkEdit(replaceStart, replaceEnd, replacement, selectionStart, selectionEnd)`。
 - `MarkdownLinkInsertion.createEdit(markdown, selectionStart, selectionEnd, placeholder): MarkdownLinkEdit`。
 
-- [ ] **Step 1: Write focused failing tests**
+- [x] **Step 1: Write focused failing tests**
   - 覆盖原文作为链接标签、空选区本地化 placeholder、反向/越界范围、选中标签以及周围文本不变。
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
   - Run: `cd android && ./gradlew --offline :app:testDebugUnitTest --tests io.pagenote.android.MarkdownLinkInsertionTest`
   - Expected: 编译失败，因为 helper API 尚不存在。
-- [ ] **Step 3: Implement the minimal pure Kotlin helper**
+- [x] **Step 3: Implement the minimal pure Kotlin helper**
   - 固定 URL `https://example.com`；规范化/夹取 UTF-16 范围，返回替换文本和仅覆盖标签的 selection range。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - 重跑同一聚焦 JVM 命令，helper 测试全通过。
 
 ### Task 2: Reader 命令与 Android 14 聚焦闭环
@@ -60,18 +60,18 @@
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add the failing API 34 reader test**
+- [x] **Step 1: Add the failing API 34 reader test**
   - 在现有格式 Activity 测试中验证 Link 无项目/预览时禁用；反向选区替换后仅标签选中；折叠选区插入本地化 placeholder 且仅其被选中；保存只改第一页，预览具有链接 span。
-- [ ] **Step 2: Verify RED on the single API 34 tablet AVD**
+- [x] **Step 2: Verify RED on the single API 34 tablet AVD**
   - 仅运行新增方法，显式使用 `ANDROID_SERIAL=emulator-5554` 和 class/method instrumentation filter。
   - Expected: `link` 命令仍为 pending/disabled 或新增行为断言失败。
-- [ ] **Step 3: Implement guarded Insert > Link action**
+- [x] **Step 3: Implement guarded Insert > Link action**
   - 加入中英文 placeholder 资源；只替换 `pendingCommand("link", ...)`，复用 `canFormatMarkdown` gate，调用 helper 并经原生 `Editable.replace` 设置标签 selection。
-- [ ] **Step 4: Verify the focused API 34 reader flow**
+- [x] **Step 4: Verify the focused API 34 reader flow**
   - 重跑新增方法并检查菜单门控、草稿、selection、revision 保存、链接预览及相邻页保持。
-- [ ] **Step 5: Focused tests, Debug APK, and docs**
+- [x] **Step 5: Focused tests, Debug APK, and docs**
   - 运行 helper JVM 测试、单项 API 34 AVD 仪器测试和 `:app:assembleDebug`。
   - 更新 Android task 22 与 `CHANGELOG.md`；记录 AVD 代理性质及 Xiaomi 真机验收仍归 task 12。
   - 执行 `git diff --check`。
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
   - 提交实现与测试、CHANGELOG、任务状态；推送至 `fork/codex/android-port`。

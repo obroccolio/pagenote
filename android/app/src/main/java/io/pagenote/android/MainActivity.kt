@@ -2382,6 +2382,20 @@ private fun ReaderHome(
     editor.setSelection(edit.cursor)
   }
 
+  fun applyMarkdownLinkInsertion() {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val edit = MarkdownLinkInsertion.createEdit(
+      markdown = editor.text.toString(),
+      selectionStart = editor.selectionStart,
+      selectionEnd = editor.selectionEnd,
+      placeholder = context.getString(R.string.reader_menu_link_placeholder),
+    )
+    editor.requestFocus()
+    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+  }
+
   fun applyMarkdownClipboardCommand(cut: Boolean) {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
@@ -2657,7 +2671,9 @@ private fun ReaderHome(
         actionCommand(
           "table", R.string.reader_menu_table, canFormatMarkdown, markdownFormatDisabledReason,
         ) { applyMarkdownTableInsertion() },
-        pendingCommand("link", R.string.reader_menu_link),
+        actionCommand(
+          "link", R.string.reader_menu_link, canFormatMarkdown, markdownFormatDisabledReason,
+        ) { applyMarkdownLinkInsertion() },
         actionCommand(
           "image", R.string.reader_menu_image,
           canInsertMarkdownImage, markdownImageDisabledReason,

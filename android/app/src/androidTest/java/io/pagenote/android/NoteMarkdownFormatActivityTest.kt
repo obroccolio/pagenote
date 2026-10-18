@@ -4,6 +4,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.text.Spanned
+import android.text.style.ClickableSpan
 import android.text.style.StrikethroughSpan
 import android.view.View
 import android.view.ViewGroup
@@ -309,6 +310,69 @@ class NoteMarkdownFormatActivityTest {
     assertTrue("GFM table must render as a native table span", rendered.getSpans(0, rendered.length, TableSpan::class.java).isNotEmpty())
     assertEquals("header and content must both render as table rows", 2, rendered.getSpans(0, rendered.length, TableRowSpan::class.java).size)
     assertEquals(expected, session.noteDraft.value)
+  }
+
+  @Test
+  fun linkCommandWrapsSelectionInsertsAndSelectsPlaceholderSavesOnlyCurrentPage() {
+    val savedPages = listOf("Lead chosen tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+
+    insertCommand("link").assertIsNotEnabled()
+
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() == null }
+    insertCommand("link").assertIsNotEnabled()
+    composeRule.onNodeWithTag("note_tab_edit").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    val selectedText = "chosen"
+    val selectionStart = savedPages.first().indexOf(selectedText)
+    val selectionEditor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      selectionEditor.requestFocus()
+      selectionEditor.setSelection(selectionStart + selectedText.length, selectionStart)
+    }
+    composeRule.waitForIdle()
+
+    insertCommand("link").assertIsEnabled().performClick()
+    val selectedLink = "[$selectedText](https://example.com)"
+    val expectedAfterSelection = "Lead $selectedLink tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedAfterSelection }
+    val selectedEditor = requireNotNull(findNoteEditor())
+    assertEquals("Lead [".length, selectedEditor.selectionStart)
+    assertEquals("Lead [".length + selectedText.length, selectedEditor.selectionEnd)
+
+    val placeholder = composeRule.activity.getString(R.string.reader_menu_link_placeholder)
+    val insertionEditor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      insertionEditor.setSelection(insertionEditor.text.length)
+    }
+    insertCommand("link").performClick()
+    val expected = "$expectedAfterSelection[$placeholder](https://example.com)"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    val placeholderEditor = requireNotNull(findNoteEditor())
+    assertEquals(expectedAfterSelection.length + 1, placeholderEditor.selectionStart)
+    assertEquals(expectedAfterSelection.length + 1 + placeholder.length, placeholderEditor.selectionEnd)
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expected, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { findRenderedPreview("chosen") != null }
+    val rendered = findRenderedPreview("chosen")?.text as? Spanned
+      ?: error("link preview must expose native spans")
+    assertTrue(
+      "Markdown link preview must expose a clickable span",
+      rendered.getSpans(0, rendered.length, ClickableSpan::class.java).isNotEmpty(),
+    )
   }
 
   private fun formatCommand(id: String) = run {
