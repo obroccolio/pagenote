@@ -2,7 +2,7 @@
 
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
-> `features/desktop-ui-and-office-parity.md` 的菜单分组/自适应侧栏方向已确认，导航按 `adaptive-menu-navigation-plan.md` 实施；Office 引擎仍需单独验证，桌面 Office 终态尚未完成。
+> `features/desktop-ui-and-office-parity.md` 的桌面菜单分组/自适应侧栏方向已确认；Android 不移植桌面 Office 模式，Word 编辑菜单保持禁用，复杂文档回桌面端处理。
 > 当前设备范围收敛为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；后续不再对 API 35、16 KB 或其他机型做常规适配矩阵。旧任务中的多设备记录仅保留为历史验证证据。
 
 ## Implementation Plan
@@ -77,6 +77,12 @@
   - [x] 阅读器区域选择、离线识别与 SAF 项目缓存；JVM 回归、仪器测试编译、四 ABI APK 构建及 16 KB 对齐检查通过，真机手写笔/启动验收待完成，契约见 `features/reader-ocr-selection.md`，实施拆分见 `reader-ocr-selection-plan.md`。
   - _Requirement: 页面准备与 OCR_
 
+- [x] 9.1 区域 OCR 直接发起 Page Tutor（复用已识别的选区文本、置信度和警告；不重复整页 OCR；不自动改写笔记，详见 `features/ocr-region-page-tutor.md`）
+  - [x] 有文本的成功/部分结果才显示入口；失败与空结果隐藏入口。
+  - [x] 区域请求仅携带已识别文本与目标页笔记，不触发整页或邻页 OCR；Agent 测试确认 OCR 警告保留且全页/邻页材料不发送。
+  - [x] 结果保留预览和显式追加，使用目标页 revision 写入保护；入口、上下文、预览展示与启动烟测在 API 34 平板 AVD 定向通过。
+  - _Requirement: 页面准备与 OCR、Agent 与模型_
+
 - [x] 10. 端侧 Agent 与 OpenAI 兼容接入（客户端、任务循环、读写工具、单页/批量任务 UI 均已落地，真模型与真机待 task 12）
   - OpenAI 兼容客户端，支持 BaseURL/Key/模型名配置，默认可配本地中转与指定模型。
   - [x] Android 模型设置 UI、Keystore 加密 Key 存储与本地中转可达性说明，契约见 `features/openai-model-settings.md`，实施拆分见 `openai-model-settings-plan.md`；debug/release 网络策略和本地构建验证通过，设置导航及 Keystore 仪器测试已在 API 35 AVD 执行通过。
@@ -99,7 +105,7 @@
 
 - [ ] 12. 小米目标设备验收（当前只支持 Android 14/API 34 小米平板 5 Pro 骁龙 870；API 34 AVD 仅作平台代理。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
   - [ ] 在小米平板 5 Pro 实机走通阅读、按页笔记保存/重载、标注与 Agent、离线 OCR 和手写笔工作流；实体笔硬件行为单独记录。
-  - API 34 AVD 只跑当前代码改动所需的聚焦仪器回归；Markdown 预览当前为一项测试和一张截图，见 task 5.5。
+  - API 34 AVD 只跑当前代码改动所需的聚焦仪器回归；Markdown 预览当前为一项测试和一张截图，见 task 5.5。下方历史矩阵不要求为普通功能切片重跑。
   - 机型无关契约/JVM 测试按受影响模块运行；不再运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。
   - 16 KB 页大小及公开商店合规检查移出当前验收；如目标 SDK 或商店发布政策触发，再作为独立发布门禁启用。
     - [x] 保留本地化 Compose 下的 Activity Result owner；应用单测、instrumentation 编译与 APK 编译通过；最终 arm64 APK 真机重装后冷启动返回 `Status: ok`、338 ms，未见应用 fatal 崩溃日志。

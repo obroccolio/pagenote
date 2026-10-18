@@ -110,6 +110,10 @@
   <string name="page_tutor_action">AI explain</string>
   <string name="page_tutor_title">AI tutor: page %1$d</string>
   <string name="page_tutor_instruction">Explanation instruction</string>
+  <string name="page_tutor_region_label">Selected OCR region</string>
+  <string name="page_tutor_explain_region">Explain this region</string>
+  <string name="page_tutor_region_default_instruction">Explain the selected region. Clarify the key idea and reasoning, and give an example if helpful.</string>
+  <string name="page_tutor_region_stale">This OCR result no longer matches the open document page. Run region OCR again.</string>
   <string name="page_tutor_default_instruction">Explain the main ideas and key reasoning on this page. Use an example when it helps.</string>
   <string name="page_tutor_explain">Generate explanation</string>
   <string name="page_tutor_add_to_note">Add to page note</string>

@@ -110,6 +110,10 @@
   <string name="page_tutor_action">AI 讲解</string>
   <string name="page_tutor_title">AI 讲解：第 %1$d 页</string>
   <string name="page_tutor_instruction">讲解要求</string>
+  <string name="page_tutor_region_label">已识别区域</string>
+  <string name="page_tutor_explain_region">讲解此区域</string>
+  <string name="page_tutor_region_default_instruction">请讲解选中的区域，说明核心概念和推理过程；有帮助时请举例。</string>
+  <string name="page_tutor_region_stale">此 OCR 结果已与当前打开的页面不匹配，请重新识别该区域。</string>
   <string name="page_tutor_default_instruction">请解释本页的核心内容和关键推理；有帮助时请举例说明。</string>
   <string name="page_tutor_explain">生成讲解</string>
   <string name="page_tutor_add_to_note">加入本页笔记</string>

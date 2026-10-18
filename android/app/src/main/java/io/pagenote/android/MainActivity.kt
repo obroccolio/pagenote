@@ -277,12 +277,14 @@ private fun ReaderHome(
   var isOcrRunning by remember { mutableStateOf(false) }
   var readerOcrState by remember { mutableStateOf(ReaderOcrState()) }
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
+  var regionOcrContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var isOpening by readerSession.isOpening
   var showSettings by remember { mutableStateOf(false) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
+  var pageTutorRegionContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var pageTutorInstruction by remember {
     mutableStateOf(context.getString(R.string.page_tutor_default_instruction))
   }
@@ -588,6 +590,7 @@ private fun ReaderHome(
     val targetPage = request.pageIndex ?: return
     val selection = request.selection ?: return
     val documentId = activeProject.manifest.id
+    regionOcrContext = null
     scope.launch {
       var input: Bitmap? = null
       suspend fun finish(result: OcrResult) {
@@ -595,6 +598,17 @@ private fun ReaderHome(
           pageIndex == targetPage && readerOcrState.mode == ReaderOcrMode.RECOGNIZING
         ) {
           regionOcrResult = result
+          regionOcrContext = PageTutorRegionContext.fromResult(
+            projectId = documentId,
+            projectUri = activeProject.sourceDirectoryUri.toString(),
+            pageIndex = targetPage,
+            sourceRevision = activeRenderer.sourceRevision,
+            region = selection,
+            rendererIdentity = activeRenderer,
+            result = result,
+            label = context.getString(R.string.page_tutor_region_label),
+            reviewWarning = context.getString(R.string.ocr_review),
+          )
           readerOcrState = readerOcrState.showResult()
         }
       }
@@ -664,6 +678,22 @@ private fun ReaderHome(
     val activeMarkdown = markdownSource
     val activeRenderer = renderer
     if (activeRenderer == null && activeMarkdown == null) return
+    val focusContext = pageTutorRegionContext
+    fun focusIsCurrent(): Boolean = focusContext == null || (
+      activeRenderer != null && renderer === activeRenderer &&
+        project?.manifest?.id == activeProject.manifest.id && pageIndex == targetPageIndex &&
+        focusContext.matches(
+          activeProject.manifest.id,
+          activeProject.sourceDirectoryUri.toString(),
+          targetPageIndex,
+          activeRenderer.sourceRevision,
+          activeRenderer,
+        )
+      )
+    if (!focusIsCurrent()) {
+      pageTutorError = context.getString(R.string.page_tutor_region_stale)
+      return
+    }
     scope.launch {
       pageTutorInstruction = instruction
       isPageTutorRunning = true
@@ -671,9 +701,17 @@ private fun ReaderHome(
       pageTutorResult = null
       pageTutorResultInstruction = null
       try {
+        if (!focusIsCurrent()) {
+          pageTutorError = context.getString(R.string.page_tutor_region_stale)
+          return@launch
+        }
         val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
         if (hasUnsavedChanges && !saveCurrentNote()) {
           pageTutorError = noteStatus ?: context.getString(R.string.note_save_failed, "")
+          return@launch
+        }
+        if (!focusIsCurrent()) {
+          pageTutorError = context.getString(R.string.page_tutor_region_stale)
           return@launch
         }
 
@@ -686,7 +724,14 @@ private fun ReaderHome(
         }
         val currentSource: PageTutorSourceText
         val neighbors: List<PageRequest.PageMaterial>
-        if (activeMarkdown != null) {
+        if (focusContext != null) {
+          currentSource = PageTutorSourceText(
+            text = "",
+            usedOcr = true,
+            warnings = focusContext.focus.warnings,
+          )
+          neighbors = emptyList()
+        } else if (activeMarkdown != null) {
           val text = MarkdownSourcePages.pageAt(activeMarkdown, targetPageIndex + 1)
           if (text.isBlank()) {
             throw PageTutorSourceException("Markdown 源本页为空。")
@@ -746,9 +791,12 @@ private fun ReaderHome(
             noteRevision = expectedRevision,
             sourceWarnings = currentSource.warnings,
             neighbors = neighbors,
+            focus = focusContext?.focus,
           ),
         )
-        if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex) {
+        if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex ||
+          !focusIsCurrent()
+        ) {
           pageTutorError = context.getString(R.string.page_tutor_conflict)
         } else {
           pageTutorResult = result
@@ -805,6 +853,7 @@ private fun ReaderHome(
         } ?: context.getString(R.string.page_tutor_saved)
         pageTutorResult = null
         pageTutorResultInstruction = null
+        pageTutorRegionContext = null
         showPageTutor = false
       } catch (conflict: PageNoteConflictException) {
         pageTutorError = context.getString(R.string.page_tutor_conflict)
@@ -1244,6 +1293,8 @@ private fun ReaderHome(
       ocrResult = null
       showOcrResult = false
       regionOcrResult = null
+      regionOcrContext = null
+      pageTutorRegionContext = null
       readerOcrState = ReaderOcrState()
       readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
       penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
@@ -1457,6 +1508,7 @@ private fun ReaderHome(
             !readerOcrState.inputLocked,
           disabledReason = commandReason(requireProject = true),
         ) {
+          pageTutorRegionContext = null
           pageTutorResult = null
           pageTutorResultInstruction = null
           pageTutorError = null
@@ -1990,7 +2042,40 @@ private fun ReaderHome(
       OcrResultDialog(
         page = (readerOcrState.pageIndex ?: pageIndex) + 1,
         result = result,
-        onDismiss = { readerOcrState = readerOcrState.dismissResult() },
+        onDismiss = {
+          readerOcrState = readerOcrState.dismissResult()
+          regionOcrContext = null
+        },
+        onExplainRegion = {
+          val activeProject = project
+          val activeRenderer = renderer
+          val regionContext = regionOcrContext
+          val resultPage = readerOcrState.pageIndex
+          val current = activeProject != null && activeRenderer != null && regionContext != null &&
+            resultPage != null && readerOcrState.selection == regionContext.region &&
+            resultPage == pageIndex && regionContext.matches(
+              activeProject.manifest.id,
+              activeProject.sourceDirectoryUri.toString(),
+              pageIndex,
+              activeRenderer.sourceRevision,
+              activeRenderer,
+            )
+          if (current) {
+            pageTutorRegionContext = regionContext
+            pageTutorInstruction = context.getString(R.string.page_tutor_region_default_instruction)
+            pageTutorResult = null
+            pageTutorResultInstruction = null
+            pageTutorError = null
+            regionOcrResult = null
+            regionOcrContext = null
+            readerOcrState = readerOcrState.dismissResult()
+            showPageTutor = true
+          } else {
+            errorMessage = context.getString(R.string.page_tutor_region_stale)
+            readerOcrState = readerOcrState.dismissResult()
+            regionOcrContext = null
+          }
+        },
       )
     }
   }
@@ -2008,6 +2093,7 @@ private fun ReaderHome(
   if (showPageTutor && project != null && (renderer != null || markdownSource != null)) {
     PageTutorDialog(
       page = pageIndex + 1,
+      focus = pageTutorRegionContext?.focus,
       instruction = pageTutorInstruction,
       previewInstruction = pageTutorResultInstruction,
       isRunning = isPageTutorRunning,
@@ -2020,6 +2106,7 @@ private fun ReaderHome(
       onAppend = ::appendPageTutorResult,
       onDismiss = {
         showPageTutor = false
+        pageTutorRegionContext = null
         pageTutorResult = null
         pageTutorResultInstruction = null
         pageTutorError = null
@@ -3488,6 +3575,7 @@ internal fun OcrResultDialog(
   page: Int,
   result: OcrResult,
   onDismiss: () -> Unit,
+  onExplainRegion: (() -> Unit)? = null,
 ) {
   val needsReview = OcrResultPolicy.needsVisualReview(result)
   AlertDialog(
@@ -3526,8 +3614,18 @@ internal fun OcrResultDialog(
       }
     },
     confirmButton = {
-      TextButton(modifier = Modifier.testTag("ocr_result_close"), onClick = onDismiss) {
-        Text(stringResource(R.string.close))
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onExplainRegion != null && PageTutorRegionContext.isUsable(result)) {
+          TextButton(
+            modifier = Modifier.testTag("ocr_result_explain_region"),
+            onClick = onExplainRegion,
+          ) {
+            Text(stringResource(R.string.page_tutor_explain_region))
+          }
+        }
+        TextButton(modifier = Modifier.testTag("ocr_result_close"), onClick = onDismiss) {
+          Text(stringResource(R.string.close))
+        }
       }
     },
   )

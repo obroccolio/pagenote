@@ -6,7 +6,7 @@ Connect the bundled offline OCR engine to the PDF reader through an explicit cur
 
 The action renders a separate bitmap from the active PDF page, runs the reusable on-device engine away from the UI thread, and presents recognized text, per-block confidence, normalized positions, and warnings. The reader's displayed bitmap remains owned by the PDF view and is never passed to OCR or recycled by it.
 
-This slice does not auto-trigger OCR, merge native PDF text, persist prepared-page caches, or implement region selection; the region workflow is specified separately in `reader-ocr-selection.md`.
+The full-page OCR action remains explicit. Page Tutor may run lazy current-page OCR only after the user starts that workflow. When Page Tutor starts from a successful region OCR result, it reuses the selected region text and must not run full-page OCR again. This spec does not merge OCR and native text or define persistent prepared-page caches; region selection and caching are specified separately in `reader-ocr-selection.md`.
 
 ## Behavior
 

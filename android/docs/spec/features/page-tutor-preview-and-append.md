@@ -8,7 +8,7 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 
 1. With a PDF project open, the user opens the page tutor and may edit a default explanation instruction.
 2. Before sending a request, the app saves a dirty current-page note. A failed save aborts the request.
-3. The app reads selectable PDF text for the current page and its immediate neighbors. If the current page has no usable native text, the app runs the bundled offline OCR on that page before using the network. It never sends an empty source page.
+3. For a normal page request, the app reads selectable PDF text for the current page and its immediate neighbors. If the current page has no usable native text, the app runs bundled offline OCR on that page before using the network. When the request is opened from a successful region OCR result, the app reuses that region's text, confidence, and warnings without running full-page or neighbor OCR again. It never sends an empty source page.
 4. The app sends one page-scoped request through the configured OpenAI-compatible chat client. The current page is the primary material; available previous/next pages are context only. Each page is capped as specified below. Project material is untrusted study content, not tool instructions. No local Agent tools are exposed to this request.
 5. The model response is shown as a preview and does not modify project files automatically.
 6. On explicit confirmation, the app appends the explanation to the current page using the page revision captured before the request. Other pages are preserved. A stale revision rejects the append and leaves the latest note untouched.
@@ -16,7 +16,7 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 ## Contracts
 
 - The page tutor uses `ChatClient.complete` directly; it must not parse ordinary Markdown as `DONE` or as an Agent tool call.
-- Requests carry document ID, one-based target page, total page count, user instruction, current source text, current note, note revision, and at most the immediately adjacent previous and next source pages.
+- Requests carry document ID, one-based target page, total page count, user instruction, current source text, current note, note revision, and at most the immediately adjacent previous and next source pages. Region-focused requests use only the selected OCR region as source text and carry no neighbor material.
 - Each PDF page's text sent to the model is capped at 20,000 Kotlin string characters, matching desktop `prepare_task`'s default `maxChars`. Truncation is explicit in the preview warnings; it is never silent.
 - A missing API key opens the existing model settings flow without sending a request. Model, PDF, OCR, timeout, HTTP, and empty-response failures are surfaced without changing notes.
 - OCR-derived input retains its warnings. The preview tells the user to verify OCR-based explanations against the original PDF when the OCR result is incomplete, warned, or low-confidence.
@@ -33,6 +33,8 @@ Add the first user-facing Android Agent workflow: explain one open PDF page with
 - When the user requests an explanation without a valid model configuration, the Android app shall open model settings and shall not call the model.
 - When the current page has native text, the Android app shall use it without invoking OCR.
 - When the current page has no usable native text, the Android app shall use bundled offline OCR before calling the model and shall retain any OCR warnings in the preview.
+- When Page Tutor is opened from a successful region OCR result, the Android app shall reuse that result and shall not invoke full-page OCR or neighbor OCR for the same request.
+- When a region-focused request uses low-confidence or partial OCR, the Android app shall retain the confidence warning in the preview and expose the selected excerpt in the dialog before model execution.
 - When the user requests an explanation, the Android app shall send only the target page and available immediate neighbors, with the current page's note and revision, and shall not use the Agent tool loop.
 - When the model returns Markdown, the Android app shall show it in a preview while leaving project notes unchanged.
 - When the user confirms an append and the page revision is unchanged, the Android app shall append only to that page and preserve every other page.

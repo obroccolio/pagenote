@@ -1,13 +1,13 @@
 # Android 桌面功能区与 Office 编辑对齐
 
-> 状态：桌面菜单分组和自适应侧栏方向已由发起人确认；导航实施契约见 `adaptive-menu-navigation.md`。本文记录完整桌面功能/Office 终态，Office 引擎实现仍需单独完成可行性验证，不视为已批准或已实现。
-> 当前设备仅为小米平板 5 Pro（Android 14/API 34）。手机布局、其他机型和 API 35/16 KB 测试不是当前验收门槛；本文件中的完整 Office 矩阵仅在相应功能进入实施时执行。
+> 状态：桌面菜单分组和自适应侧栏方向已由发起人确认；导航实施契约见 `adaptive-menu-navigation.md`。Android 当前只支持 PDF/Markdown；Word/PowerPoint 编辑留在桌面端。下方 Office 集成段落是早期探索记录，已被父 SPEC 的当前范围覆盖，不是实现要求或验收门禁。
+> 当前设备仅为小米平板 5 Pro（Android 14/API 34）。手机布局、其他机型和 API 35/16 KB 测试不是当前验收门槛。
 
 ## 1. 目标与边界
 
 Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组、命令语义、颜色和阅读/笔记工作区；交互改为 Compose 原生、触控与手写笔优先。目标是信息架构和功能一致，不是把桌面 42px 工具条缩小贴到手机上。
 
-桌面当前接受 PDF、Word、PowerPoint 和 Markdown 文件。Android 终态须在本机读取、预览并编辑 `.doc`、`.docx`、`.ppt`、`.pptx`，不能把 Office 文档排除在首版范围之外，也不能把“安装另一个 Office app”作为完成条件。Android 不提供桌面 MCP server；端内 Agent 承接相同学习工作流和提示词/数据契约。
+桌面当前接受 PDF、Word、PowerPoint 和 Markdown 文件。Android 的移动端范围只包含 PDF/Markdown 与轻量 Markdown 笔记；复杂 Office 文档回桌面处理。Android 不提供桌面 MCP server；端内 Agent 承接移动端学习工作流和提示词/数据契约。
 
 不把电子表格、账号体系、云协作或远程文档转换服务纳入此 SPEC；它们不是当前桌面导入格式/本机流程的等价移植目标。
 
@@ -33,7 +33,7 @@ Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组�
 | 插入 | 代码、公式、表格、链接、图片、Markdown 格式粘贴 |
 | 阅读 | 页码输入与跳转、上一页/下一页、缩放、适合窗口、重置视口 |
 | 手写批注 | 选择、笔、荧光笔、橡皮、线/箭头/形状/文字、颜色/宽度、撤销/重做、复制/粘贴/图片/删除 |
-| Word 编辑 | 打开当前 Office 文档编辑、选中文字转 AI 批注、保存并返回阅读 |
+| Word 编辑 | 禁用并说明需要回桌面端处理 |
 | 设置 | 外观、Markdown 主题、语言、笔记分页动画、双栏比例、模型设置 |
 | 使用说明 | 当前版本帮助、快捷键、隐私/许可证与诊断入口 |
 
@@ -54,7 +54,7 @@ Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组�
 
 Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只作桌面字形参考，不打包私有字体。保持桌面蓝色焦点/选中语义、轻分隔线、紧凑信息密度和克制圆角；触控目标不低于 Android 无障碍建议尺寸。深浅主题、focus、disabled、pressed、错误和保存状态都须有独立可读对比度。文档像素不随 UI 主题反色。
 
-## 4. Office 文档集成
+## 4. Historical Office proposal (not in current scope)
 
 ### 4.1 用户可见行为
 

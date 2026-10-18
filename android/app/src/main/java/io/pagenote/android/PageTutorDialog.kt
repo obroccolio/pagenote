@@ -27,11 +27,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
+import io.pagenote.agent.PageTutorFocus
 import io.pagenote.agent.PageTutorResult
 
 @Composable
 internal fun PageTutorDialog(
   page: Int,
+  focus: PageTutorFocus? = null,
   instruction: String,
   previewInstruction: String?,
   isRunning: Boolean,
@@ -72,6 +74,22 @@ internal fun PageTutorDialog(
           maxLines = 4,
           enabled = !isBusy,
         )
+        focus?.let { selected ->
+          Column(
+            modifier = Modifier.fillMaxWidth().testTag("page_tutor_region_focus"),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
+            Text(selected.label, style = MaterialTheme.typography.titleSmall)
+            Text(selected.text, style = MaterialTheme.typography.bodySmall)
+            selected.warnings.forEach { warning ->
+              Text(
+                warning,
+                color = MaterialTheme.colorScheme.tertiary,
+                style = MaterialTheme.typography.bodySmall,
+              )
+            }
+          }
+        }
         if (isBusy) {
           Row(
             verticalAlignment = Alignment.CenterVertically,

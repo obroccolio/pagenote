@@ -41,6 +41,71 @@ class PageTutorTest {
   }
 
   @Test
+  fun focusRequestUsesOnlySelectedRegionAndTargetPageNote() = runBlocking {
+    val chat = RecordingChatClient("A focused explanation.")
+    val request = request().copy(
+      sourceText = "full-page OCR must stay out of focus mode",
+      noteMarkdown = "target page note",
+      neighbors = listOf(
+        PageRequest.PageMaterial(page = 2, text = "previous page must stay out"),
+        PageRequest.PageMaterial(page = 4, text = "next page must stay out"),
+      ),
+      focus = PageTutorFocus(
+        label = "Selected equation",
+        text = "region OCR excerpt",
+        warnings = listOf("OCR confidence is low; verify the original region."),
+      ),
+    )
+
+    val result = PageTutor(chat).explain(endpoint, request)
+
+    val userMessage = chat.messages.single { it["role"] == "user" }["content"].orEmpty()
+    assertTrue(userMessage.contains("Selected-region OCR"))
+    assertTrue(userMessage.contains("untrusted"))
+    assertTrue(userMessage.contains("Selected equation"))
+    assertTrue(userMessage.contains("region OCR excerpt"))
+    assertTrue(userMessage.contains("target page note"))
+    assertTrue(userMessage.contains("expectedRevision: note-revision-3"))
+    assertFalse(userMessage.contains("full-page OCR must stay out"))
+    assertFalse(userMessage.contains("previous page must stay out"))
+    assertFalse(userMessage.contains("next page must stay out"))
+    assertEquals(listOf("OCR confidence is low; verify the original region."), result.warnings)
+  }
+
+  @Test
+  fun rejectsBlankFocusBeforeCallingClient() = runBlocking {
+    val chat = RecordingChatClient("unused")
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking {
+        PageTutor(chat).explain(
+          endpoint,
+          request().copy(focus = PageTutorFocus(label = "Selected region", text = " \n ")),
+        )
+      }
+    }
+    assertEquals(0, chat.calls)
+  }
+
+  @Test
+  fun capsFocusTextAtTwentyThousandCharactersWithExplicitWarning() = runBlocking {
+    val chat = RecordingChatClient("Explanation")
+    val request = request().copy(
+      focus = PageTutorFocus(
+        label = "Selected region",
+        text = "r".repeat(PageTutor.MAX_PAGE_TEXT_CHARS) + "FOCUS_TAIL",
+      ),
+    )
+
+    val result = PageTutor(chat).explain(endpoint, request)
+    val userMessage = chat.messages.single { it["role"] == "user" }["content"].orEmpty()
+
+    assertTrue(userMessage.contains("r".repeat(PageTutor.MAX_PAGE_TEXT_CHARS)))
+    assertFalse(userMessage.contains("FOCUS_TAIL"))
+    assertTrue(result.warnings.contains("Selected region OCR text was truncated to 20000 characters."))
+  }
+
+  @Test
   fun capsEachPdfPageAtTwentyThousandCharactersWithWarnings() = runBlocking {
     val chat = RecordingChatClient("Explanation")
     val request = request().copy(

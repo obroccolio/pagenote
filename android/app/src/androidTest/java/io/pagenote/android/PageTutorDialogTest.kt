@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.pagenote.agent.PageTutorResult
+import io.pagenote.agent.PageTutorFocus
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -104,6 +105,21 @@ class PageTutorDialogTest {
   }
 
   @Test
+  fun showsSelectedRegionTextAndWarningsBeforeRequest() {
+    setDialog(
+      focus = PageTutorFocus(
+        label = "Selected OCR region",
+        text = "1. selected equation (91%)",
+        warnings = listOf("OCR confidence is low; verify the original page."),
+      ),
+    )
+
+    composeRule.onNodeWithTag("page_tutor_region_focus").assertIsDisplayed()
+    composeRule.onNodeWithText("1. selected equation (91%)").assertIsDisplayed()
+    composeRule.onNodeWithText("OCR confidence is low; verify the original page.").assertIsDisplayed()
+  }
+
+  @Test
   fun preventsDismissalWhileRequestIsRunning() {
     setDialog(isRunning = true)
 
@@ -136,6 +152,7 @@ class PageTutorDialogTest {
     instruction: String = "Explain this page.",
     noteWritable: Boolean = true,
     preview: PageTutorResult? = null,
+    focus: PageTutorFocus? = null,
     previewInstruction: String? = if (preview == null) null else instruction,
     errorMessage: String? = null,
     onAppend: () -> Unit = {},
@@ -144,6 +161,7 @@ class PageTutorDialogTest {
       MaterialTheme {
         PageTutorDialog(
           page = 2,
+          focus = focus,
           instruction = instruction,
           previewInstruction = previewInstruction,
           isRunning = isRunning,
