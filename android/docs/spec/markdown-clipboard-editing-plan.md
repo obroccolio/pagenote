@@ -32,23 +32,26 @@
 **Files:**
 
 - Modify: `android/app/src/main/java/io/pagenote/android/MainActivity.kt`
+- Modify: `android/app/src/main/res/values/strings.xml`
+- Modify: `android/app/src/main/res/values-zh-rCN/strings.xml`
 - Test: `android/app/src/androidTest/java/io/pagenote/android/NoteMarkdownClipboardActivityTest.kt`
 - Modify: `android/docs/spec/tasks.md`
 - Modify: `CHANGELOG.md`
 
 **Interface:** 仅使用现有 `markdownEditor: EditText?`、`noteSelection: TextRange?`、`noteWritable` 和 `menuBusy`；不增加跨模块 API。
 
-- [ ] **Step 1: Write the failing reader test**
+- [x] **Step 1: Write the failing reader test**
   - `menuClipboardCommandsCopyCutSelectAllAndSaveOnlyCurrentPage`：基于两页 SAF fixture；项目未打开及预览状态下编辑命令禁用；打开可写页后无选区时剪切/复制禁用；反向选择 `Selected` 后复制菜单启用，剪贴板得到精确文本且草稿不变；剪切菜单移除该范围、剪贴板保持同一文本；全选后编辑器选择区为 `0..text.length`；保存重读后只第 1 页变更、第 2 页不变。
-- [ ] **Step 2: Verify RED on the sole API 34 tablet AVD**
+- [x] **Step 2: Verify RED on the sole API 34 tablet AVD**
   - 用显式 serial 和方法过滤器只执行该测试；预期失败于当前命令仍禁用。
-- [ ] **Step 3: Implement guarded native edit commands**
+- [x] **Step 3: Implement guarded native edit commands**
   - 剪切/复制仅在 `noteSelection` 非空时启用，全选仅在可写编辑器可用时启用；启用条件还要求 `!menuBusy`。
+  - 为不可用编辑器和无选区的剪切/复制提供中英文明确禁用原因；剪切与复制使用各自的剪贴板标签。
   - handler 执行时重新读取并规范化 `selectionStart`/`selectionEnd`；复制写 `ClipData.newPlainText`，剪切随后删除所选 `Editable` 并收起光标，全选设置 `0..text.length`。
   - 保留原生 TextWatcher 驱动草稿；不直接设置 `noteDraft`，不自动保存。
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
   - 重跑同一个 API 34 平板仪器用例，确认所有菜单、剪贴板、草稿和按页保存断言通过。
-- [ ] **Step 5: Verify focused JVM tests, build and diff**
+- [x] **Step 5: Verify focused JVM tests, build and diff**
   - 运行受影响 app JVM 测试与 `:app:assembleDebug`；运行 `git diff --check`。
   - 完成父任务 20 和本计划状态，更新 CHANGELOG 测试记录。
 - [ ] **Step 6: Commit and push**

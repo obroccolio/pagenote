@@ -93,6 +93,8 @@
   <string name="reader_menu_underline">下划线</string>
   <string name="reader_menu_format_placeholder">文字</string>
   <string name="reader_menu_note_editor_required">请在可写笔记的编辑模式中使用格式命令。</string>
+  <string name="reader_menu_text_editor_required">请在可写笔记的编辑模式中编辑文本。</string>
+  <string name="reader_menu_text_selection_required">请先选择笔记文本。</string>
   <string name="reader_menu_code">代码块</string>
   <string name="reader_menu_code_placeholder">代码</string>
   <string name="reader_menu_formula">公式</string>

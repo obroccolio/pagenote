@@ -1,7 +1,8 @@
 package io.pagenote.android
 
-import android.content.Context
+import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -2303,6 +2304,11 @@ private fun ReaderHome(
   val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
   val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_note_editor_required) else null
+  val hasNoteSelection = noteSelection?.let { it.start != it.end } == true
+  val markdownClipboardDisabledReason = commandReason(requireProject = true, requireWritable = true)
+    ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_text_editor_required) else null
+  val markdownSelectionDisabledReason = markdownClipboardDisabledReason
+    ?: if (!hasNoteSelection) context.getString(R.string.reader_menu_text_selection_required) else null
   val canInsertMarkdownImage = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
   val markdownImageDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canInsertMarkdownImage) context.getString(R.string.reader_menu_image_editor_required) else null
@@ -2374,6 +2380,31 @@ private fun ReaderHome(
     editor.requestFocus()
     editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
     editor.setSelection(edit.cursor)
+  }
+
+  fun applyMarkdownClipboardCommand(cut: Boolean) {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    val length = editor.text.length
+    val start = minOf(editor.selectionStart, editor.selectionEnd).coerceIn(0, length)
+    val end = maxOf(editor.selectionStart, editor.selectionEnd).coerceIn(0, length)
+    if (start == end) return
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+    val selectedText = editor.text.subSequence(start, end).toString()
+    val label = context.getString(if (cut) R.string.reader_menu_cut else R.string.reader_menu_copy)
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, selectedText))
+    if (cut) {
+      editor.requestFocus()
+      editor.text.delete(start, end)
+      editor.setSelection(start)
+    }
+  }
+
+  fun selectAllMarkdown() {
+    val editor = markdownEditor ?: return
+    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    editor.requestFocus()
+    editor.setSelection(0, editor.text.length)
   }
 
   fun pendingCommand(id: String, labelRes: Int) = actionCommand(
@@ -2535,9 +2566,18 @@ private fun ReaderHome(
       listOf(
         pendingCommand("note_undo", R.string.reader_menu_edit_undo),
         pendingCommand("note_redo", R.string.reader_menu_edit_redo),
-        pendingCommand("cut", R.string.reader_menu_cut),
-        pendingCommand("copy", R.string.reader_menu_copy),
-        pendingCommand("select_all", R.string.reader_menu_select_all),
+        actionCommand(
+          "cut", R.string.reader_menu_cut,
+          canFormatMarkdown && hasNoteSelection, markdownSelectionDisabledReason,
+        ) { applyMarkdownClipboardCommand(cut = true) },
+        actionCommand(
+          "copy", R.string.reader_menu_copy,
+          canFormatMarkdown && hasNoteSelection, markdownSelectionDisabledReason,
+        ) { applyMarkdownClipboardCommand(cut = false) },
+        actionCommand(
+          "select_all", R.string.reader_menu_select_all,
+          canFormatMarkdown, markdownClipboardDisabledReason,
+        ) { selectAllMarkdown() },
       ),
     ),
     menuSection(

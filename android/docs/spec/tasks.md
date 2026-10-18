@@ -198,8 +198,8 @@
   - 契约见 `features/project-create-optional-pdf.md`，实施拆分见 `project-create-optional-pdf-plan.md`。
   - _Requirement: 项目与数据兼容、PDF 阅读与笔记_
 
-- [ ] 20. Markdown 编辑器剪切/复制/全选（操作当前页原文和系统剪贴板；剪切更新草稿，保存继续按 revision 保护）
+- [x] 20. Markdown 编辑器剪切/复制/全选（操作当前页原文和系统剪贴板；剪切更新草稿，保存继续按 revision 保护）
   - 剪切/复制只在有非空选区时启用，全选只在可写编辑器可用时启用；预览、只读、无项目和忙碌时禁用。
-  - 一个 Android 14/API 34 平板 AVD 仪器用例覆盖反向 UTF-16 选区、剪贴板、草稿及两页保存；相关 app JVM 测试与 `:app:assembleDebug` 通过。
+  - `menuClipboardCommandsCopyCutSelectAllAndSaveOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖反向 UTF-16 选区、剪贴板、草稿、全选、预览门控及两页保存；`:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-clipboard-editing.md`，实施拆分见 `markdown-clipboard-editing-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
