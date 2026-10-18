@@ -177,3 +177,10 @@
   - `PageJumpPolicyTest` 3 项通过；真实 `MainActivity` 的页码校验、脏笔记保存/冲突保留、目标页笔迹/视口加载及保存中防重入测试在 API 34 / 4 KB、API 35 / 4 KB、API 35 / 16 KB 平板 AVD 各通过 3/3。
   - 新鲜 app/Agent JVM 测试 178/178、56/56；Android instrumentation Kotlin 编译和 `assembleDebug` 通过；四 ABI APK 通过 16 KB 对齐检查。
   - _Requirement: 阅读与笔记，桌面页码导航语义一致_
+
+- [ ] 17. 笔记导出（`File > Export notes` 支持桌面 v1 整份 JSON 备份和当前页完整 Markdown，通过 SAF 选择输出位置；不写项目源文件）
+  - 脏可写页先走既有 revision 保存；只读项目中的恢复草稿只覆盖导出快照，不写回项目。
+  - 验证单个聚焦 JVM payload 测试、一个 Android 14/API 34 平板 AVD 导出闭环和 `:app:assembleDebug`；不扩展其他设备/API 矩阵。
+  - JSON 备份导入留作后续独立功能切片。
+  - 契约见 `features/note-export.md`，实施拆分见 `note-export-plan.md`。
+  - _Requirement: 桌面菜单分组与数据导入/导出一致性_

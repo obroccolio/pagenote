@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- 编写 Android 笔记导出 SPEC：定义桌面兼容 v1 JSON 备份与当前页 Markdown 两种 SAF 输出，明确脏草稿、只读恢复草稿、取消/失败语义及单 AVD 验证范围。仅 SPEC/计划/任务文档变更，无应用行为或公开二进制变化。
 - 收敛安卓 SPEC 的日常测试门槛：目标锁定 Android 14/API 34 小米平板 5 Pro（骁龙 870），仅跑受影响的契约/JVM 测试与 Debug 构建；相关 UI/系统改动最多增加一个 API 34 平板 AVD 聚焦用例，真机只做任务清单规定的一轮代表性验收。API 35、16 KB、手机及其他机型历史结果只作审计记录。仅文档变更，无应用行为或公开二进制变化。
 - Finalize the Android clipboard image paste implementation plan after focused tests, independent review, and source push; documentation tracking only, with no additional app behavior or public binary change. / 在聚焦测试、独立审查和源码推送完成后，收尾安卓剪贴板图片粘贴实施计划；本次仅更新文档追踪，不增加应用行为，也不发布公开二进制。
 - Enable Insert > Paste image for writable Android Markdown notes. Clipboard access occurs only after an explicit tap; supported local image URIs reuse the existing validated SAF import and rollback, with MIME-based fallback for missing provider names. The image is inserted into the current draft and renders offline after save/reopen. Two focused JVM tests, one Android 14/API 34 tablet AVD no-image/import/preview/save flow, and `:app:assembleDebug` pass. The AVD is a proxy, not Xiaomi Pad 5 Pro hardware validation; local source change only, no public binary release. / 安卓可写 Markdown 笔记现可使用 Insert > Paste image；仅在用户主动点击后读取剪贴板，受支持的本地图片 URI 复用 SAF 导入校验与回滚，Provider 缺少名称时按 MIME 安全回退。图片写入当前草稿，保存重开后可离线预览。2 个聚焦 JVM 测试、单项 Android 14/API 34 平板 AVD 无图拒绝/导入/预览/保存流程及 `:app:assembleDebug` 通过。AVD 仅作代理，不能代表小米平板 5 Pro 真机验收；仅本地源码变更，未发布公开二进制。
