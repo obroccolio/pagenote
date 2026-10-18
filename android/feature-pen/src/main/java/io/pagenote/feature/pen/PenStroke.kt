@@ -21,6 +21,7 @@ data class PenStroke(
   val text: String? = null,
   val html: String? = null,
   val url: String? = null,
+  val extraFields: Map<String, Any?> = emptyMap(),
 ) {
   /** Serializes to one annotations.json item; pressure rides along in "pressures". */
   fun toAnnotationsItem(): Map<String, Any?> {
@@ -34,7 +35,16 @@ data class PenStroke(
     if (text != null) item["text"] = text
     if (html != null) item["html"] = html
     if (url != null) item["url"] = url
+    extraFields.forEach { (key, value) ->
+      if (key !in CANONICAL_ANNOTATION_FIELDS) item[key] = value
+    }
     return item
+  }
+
+  companion object {
+    internal val CANONICAL_ANNOTATION_FIELDS = setOf(
+      "type", "color", "width", "points", "pressures", "text", "html", "url",
+    )
   }
 }
 

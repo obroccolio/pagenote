@@ -157,6 +157,11 @@ class PenPageStore(
         ?: PenValidation.DEFAULT_PRESSURE
       PenPoint(x, y, pressure)
     }
+    val extraFields = map.entries
+      .mapNotNull { (key, value) ->
+        (key as? String)?.takeIf { it !in PenStroke.CANONICAL_ANNOTATION_FIELDS }?.let { it to value }
+      }
+      .toMap(linkedMapOf())
     return PenStroke(
       type = type,
       color = color,
@@ -165,6 +170,7 @@ class PenPageStore(
       text = map["text"] as? String,
       html = map["html"] as? String,
       url = map["url"] as? String,
+      extraFields = extraFields,
     )
   }
 }

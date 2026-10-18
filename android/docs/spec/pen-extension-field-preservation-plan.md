@@ -38,10 +38,10 @@
 - `PenStroke.toAnnotationsItem()` emits canonical fields and then non-conflicting extension fields.
 - `PenPageStore.loadAnnotationsMap()` separates canonical keys from extension keys and carries the latter through returned strokes.
 
-- [ ] Write `replacingChangedPagePreservesNestedFieldsOnRetainedFreehandStrokes`; load a raw stroke with nested object/array metadata into `PenPageStore`, add a new stroke, merge the page, and assert the retained item has identical metadata and all canonical fields remain unchanged.
-- [ ] Extend `emptyReplacementRemovesOnlyPenAndHighlighterItems` with a nested extension field on a freehand item and verify removing the item also removes its fields.
-- [ ] Run the focused test and confirm it fails because the loaded stroke loses the extension field.
-- [ ] Add extension-field preservation to `PenStroke` parsing and serialization without changing erase/clear behavior.
-- [ ] Run the focused `AnnotationPageMergerTest` and `:feature-pen:testDebugUnitTest`.
-- [ ] Build `:app:assembleDebug` and run `git diff --check`.
-- [ ] Update `android/docs/spec/tasks.md` and `CHANGELOG.md`, then commit and push the feature to `fork/codex/android-port`.
+- [x] Write `replacingChangedPagePreservesNestedFieldsOnRetainedFreehandStrokes`; load a raw stroke with nested object/array metadata into `PenPageStore`, add a new stroke, merge the page, and assert the retained item has identical metadata and all canonical fields remain unchanged.
+- [x] Extend `emptyReplacementRemovesOnlyPenAndHighlighterItems` with a nested extension field on a freehand item and verify removing the item also removes its fields.
+- [x] Run the focused test and confirm it fails because the loaded stroke loses the extension field.
+- [x] Add extension-field preservation to `PenStroke` parsing and serialization without changing erase/clear behavior.
+- [x] Run the focused `AnnotationPageMergerTest` and `:feature-pen:testDebugUnitTest`.
+- [x] Build `:app:assembleDebug` and run `git diff --check`.
+- [x] Update `android/docs/spec/tasks.md` and `CHANGELOG.md`, then commit and push the feature to `fork/codex/android-port`.
