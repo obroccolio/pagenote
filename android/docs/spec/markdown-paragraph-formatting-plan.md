@@ -14,7 +14,7 @@
 
 - 当前目标仅为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；API 34 平板 AVD 仅作平台代理。
 - 桌面当前富文本主路径用浏览器块命令；Android 源码编辑器按桌面 `setupMarkdownTools` 的源码前缀回退路径实现。该语义与浏览器的列表 toggle 不完全相同，但保留源码、易预测且避免有损替换。
-- 标题仅支持桌面现有 1–3 级。`task_list` 会继续禁用，因为桌面富文本主路径以待办占位符替换选区；字号无 Markdown 表示。
+- 标题仅支持桌面现有 1–3 级。`task_list` 在 Android 源码模式沿用 `src/editing.js` 的 `- [ ] ` 逐行前缀；字号无 Markdown 表示。
 - 仅运行相关 JVM 测试、一个 API 34 平板 AVD 聚焦仪器测试和 Debug APK 构建。
 - 每次推送都更新根 `CHANGELOG.md`；当前分支 `codex/android-port`，远端个人 fork。
 
@@ -69,7 +69,7 @@
 - [x] **Step 3: Implement guarded menu actions and heading level dialog**
   - 添加 helper 应用函数，调用前重新检查编辑器可写/busy；使用 `Editable.replace` 并折叠光标。
   - 标题命令只打开 1/2/3 级对话框，确认时应用，取消不改文本。
-  - 只替换 `heading`、`unordered_list`、`ordered_list`、`quote` 四项；保留字号和 `task_list` 为禁用。
+  - 接通 `heading`、`unordered_list`、`ordered_list`、`task_list`、`quote`；保留字号为禁用。
 - [x] **Step 4: Verify the focused API 34 reader flow**
   - 重跑该方法；确认 watcher、保存和当前页范围符合断言。
 - [x] **Step 5: Focused tests, Debug APK, and push**

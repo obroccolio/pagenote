@@ -48,7 +48,7 @@
   - [x] 5.6 补齐删除线和 GFM 任务列表的 Android Markwon 预览渲染，并确认源码编辑保留标记；不实现点按勾选或写回。渲染器仪器类 12/12 在唯一 API 34 平板 AVD 通过，notes/app JVM 测试及 Debug 应用/测试 APK 构建通过。契约见 `features/markdown-gfm-basics.md`。
   - [x] 5.7 接通可写笔记编辑器中的粗体、斜体、删除线菜单命令；保持桌面 Markdown 标记、UTF-16 选区、自动草稿恢复和 revision 保存语义。5 个格式化 JVM 用例、单项 API 34 平板 AVD 保存/预览闭环和 Debug APK 构建通过；小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-inline-formatting.md`，实施见 `markdown-inline-formatting-plan.md`。
   - [x] 5.8 接通可写页笔记的项目图片插入：通过 Android 文档选择器导入到 `src/assets/`，限制 200 MiB/2400 万像素并验证 MIME 与真实解码，插入相对 Markdown 引用；取消/SAF 写入失败不改草稿，保存重开后仍可离线预览。6 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 导入/回滚/预览/保存仪器流程及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。剪贴板图片粘贴继续作为后续独立工作。契约见 `features/markdown-image-insertion.md`，实施见 `markdown-image-insertion-plan.md`。
-  - [x] 5.9 接通标题 1–3、无序/有序列表和引用源码前缀格式化；继续禁用字号和有损占位式任务列表。按桌面源码编辑模式回退语义处理多行选区、保留 UTF-16 光标并只更新当前页草稿。8 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 标题/列表/引用/保存/预览仪器流程 1/1 及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-paragraph-formatting.md`，实施见 `markdown-paragraph-formatting-plan.md`。
+  - [x] 5.9 接通标题 1–3、无序/有序列表和引用源码前缀格式化；字号继续禁用。按桌面源码编辑模式回退语义处理多行选区、保留 UTF-16 光标并只更新当前页草稿。8 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 标题/列表/引用/保存/预览仪器流程 1/1 及 Debug APK 构建通过；任务列表前缀见 task 23。小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-paragraph-formatting.md`，实施见 `markdown-paragraph-formatting-plan.md`。
   - [x] 5.10 接通 Insert > Code block：复用桌面源码模式的 `python` fenced block，保留正文并选中围栏内部；折叠选区插入本地化 `Code`/`代码` 占位词，更新草稿但不自动保存。5 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 阅读/保存/预览仪器流程 1/1 及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-code-block-insertion.md`，实施见 `markdown-code-block-insertion-plan.md`。
   - [x] 5.11 接通 Insert > Formula：精确复用桌面源码模式 `$$` 块公式，保留所选 TeX 并选中正文；折叠选区插入并选中 `E=mc^2`，草稿仅更新当前页。5 个聚焦 JVM 用例、唯一 API 34 平板 AVD 编辑/保存/真实 LaTeX 预览仪器流程 1/1 及 `:app:assembleDebug` 通过；AVD 仅作代理，小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-formula-insertion.md`，实施见 `markdown-formula-insertion-plan.md`。
   - [x] 5.12 接通 Insert > Table：沿用桌面源码模式双列表格模板，以模板替换选区并把光标置于末尾；草稿只更新当前页，通过 GFM renderer 预览。4 个聚焦 JVM 用例、唯一 API 34 平板 AVD 编辑/保存/TableRowSpan 预览流程 1/1 及 `:app:assembleDebug` 通过；AVD 仅作代理，小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-table-insertion.md`，实施见 `markdown-table-insertion-plan.md`。
@@ -214,4 +214,10 @@
   - 插入只改当前页草稿；保存仍按 revision 保护，预览复用现有 Markdown renderer。
   - `linkCommandWrapsSelectionInsertsAndSelectsPlaceholderSavesOnlyCurrentPage` 在唯一 Android 14/API 34 平板 AVD 通过（1/1），覆盖无项目/预览门控、反向选区、空选区占位词、标签 selection、两页保存和可点击链接 span；4 个 helper JVM 用例、完整 `:app:testDebugUnitTest` 与 `:app:assembleDebug` 通过。小米平板 5 Pro 实机验收仍归 task 12。
   - 契约见 `features/markdown-link-insertion.md`，实施拆分见 `markdown-link-insertion-plan.md`。
+  - _Requirement: 桌面菜单语义一致、阅读与笔记_
+
+- [ ] 23. Markdown 编辑器任务列表前缀（沿用桌面源码模式逐行添加 `- [ ] `；预览 checkbox 不点按写回）
+  - 复用既有段落变换、可写门控和 GFM renderer；字号仍禁用。
+  - 验收覆盖多行/空行前缀、只读/预览门控、当前页保存、相邻页隔离及未完成 `TaskListSpan`；运行聚焦 JVM、唯一 API 34 平板 AVD 仪器测试及 Debug 构建。
+  - 契约见 `features/markdown-task-list-insertion.md`，实施拆分见 `markdown-task-list-insertion-plan.md`。
   - _Requirement: 桌面菜单语义一致、阅读与笔记_
