@@ -41,15 +41,23 @@ Let a user turn selected Markdown note source into a located `selection` AI revi
 
 ## Verification
 
-- JVM tests cover valid/invalid selection bounds, whitespace-only selections, exact UTF-16 offsets including supplementary characters, quote/context limits, and review-apply authorization for changed, unchanged, failed, and wrong-page writes.
-- Instrumentation tests cover native EditText selection reporting, menu enablement, quote display, cancel-without-write, and a real SAF-provider review JSON round trip.
-- Agent tests cover list summaries, ID detail reads, rich selection metadata, and rejection of premature `applied` status.
-- Run the full Android JVM suite, app/test APK compilation, and `assembleDebug`; run focused instrumentation tests on API 34 and API 35 16 KB AVDs when available.
+- [x] JVM tests cover valid/invalid selection bounds, whitespace-only selections, exact UTF-16 offsets including supplementary characters, quote/context limits, and review-apply authorization for changed, unchanged, failed, and wrong-page writes.
+- [x] Instrumentation tests cover native EditText selection reporting, menu enablement, quote display, cancel-without-write, and a real SAF-provider review JSON round trip.
+- [x] Agent tests cover list summaries, ID detail reads, rich selection metadata, and rejection of premature `applied` status.
+- [x] `./gradlew :app:testDebugUnitTest :agent:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug --offline` succeeded. The two JVM tasks were up-to-date in this run; a forced fresh rerun of both JVM tasks passed with 171 app tests and 56 Agent tests, with zero failures, errors, or skips. Android test Kotlin compilation and `assembleDebug` succeeded.
+- [x] The focused classes `NoteSelectionReviewUiTest` (7), `ExistingProjectSafRoundTripTest` (6), `ReviewUiErrorMessageTest` (2), and `ReviewHandoffUiTest` (5) passed, 20/20 on each tested AVD: `Pixel_Tablet_API34` (API 34, 4096-byte pages), `Pixel_Tablet` (API 35, 4096-byte pages), and `Pixel_Tablet_16KB` (API 35, 16384-byte pages). Results had zero failures, errors, or skips.
+
+## Verification Limits
+
+- Full Activity open-project and dirty-save failure interactions were not end-to-end tested.
+- Source-PDF and Office text selection are not implemented. Physical-device and physical-pen behavior were not tested.
+- Generic SAF has no cross-process compare-and-swap; review-store serialization covers app-process instances only.
+- Unsaved-draft process-reclamation recovery is already implemented and tested separately under task 15, including the API 34 SIGKILL task-recovery smoke test. That coverage is separate from selection-review verification.
 
 ## Implementation Tasks
 
-- [ ] Add a pure selection-draft model and boundary validation.
-- [ ] Track note-editor selection and wire the existing menu action to the review dialog after revision-checked note save.
-- [ ] Extend SAF review creation/list rendering to preserve and display selection fields.
-- [ ] Return selection details through Agent review reads and guard applied status using same-run changed-page evidence; remove manual apply status control.
-- [ ] Add JVM, Compose/AndroidView, SAF-provider, and Agent regression coverage; build and run focused AVD instrumentation.
+- [x] Add a pure selection-draft model and boundary validation.
+- [x] Track note-editor selection and wire the existing menu action to the review dialog after revision-checked note save.
+- [x] Extend SAF review creation/list rendering to preserve and display selection fields.
+- [x] Return selection details through Agent review reads and guard applied status using same-run changed-page evidence; remove manual apply status control.
+- [x] Add JVM, Compose/AndroidView, SAF-provider, and Agent regression coverage; build and run focused AVD instrumentation.
