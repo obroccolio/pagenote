@@ -54,5 +54,5 @@
 - [x] **Step 5: Verify focused JVM tests, build and diff**
   - 运行受影响 app JVM 测试与 `:app:assembleDebug`；运行 `git diff --check`。
   - 完成父任务 20 和本计划状态，更新 CHANGELOG 测试记录。
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
   - 提交实现与测试、CHANGELOG、任务状态；推送至 `fork/codex/android-port`。
