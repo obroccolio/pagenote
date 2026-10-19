@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -27,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -56,6 +58,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
         {"type":"line","color":"#dc3545","width":4,"points":[[600,600],[800,600]]}
       ]
     """) as JsonArray)
+    val untouchedOtherPage = Json.parseToJsonElement("""
+      [{"type":"rect","color":"#00aa88","width":3,"points":[[20,30],[70,80]],"pageOnly":"keep"}]
+    """) as JsonArray
+    annotations.writePage("document", 2, untouchedOtherPage)
     val originalStroke = PenStroke(
       type = "pen",
       color = "#185abd",
@@ -91,6 +97,11 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val width = canvas.fetchSemanticsNode().size.width.toFloat()
       canvas.performTouchInput {
         click(Offset(width * 0.25f, width * 0.10f))
+      }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+        }.isSuccess
       }
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
 
@@ -164,6 +175,64 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.waitForIdle()
       composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsNotEnabled()
       assertEquals(4, annotations.readPage("document", 1).size)
+
+      clipboard.setPrimaryClip(
+        ClipData.newHtmlText(
+          "rich HTML",
+          "Rich note",
+          "<h2 onclick=\"run()\">Rich <b>note</b></h2><script>owned()</script>" +
+            "<img src=\"https://example.invalid/remote.png\">",
+        ),
+      )
+      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsEnabled().performClick()
+      waitForAnnotations(annotations) { it.size == 5 }
+      val htmlItem = annotations.readPage("document", 1)[4] as JsonObject
+      val safeHtml = htmlItem["html"]?.jsonPrimitive?.content.orEmpty()
+      assertEquals("html", htmlItem["type"]?.jsonPrimitive?.content)
+      assertTrue(safeHtml.contains("<b>note</b>"))
+      assertTrue(!safeHtml.contains("script", ignoreCase = true))
+      assertTrue(!safeHtml.contains("onclick", ignoreCase = true))
+      assertTrue(!safeHtml.contains("example.invalid", ignoreCase = true))
+
+      val desktopItem = JsonObject(htmlItem + ("custom" to JsonPrimitive("preserve")))
+      clipboard.setPrimaryClip(
+        ClipData.newPlainText("desktop HTML annotation", PdfAnnotationClipboard.encode(desktopItem)),
+      )
+      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.size == 6 }
+      assertEquals("preserve", (annotations.readPage("document", 1)[5] as JsonObject)["custom"]?.jsonPrimitive?.content)
+
+      canvas.performTouchInput { click(Offset(width * 0.25f, width * 0.12f)) }
+      canvas.performTouchInput {
+        down(Offset(width * 0.25f, width * 0.12f))
+        moveTo(Offset(width * 0.30f, width * 0.17f), delayMillis = 500)
+        up()
+      }
+      waitForAnnotations(annotations) {
+        (it[5] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1])) } == true
+      }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+        }.isSuccess
+      }
+      composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) {
+        val copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+          ?.let(PdfAnnotationClipboard::decode)
+        copied?.let(::points)?.let { pointsNear(it, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1])) } == true
+      }
+      val copiedHtml = PdfAnnotationClipboard.decode(clipboard.primaryClip!!.getItemAt(0).text.toString())!!
+      val copiedHtmlText = copiedHtml["html"]!!.jsonPrimitive.content
+      assertTrue(!copiedHtmlText.contains("script", ignoreCase = true))
+      assertTrue(!copiedHtmlText.contains("example.invalid", ignoreCase = true))
+      composeRule.onNodeWithTag("reader_menu_command_delete_ink").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.size == 5 }
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.size == 6 }
+      assertEquals("html", (annotations.readPage("document", 1)[5] as JsonObject)["type"]?.jsonPrimitive?.content)
+      assertEquals(untouchedOtherPage, annotations.readPage("document", 2))
+      assertEquals(listOf(originalStroke), projectPenStore.readPage(PenSide.DOCUMENT, 1))
     } finally {
       composeRule.runOnUiThread {
         session.replaceRenderer(null)
@@ -217,6 +286,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
     canvas.drawColor(android.graphics.Color.WHITE)
     canvas.drawText("Annotation clipboard", 50f, 70f, Paint(Paint.ANTI_ALIAS_FLAG))
     document.finishPage(page)
+    val secondPage = document.startPage(PdfDocument.PageInfo.Builder(612, 792, 2).create())
+    secondPage.canvas.drawColor(android.graphics.Color.WHITE)
+    secondPage.canvas.drawText("Second page", 50f, 70f, Paint(Paint.ANTI_ALIAS_FLAG))
+    document.finishPage(secondPage)
     return ByteArrayOutputStream().use { output ->
       try {
         document.writeTo(output)

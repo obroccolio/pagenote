@@ -37,6 +37,7 @@ data class PdfAnnotationOverlayItem(
   val width: Double,
   val text: String?,
   val imageAssetName: String? = null,
+  val html: String? = null,
   val sourceIndex: Int = -1,
 ) {
   companion object {
@@ -52,7 +53,7 @@ data class PdfAnnotationOverlayItem(
       val item = element as? JsonObject ?: return null
       val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?: return null
-      if (type != "rect" && type != "text" && type != "image" && type !in vectorTypes) return null
+      if (type != "rect" && type != "text" && type != "image" && type != "html" && type !in vectorTypes) return null
       val color = item["color"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?.takeIf(colorPattern::matches) ?: return null
       val width = item["width"]?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
@@ -77,14 +78,14 @@ data class PdfAnnotationOverlayItem(
       } else {
         points
       }
-      val normalizedPoints = if (type == "rect" || type == "ellipse") {
+      val normalizedPoints = if (type == "rect" || type == "ellipse" || type == "html") {
         val first = completePoints[0]
         val second = completePoints[1]
         val left = minOf(first.first, second.first)
         val top = minOf(first.second, second.second)
         val right = maxOf(first.first, second.first)
         val bottom = maxOf(first.second, second.second)
-        if (type == "rect" && (left == right || top == bottom)) return null
+        if ((type == "rect" || type == "html") && (left == right || top == bottom)) return null
         listOf(left to top, right to bottom)
       } else {
         completePoints
@@ -104,6 +105,12 @@ data class PdfAnnotationOverlayItem(
       }
       val text = item["text"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
       if (type == "text" && text.isNullOrBlank()) return null
+      val html = if (type == "html") {
+        item["html"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+          ?.takeIf { it.length <= MAX_HTML_CHARS } ?: return null
+      } else {
+        null
+      }
       return PdfAnnotationOverlayItem(
         type = type,
         points = normalizedPoints,
@@ -111,11 +118,13 @@ data class PdfAnnotationOverlayItem(
         width = width,
         text = text,
         imageAssetName = imageAssetName,
+        html = html,
         sourceIndex = sourceIndex,
       )
     }
 
     private const val MAX_COORDINATE = 1_000_000.0
+    private const val MAX_HTML_CHARS = 100_000
   }
 }
 
@@ -124,6 +133,7 @@ internal fun PdfAnnotationOverlay(
   items: List<PdfAnnotationOverlayItem>,
   modifier: Modifier = Modifier,
   images: Map<String, Bitmap> = emptyMap(),
+  htmlBitmaps: Map<Int, Bitmap> = emptyMap(),
   selectedBounds: PdfAnnotationBounds? = null,
   showResizeHandle: Boolean = true,
 ) {
@@ -203,6 +213,28 @@ internal fun PdfAnnotationOverlay(
               (point.second * pageWidthScale + index * textSize * 1.4f).toFloat(),
               paint,
             )
+          }
+        }
+        "html" -> {
+          val first = item.points[0]
+          val second = item.points[1]
+          val topLeft = toPixel(first)
+          val width = ((second.first - first.first) * pageWidthScale).toFloat()
+          val height = ((second.second - first.second) * pageWidthScale).toFloat()
+          if (width > 0f && height > 0f) {
+            val bitmap = htmlBitmaps[item.sourceIndex]
+            if (bitmap != null && !bitmap.isRecycled) {
+              drawImage(
+                image = bitmap.asImageBitmap(),
+                dstOffset = IntOffset(topLeft.x.toInt(), topLeft.y.toInt()),
+                dstSize = IntSize(width.toInt().coerceAtLeast(1), height.toInt().coerceAtLeast(1)),
+                filterQuality = FilterQuality.Medium,
+              )
+            } else {
+              val imageSize = Size(width, height)
+              drawRect(Color(0xFFF5F8FD), topLeft, imageSize)
+              drawRect(color, topLeft, imageSize, style = Stroke(width = strokeWidth))
+            }
           }
         }
         "line", "arrow" -> {

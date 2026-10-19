@@ -21,7 +21,9 @@ import android.view.Choreographer
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.KeyEvent
+import android.view.View
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModelProvider
@@ -337,6 +339,13 @@ private data class NoteImportWriteResult(
   val recoveryCopyName: String?,
 )
 
+private data class AnnotationOverlayLoad(
+  val page: JsonArray,
+  val items: List<PdfAnnotationOverlayItem>,
+  val images: Map<String, Bitmap>,
+  val htmlBitmaps: Map<Int, Bitmap>,
+)
+
 internal fun Bitmap.recycleAfterDrawFrames() {
   if (isRecycled) return
   if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -386,6 +395,10 @@ private fun ReaderHome(
   val densityScale = LocalDensity.current.density
   val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
+  val richHtmlRenderer = remember(context) { RichHtmlAnnotationRenderer(context) }
+  DisposableEffect(richHtmlRenderer) {
+    onDispose { richHtmlRenderer.close() }
+  }
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   var project by readerSession.project
   var renderer by readerSession.renderer
@@ -511,6 +524,7 @@ private fun ReaderHome(
     mutableStateOf(JsonArray(emptyList()))
   }
   var annotationOverlayImages by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+  var annotationOverlayHtmlBitmaps by remember { mutableStateOf<Map<Int, Bitmap>>(emptyMap()) }
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
   var selectedAnnotationIndex by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
     mutableStateOf<Int?>(null)
@@ -731,6 +745,14 @@ private fun ReaderHome(
     ?.getItemAt(0)
     ?.text
     ?.toString()
+
+  fun annotationClipboardHtml(): String? = context.getSystemService(ClipboardManager::class.java)
+    ?.primaryClip
+    ?.takeIf { it.itemCount > 0 }
+    ?.getItemAt(0)
+    ?.htmlText
+    ?.toString()
+    ?.takeIf { it.isNotBlank() && it.length <= RichHtmlAnnotationRenderer.MAX_HTML_CHARS }
 
   fun nativeAnnotationClipboardForPaste(): JsonObject? {
     val item = annotationClipboardText()?.let(PdfAnnotationClipboard::decode) ?: return null
@@ -971,13 +993,50 @@ private fun ReaderHome(
         penStatus = context.getString(R.string.pen_clipboard_unavailable)
         return
       }
-      clipboard.setPrimaryClip(
-        ClipData.newPlainText(
-          context.getString(R.string.reader_menu_copy_ink),
-          stroke?.let(PenClipboardCodec::encode) ?: PdfAnnotationClipboard.encode(checkNotNull(annotation)),
-        ),
-      )
-      penStatus = context.getString(R.string.pen_copied)
+      val annotationType = annotation?.get("type")?.let {
+        runCatching { it.jsonPrimitive.content }.getOrNull()
+      }
+      if (stroke == null && annotationType == "html") {
+        val source = checkNotNull(annotation)
+        val html = source["html"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+          ?: throw IllegalArgumentException("HTML annotation has no content")
+        val targetProjectId = project?.manifest?.id
+        val targetPage = pageIndex + 1
+        scope.launch {
+          try {
+            val sanitized = withContext(Dispatchers.IO) {
+              val rendered = richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = 1)
+              try {
+                rendered.sanitizedHtml
+              } finally {
+                rendered.bitmap.recycle()
+              }
+            }
+            if (project?.manifest?.id != targetProjectId || pageIndex + 1 != targetPage) {
+              penStatus = context.getString(R.string.annotation_html_stale)
+              return@launch
+            }
+            val safeAnnotation = JsonObject(source + ("html" to JsonPrimitive(sanitized)))
+            clipboard.setPrimaryClip(
+              ClipData.newPlainText(
+                context.getString(R.string.reader_menu_copy_ink),
+                PdfAnnotationClipboard.encode(safeAnnotation),
+              ),
+            )
+            penStatus = context.getString(R.string.pen_copied)
+          } catch (error: Exception) {
+            penStatus = context.getString(R.string.annotation_html_failed, error.message ?: "")
+          }
+        }
+      } else {
+        clipboard.setPrimaryClip(
+          ClipData.newPlainText(
+            context.getString(R.string.reader_menu_copy_ink),
+            stroke?.let(PenClipboardCodec::encode) ?: PdfAnnotationClipboard.encode(checkNotNull(annotation)),
+          ),
+        )
+        penStatus = context.getString(R.string.pen_copied)
+      }
     } catch (_: Exception) {
       penStatus = context.getString(R.string.pen_copy_failed)
     }
@@ -999,6 +1058,82 @@ private fun ReaderHome(
     if (stroke == null) {
       val item = nativeAnnotationClipboardForPaste()
       val targetProject = project
+      val clipboardHtml = annotationClipboardHtml()
+      val markedHtml = item?.takeIf {
+        it["type"]?.let { type -> runCatching { type.jsonPrimitive.content }.getOrNull() } == "html"
+      }
+      if (clipboardHtml != null || markedHtml != null) {
+        if (targetProject == null || !penWritable || markdownSource != null) {
+          penStatus = context.getString(R.string.reader_menu_read_only)
+          return
+        }
+        val targetProjectId = targetProject.manifest.id
+        val targetSourceUri = targetProject.sourceDirectoryUri
+        val targetPage = pageIndex + 1
+        val sourceHtml = markedHtml?.get("html")?.let {
+          runCatching { it.jsonPrimitive.content }.getOrNull()
+        } ?: clipboardHtml
+        if (sourceHtml.isNullOrBlank() || sourceHtml.length > RichHtmlAnnotationRenderer.MAX_HTML_CHARS) {
+          penStatus = context.getString(R.string.annotation_html_failed, "HTML is empty or too large")
+          return
+        }
+        scope.launch {
+          var rendered: RenderedRichHtmlAnnotation? = null
+          try {
+            val safeRender = withContext(Dispatchers.IO) {
+              richHtmlRenderer.render(sourceHtml, widthCssPx = 500, heightCssPx = null)
+            }
+            rendered = safeRender
+            if (
+              project?.manifest?.id != targetProjectId ||
+              project?.sourceDirectoryUri != targetSourceUri ||
+              pageIndex + 1 != targetPage || !penWritable
+            ) {
+              penStatus = context.getString(R.string.annotation_html_stale)
+              return@launch
+            }
+            val pasted = if (markedHtml != null) {
+              val safeItem = JsonObject(markedHtml + ("html" to JsonPrimitive(safeRender.sanitizedHtml)))
+              PdfAnnotationClipboard.pasteAt(safeItem)
+            } else {
+              kotlinx.serialization.json.buildJsonObject {
+                put("type", JsonPrimitive("html"))
+                put("color", JsonPrimitive(penStyle.color))
+                put("width", JsonPrimitive(penStyle.width.toDouble()))
+                put("points", kotlinx.serialization.json.buildJsonArray {
+                  add(kotlinx.serialization.json.buildJsonArray {
+                    add(JsonPrimitive(80.0))
+                    add(JsonPrimitive(90.0))
+                  })
+                  val height = maxOf(60, safeRender.contentHeightPx + 20).toDouble()
+                  add(kotlinx.serialization.json.buildJsonArray {
+                    add(JsonPrimitive(580.0))
+                    add(JsonPrimitive(90.0 + height))
+                  })
+                })
+                put("html", JsonPrimitive(safeRender.sanitizedHtml))
+              }
+            }
+            if (pasted == null) {
+              penStatus = context.getString(R.string.annotation_html_failed, "HTML annotation is invalid")
+              return@launch
+            }
+            val before = annotationPageItems
+            persistNativeAnnotationPage(
+              targetPage = targetPage,
+              before = before,
+              after = JsonArray(before + pasted),
+              selectedAfter = before.size,
+            )
+          } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            penStatus = context.getString(R.string.annotation_html_failed, error.message ?: "")
+          } finally {
+            rendered?.bitmap?.let { if (!it.isRecycled) it.recycle() }
+          }
+        }
+        return
+      }
       val pasted = item?.let(PdfAnnotationClipboard::pasteAt)
       if (pasted == null || targetProject == null) {
         penStatus = context.getString(R.string.pen_clipboard_invalid)
@@ -2897,11 +3032,14 @@ private fun ReaderHome(
   ) {
     annotationOverlayItems = emptyList()
     annotationPageItems = JsonArray(emptyList())
-    annotationOverlayImages.values.forEach { if (!it.isRecycled) it.recycle() }
+    annotationOverlayImages.values.forEach(Bitmap::recycleAfterDrawFrames)
     annotationOverlayImages = emptyMap()
+    annotationOverlayHtmlBitmaps.values.forEach(Bitmap::recycleAfterDrawFrames)
+    annotationOverlayHtmlBitmaps = emptyMap()
     val currentProject = activeProject
     if (currentProject != null && activeRenderer != null) {
-      val loaded: Triple<JsonArray, List<PdfAnnotationOverlayItem>, Map<String, Bitmap>> = withContext(Dispatchers.IO) {
+      val targetPage = pageIndex + 1
+      val loaded = withContext(Dispatchers.IO) {
         runCatching {
           val page = ProjectAnnotationStore(
             context.contentResolver,
@@ -2911,6 +3049,7 @@ private fun ReaderHome(
           val items = PdfAnnotationOverlayItem.fromPage(page)
           val imageLoader = PdfAnnotationImageLoader(context.contentResolver, currentProject.sourceDirectoryUri)
           val images = linkedMapOf<String, Bitmap>()
+          val htmlBitmaps = linkedMapOf<Int, Bitmap>()
           var decodedPixels = 0L
           items.mapNotNull(PdfAnnotationOverlayItem::imageAssetName)
             .distinct()
@@ -2924,14 +3063,50 @@ private fun ReaderHome(
                 image.recycle()
               }
             }
-          Triple(page, items, images)
+          items.filter { it.type == "html" }.forEach { overlayItem ->
+            val item = page.getOrNull(overlayItem.sourceIndex) as? JsonObject ?: return@forEach
+            val bounds = PdfAnnotationClipboard.bounds(item) ?: return@forEach
+            val width = (bounds.right - bounds.left).roundToInt().coerceAtLeast(1)
+            val height = (bounds.bottom - bounds.top).roundToInt().coerceAtLeast(1)
+            if (width > RichHtmlAnnotationRenderer.MAX_SIDE_PX || height > RichHtmlAnnotationRenderer.MAX_SIDE_PX) {
+              return@forEach
+            }
+            val density = context.resources.displayMetrics.density
+            val expectedWidth = kotlin.math.ceil(width * density).toLong()
+            val expectedHeight = kotlin.math.ceil(height * density).toLong()
+            if (expectedWidth * expectedHeight > MAX_ANNOTATION_PAGE_IMAGE_PIXELS - decodedPixels) {
+              return@forEach
+            }
+            val html = overlayItem.html ?: return@forEach
+            val rendered = runCatching {
+              richHtmlRenderer.render(html, width, height)
+            }.getOrNull() ?: return@forEach
+            val pixels = rendered.bitmap.width.toLong() * rendered.bitmap.height
+            if (decodedPixels + pixels <= MAX_ANNOTATION_PAGE_IMAGE_PIXELS) {
+              htmlBitmaps[overlayItem.sourceIndex] = rendered.bitmap
+              decodedPixels += pixels
+            } else {
+              rendered.bitmap.recycle()
+            }
+          }
+          AnnotationOverlayLoad(page, items, images, htmlBitmaps)
         }.getOrElse {
-          Triple(JsonArray(emptyList()), emptyList<PdfAnnotationOverlayItem>(), emptyMap<String, Bitmap>())
+          AnnotationOverlayLoad(JsonArray(emptyList()), emptyList(), emptyMap(), emptyMap())
         }
       }
-      annotationPageItems = loaded.first
-      annotationOverlayItems = loaded.second
-      annotationOverlayImages = loaded.third
+      if (
+        project?.manifest?.id != currentProject.manifest.id ||
+        project?.sourceDirectoryUri != currentProject.sourceDirectoryUri ||
+        renderer !== activeRenderer || pageIndex + 1 != targetPage
+      ) {
+        loaded.images.values.forEach { if (!it.isRecycled) it.recycle() }
+        loaded.htmlBitmaps.values.forEach { if (!it.isRecycled) it.recycle() }
+        return@LaunchedEffect
+      }
+      annotationPageItems = loaded.page
+      annotationOverlayItems = loaded.items
+      annotationOverlayImages = loaded.images
+      annotationOverlayHtmlBitmaps = loaded.htmlBitmaps
     }
   }
   val totalPages = when {
@@ -3290,7 +3465,7 @@ private fun ReaderHome(
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
   val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
-    clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null
+    clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null || annotationClipboardHtml() != null
   }
 
   fun pdfImageInsertionContextIsCurrent(pending: PendingPdfImageInsertion): Boolean =
@@ -3954,6 +4129,17 @@ private fun ReaderHome(
   )
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    AndroidView(
+      modifier = Modifier.size(1.dp).align(Alignment.TopStart),
+      factory = { viewContext ->
+        FrameLayout(viewContext).apply {
+          importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+          isClickable = false
+          richHtmlRenderer.attachTo(this)
+        }
+      },
+      update = {},
+    )
     val menuLayout = ReaderMenuLayout.forWidth(maxWidth.value.toInt())
     LaunchedEffect(menuLayout) {
       if (menuLayout != ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = false
@@ -4127,7 +4313,8 @@ private fun ReaderHome(
                   (annotationPageItems.getOrNull(index) as? JsonObject)?.get("type")
                     ?.let { runCatching { it.jsonPrimitive.content != "text" }.getOrNull() }
                 } == true,
-              annotationImages = annotationOverlayImages,
+                annotationImages = annotationOverlayImages,
+                annotationHtmlBitmaps = annotationOverlayHtmlBitmaps,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -4255,7 +4442,8 @@ private fun ReaderHome(
                   (annotationPageItems.getOrNull(index) as? JsonObject)?.get("type")
                     ?.let { runCatching { it.jsonPrimitive.content != "text" }.getOrNull() }
                 } == true,
-              annotationImages = annotationOverlayImages,
+                annotationImages = annotationOverlayImages,
+                annotationHtmlBitmaps = annotationOverlayHtmlBitmaps,
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
@@ -5749,6 +5937,7 @@ internal fun PdfPageViewport(
   page: Int,
   annotations: List<PdfAnnotationOverlayItem> = emptyList(),
   annotationImages: Map<String, Bitmap> = emptyMap(),
+  annotationHtmlBitmaps: Map<Int, Bitmap> = emptyMap(),
   selectedAnnotationBounds: PdfAnnotationBounds? = null,
   selectedAnnotationResizable: Boolean = false,
   loading: Boolean,
@@ -5976,6 +6165,7 @@ internal fun PdfPageViewport(
           PdfAnnotationOverlay(
             annotations,
             images = annotationImages,
+            htmlBitmaps = annotationHtmlBitmaps,
             selectedBounds = selectedAnnotationBounds,
             showResizeHandle = selectedAnnotationResizable,
           )

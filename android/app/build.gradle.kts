@@ -23,6 +23,14 @@ android {
     getByName("release") {
       isMinifyEnabled = false
     }
+    create("beta") {
+      initWith(getByName("release"))
+      applicationIdSuffix = ".beta"
+      versionNameSuffix = "-beta.1"
+      signingConfig = signingConfigs.getByName("debug")
+      isDebuggable = false
+      matchingFallbacks += listOf("release")
+    }
   }
   splits {
     abi {

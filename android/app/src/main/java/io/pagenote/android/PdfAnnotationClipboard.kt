@@ -29,7 +29,7 @@ internal data class PdfAnnotationBounds(
 internal object PdfAnnotationClipboard {
   const val MARKER = "PAGE_NOTES_ANNOTATION:\n"
   const val MAX_PAYLOAD_CHARS = 1_000_000
-  private val supportedTypes = setOf("line", "arrow", "rect", "ellipse", "text", "image")
+  private val supportedTypes = setOf("line", "arrow", "rect", "ellipse", "text", "image", "html")
   private val json = Json
 
   fun encode(item: JsonObject): String {
@@ -107,6 +107,11 @@ internal object PdfAnnotationClipboard {
           x in (bounds.left - tolerance)..(bounds.right + tolerance) &&
             y in (bounds.top - tolerance)..(bounds.bottom + tolerance)
         }
+        "html" -> {
+          val bounds = bounds(item) ?: return@firstOrNull false
+          x in (bounds.left - tolerance)..(bounds.right + tolerance) &&
+            y in (bounds.top - tolerance)..(bounds.bottom + tolerance)
+        }
         "rect" -> rectangleBorderHit(item, x, y, tolerance)
         "ellipse" -> ellipseBorderHit(item, x, y, tolerance)
         else -> false
@@ -151,6 +156,7 @@ internal object PdfAnnotationClipboard {
 
   private fun isSupported(item: JsonObject): Boolean {
     if (item.type() !in supportedTypes) return false
+    if (item.type() == "html" && item.pagePoints()?.size != 2) return false
     return runCatching { AnnotationValidation.validateItems(JsonArray(listOf(item))) }.isSuccess
   }
 

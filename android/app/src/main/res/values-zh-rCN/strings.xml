@@ -1,4 +1,5 @@
 <resources>
+  <string name="app_name">pagenote</string>
   <string name="reader_settings_title">阅读设置</string>
   <string name="reader_settings_loading">正在读取阅读设置…</string>
   <string name="reader_settings_load_error_title">无法读取阅读设置</string>
@@ -158,6 +159,8 @@
   <string name="annotation_shape_ellipse">椭圆</string>
   <string name="annotation_saving">正在保存批注...</string>
   <string name="annotation_drag_invalid">请在 PDF 页面内拖出非零尺寸。</string>
+  <string name="annotation_html_failed">无法处理富 HTML 批注：%1$s</string>
+  <string name="annotation_html_stale">处理 HTML 时文档或页面已切换，没有粘贴内容。</string>
   <string name="pen_color_hex_label">自定义 RGB 颜色（#RRGGBB）</string>
   <string name="pen_color_invalid">请输入六位 RGB 颜色，例如 #185abd。</string>
   <string name="pen_width_thin">细</string>

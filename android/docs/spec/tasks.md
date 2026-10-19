@@ -262,9 +262,9 @@
   - _Requirement: 手写笔迹操作、桌面剪贴板数据兼容_
 
 - [x] 29. PDF 原生批注选择与剪贴板（线/箭头/矩形/椭圆/文字/项目图片，单选、拖动、复制、粘贴、删除与页级撤销）
-  - 与笔迹选择共用 Select/Copy/Paste/Delete 菜单，但普通 overlay 批注继续由 `ProjectAnnotationStore` 管理；笔/荧光笔仍走独立 `PenPageStore`。Android 暂不支持的 HTML 批注拒绝粘贴；图片仅允许引用当前项目已有资源。
+  - 与笔迹选择共用 Select/Copy/Paste/Delete 菜单，但普通 overlay 批注继续由 `ProjectAnnotationStore` 管理；笔/荧光笔仍走独立 `PenPageStore`。图片仅允许引用当前项目已有资源；富 HTML 行为由 task 38 补齐。
   - 契约见 `features/pdf-annotation-selection-clipboard.md`，实施拆分见 `pdf-annotation-selection-clipboard-plan.md`。唯一 Android 14/API 34 平板 AVD 聚焦验证；小米 Pad 5 Pro 实机验收仍归 task 12。
-  - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
+  - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；HTML 批注由 task 38 额外覆盖。Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
   - _Requirement: 桌面批注选择/剪贴板语义一致、项目数据兼容_
 
 - [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致；API 34 AVD 可承担验收）
@@ -320,7 +320,8 @@
   - 每个缺口落到独立 SPEC/任务，并在终态所有任务关闭前不宣称完整移植。
   - _Requirement: 背景与目标、桌面功能区与自适应导航_
 
-- [ ] 38. PDF 富 HTML 批注兼容（离线净化/渲染/剪贴板/选择与编辑）
+- [x] 38. PDF 富 HTML 批注兼容（离线净化/渲染/剪贴板/选择与编辑）
   - 复用现有 `type: "html"` 项目格式和 APK 内 DOMPurify；安全限制、渲染尺寸与桌面 `.ink-rich-content` 行为以 `features/pdf-rich-html-annotation.md` 为准。
+  - API 34 renderer 仪器测试与真实 PDF Activity 流程在 `Pixel_Tablet_API34` 各通过 1/1；覆盖格式/脚本/事件/危险 URL/外链/尺寸限制、系统 HTML 与桌面 marker 粘贴、净化复制、移动、删除/撤销和页数据隔离。聚焦 JVM 契约、Android 测试源码编译及 `:app:assembleDebug` 通过；真机仍归 task 12。
   - 完整实施拆分见 `pdf-rich-html-annotation-plan.md`；API 34 平板 AVD 为唯一常规仪器验收设备。
   - _Requirement: 桌面功能区与手写批注兼容_

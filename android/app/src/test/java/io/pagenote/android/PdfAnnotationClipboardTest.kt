@@ -13,7 +13,7 @@ class PdfAnnotationClipboardTest {
   private val json = Json
 
   @Test
-  fun sourceIndexesRemainStableWhenOverlaySkipsFreehandAndUnsupportedObjects() {
+  fun htmlOverlayItemsAreVisibleWithoutChangingSourceIndexes() {
     val items = PdfAnnotationOverlayItem.fromPage(json.parseToJsonElement("""
       [
         {"type":"pen","color":"#123456","width":2,"points":[[1,1]]},
@@ -22,14 +22,28 @@ class PdfAnnotationClipboardTest {
       ]
     """))
 
-    assertEquals(1, items.size)
-    assertEquals(2, items.single().sourceIndex)
+    assertEquals(2, items.size)
+    assertEquals(1, items[0].sourceIndex)
+    assertEquals("<b>x</b>", items[0].html)
+    assertEquals(2, items[1].sourceIndex)
   }
 
   @Test
   fun clipboardRoundTripsDesktopMarkerAndUnknownFields() {
     val item = item("""
       {"type":"rect","color":"#123456","width":2,"points":[[10,20],[50,80]],"custom":{"keep":true}}
+    """)
+
+    val encoded = PdfAnnotationClipboard.encode(item)
+
+    assertEquals("PAGE_NOTES_ANNOTATION:\n${item}", encoded)
+    assertEquals(item, PdfAnnotationClipboard.decode(encoded))
+  }
+
+  @Test
+  fun htmlClipboardRoundTripsDesktopMarkerAndUnknownFields() {
+    val item = item("""
+      {"type":"html","color":"#123456","width":2,"points":[[10,20],[510,140]],"html":"<h2><b>Rich</b></h2>","custom":"keep"}
     """)
 
     val encoded = PdfAnnotationClipboard.encode(item)
@@ -62,7 +76,7 @@ class PdfAnnotationClipboardTest {
     """) as JsonArray
 
     assertEquals(2, PdfAnnotationClipboard.hitTest(page, 50.0, 20.0, 5.0))
-    assertEquals(0, PdfAnnotationClipboard.hitTest(page, 5.0, 5.0, 5.0))
+    assertEquals(1, PdfAnnotationClipboard.hitTest(page, 5.0, 5.0, 5.0))
     assertNull(PdfAnnotationClipboard.hitTest(page, 200.0, 200.0, 5.0))
   }
 
@@ -97,6 +111,20 @@ class PdfAnnotationClipboardTest {
 
     assertEquals(json.parseToJsonElement("[[15.0,10.0],[95.0,130.0]]"), resized["points"])
     assertEquals("keep", (resized["custom"] as kotlinx.serialization.json.JsonPrimitive).content)
+  }
+
+  @Test
+  fun htmlBoundsAndResizeUseTheFullRichContentRectangle() {
+    val html = item("""
+      {"type":"html","color":"#123456","width":2,"points":[[10,20],[510,140]],"html":"<p>rich</p>"}
+    """)
+
+    assertEquals(PdfAnnotationBounds(10.0, 20.0, 510.0, 140.0), PdfAnnotationClipboard.bounds(html))
+    assertEquals(0, PdfAnnotationClipboard.hitTest(JsonArray(listOf(html)), 500.0, 130.0, 0.0))
+    val resized = PdfAnnotationClipboard.resize(html, PdfAnnotationBounds(10.0, 20.0, 510.0, 140.0), 1010.0, 260.0)!!
+
+    assertEquals(json.parseToJsonElement("[[10.0,20.0],[1010.0,260.0]]"), resized["points"])
+    assertEquals("<p>rich</p>", (resized["html"] as kotlinx.serialization.json.JsonPrimitive).content)
   }
 
   @Test
