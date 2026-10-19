@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add regression notes for zoomed handwriting, extended-canvas bounds, and persisted settings. / 补充缩放书写、扩展画布边界及设置持久化的回归说明。
 - Define the Office project-source preview slice and record reader navigation regression notes, without closing task 36. / 定义 Office 项目源预览切片并记录阅读器导航回归要点，不关闭 task 36。
 - Add SPEC window-semantics tests for the page prefetch queue and final review steps for the desktop command checklist, without closing task 35. / 新增预解析窗口语义测试与桌面命令清单最终复核步骤，不关闭 task 35。
 - Add executable instrumentation steps for the long Markdown cold-start acceptance and a triage plan for the annotation clipboard AVD flake, without closing task 30 or task 12. / 新增长页冷启动验收可执行仪器步骤与批注剪贴板 AVD 偶发失败排查计划，不关闭 task 30 与 task 12。

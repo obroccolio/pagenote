@@ -338,6 +338,7 @@
   - 保持桌面兼容的 `annotations.json` 坐标与既有压力、撤销/重做语义。
   - 几何/命中与 DataStore 定向单测、Debug APK 构建通过；唯一 API 34 平板 AVD 翻页交互回归通过。
   - SPEC：`features/zoomed-ink-and-extended-canvas.md`。
+  - 回归边界补充：`features/zoomed-ink-regression-notes.md`。
 
 - [x] 41. 当前页及后续页自动预解析
   - 阅读设置配置 0-10 页窗口（默认 3）；窗口含当前页，串行后台处理本地文字和按需离线 OCR，复用缓存，不调用云端模型。
