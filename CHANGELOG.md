@@ -25,7 +25,7 @@
 - Begin local 1.0.1 development; public downloads remain on v1.0.0. / 开始本地 1.0.1 开发，公开下载仍为 v1.0.0。
 - Store welcome dismissal in the application profile so it survives server-port changes; hide upcoming stroke caps until writing starts. / 欢迎页关闭状态保存到应用数据目录，换端口后仍能记忆；修复尚未书写的笔画提前露出圆点。
 
-## Android 1.0.0-beta.2 — 2026-10-19
+## Android 1.0.0-beta.2 — 2026-10-20
 
 - Add single-finger vertical PDF page swipes and accessible previous/next buttons beside page jump, preserving save-aware transitions and page boundaries. / 新增 PDF 单指上下滑动翻页，以及页码跳转旁的上一页/下一页无障碍按钮；沿用保存保护与首末页边界行为。
 - Keep stylus ink aligned through PDF zoom and pan, with page-space hit testing and an optional persisted setting for writing in visible margins outside the page. / PDF 缩放和平移时手写笔迹保持对齐与正确命中，并可设置是否允许在页面外的可见边缘书写。
