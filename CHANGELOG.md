@@ -1,5 +1,11 @@
 # Changelog / 更新日志
 
+## Android 1.0.0-beta.5 — 2026-10-20
+
+- Convert explicitly pasted rich clipboard HTML to Markdown locally, retaining common formatting while dropping active content and unsafe links; keep plain-text fallback and page-scoped note saving. / 将用户主动粘贴的富文本 HTML 在本地转换为 Markdown，保留常用格式并移除活动内容和不安全链接；保留纯文本回退与按页保存。
+- Add Android-local editing for the six AI prompt modules, an independent Classic / Paper Markdown reading theme, and focused Ctrl/Cmd+B, I, and K formatting shortcuts. / 新增六个 AI 提示词模块的安卓本地编辑、独立的 Markdown「经典 / 纸页」阅读主题，以及 Ctrl/Cmd+B、I、K 格式快捷键。
+- Verified 19 focused API 34 tablet AVD instrumentation tests and the targeted Android JVM tests. This Android ARM64 beta does not change desktop packages or stable download links. / 已验证 19 项 API 34 平板模拟器定向仪器测试及 Android JVM 定向测试。本 ARM64 安卓测试版不改动桌面安装包或稳定版下载链接。
+
 ## Android 1.0.0-beta.4 — 2026-10-20
 
 - Add standalone PDF/Markdown import, selected ink color/width editing, and a localized accessibility name for the outside-page ink switch. The arm64 beta APK passes the 16 KB page-size alignment check and cold-launches on the API 34 tablet AVD. / 增加独立 PDF/Markdown 导入、选中笔迹颜色与宽度编辑，并为页外书写开关提供本地化无障碍名称。arm64 测试版 APK 通过 16 KB 页面尺寸对齐检查，并在 API 34 平板模拟器冷启动成功。
@@ -10,11 +16,6 @@
 
 ## Unreleased / 尚未发布
 
-- Add Android Ctrl/Cmd+B, I, and K formatting shortcuts that reuse note-toolbar transforms only while the writable Markdown editor is focused; preserve selection and undo/redo and leave dialogs, read-only notes, and other panes untouched. Verified on the API 34 tablet AVD. / 新增 Android Ctrl/Cmd+B、I、K 笔记格式快捷键，仅在可写 Markdown 编辑器获得焦点时复用工具栏变换；保留选区与撤销/重做，并避开对话框、只读笔记及其他面板。已在 API 34 平板模拟器验证。
-- Add an independent Android Classic / Paper Markdown reading theme with persistent settings, warm serif content palettes for light and dark appearance, and matching source, note, code, and Mermaid styling. Theme changes leave Markdown files and PDF pixels untouched. Verified with focused API 34 tablet tests and the 16 KB-aligned debug APK. / 新增独立的 Android Markdown「经典 / 纸页」阅读主题及持久化设置，为浅色与深色外观提供暖纸衬线配色，并同步应用于 Markdown 原文、笔记、代码与 Mermaid；切换主题不改写 Markdown 文件或 PDF 像素。已通过 API 34 平板定向测试及 16 KB 对齐 Debug APK 验证。
-- Add editable Android-local overrides for the six desktop AI prompt modules, with per-module save/reset, validation, task-aware loading, and the immutable document-safety prefix. Verified on the API 34 tablet AVD. / 新增与桌面六个 AI 提示词模块对应的 Android 本地编辑与覆盖，支持逐模块保存/恢复、输入校验和按任务加载，并始终保留不可移除的文档安全前缀；已在 API 34 平板模拟器验证。
-- Specify Android tasks 46–49 before implementation: safe rich-HTML clipboard conversion, editable desktop-compatible AI prompt modules, an independent Markdown theme, and focused editor shortcuts. / 在实现前补齐安卓任务 46–49 的 SPEC：安全富 HTML 剪贴板转换、兼容桌面模块的可编辑 AI 提示词、独立 Markdown 主题与编辑器快捷键。
-- Convert explicitly pasted clipboard HTML to Markdown locally, preserving common formatting while dropping active content and unsafe links; retain plain-text fallback and page-scoped note saving. / 将用户主动粘贴的剪贴板 HTML 在本地转换为 Markdown，保留常用格式并移除活动内容和不安全链接；保留纯文本回退与按页保存。
 - Update the Android beta download links to the published 1.0.0-beta.4 release and clarify that the current compatibility target is Android 14 (API 34) ARM64 tablets. / 将 Android 测试版下载链接更新为已发布的 1.0.0-beta.4，并明确当前兼容目标为 Android 14（API 34）ARM64 平板。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
