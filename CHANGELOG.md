@@ -11,6 +11,7 @@
 ## Unreleased / 尚未发布
 
 - Specify Android tasks 46–49 before implementation: safe rich-HTML clipboard conversion, editable desktop-compatible AI prompt modules, an independent Markdown theme, and focused editor shortcuts. / 在实现前补齐安卓任务 46–49 的 SPEC：安全富 HTML 剪贴板转换、兼容桌面模块的可编辑 AI 提示词、独立 Markdown 主题与编辑器快捷键。
+- Convert explicitly pasted clipboard HTML to Markdown locally, preserving common formatting while dropping active content and unsafe links; retain plain-text fallback and page-scoped note saving. / 将用户主动粘贴的剪贴板 HTML 在本地转换为 Markdown，保留常用格式并移除活动内容和不安全链接；保留纯文本回退与按页保存。
 - Update the Android beta download links to the published 1.0.0-beta.4 release and clarify that the current compatibility target is Android 14 (API 34) ARM64 tablets. / 将 Android 测试版下载链接更新为已发布的 1.0.0-beta.4，并明确当前兼容目标为 Android 14（API 34）ARM64 平板。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
