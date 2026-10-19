@@ -12,18 +12,18 @@
 | 导入笔记 | `import_notes` | 已接线：当前页/整份导入 |
 | 导出笔记 | `export_notes` | 已接线：当前页/整份导出 |
 | 历史版本 | `note_history` | 已接线：页级历史恢复 |
-| AI 批注（讲解/任务/批注/审阅/交接） | `pdf_text_selection`、`page_tutor`、`agent_task` 等 | 已接线：端侧 Agent 与 OpenAI 兼容接入 |
+| AI 批注（讲解/任务/批注/审阅/交接） | `pdf_text_selection`、`page_tutor`、`agent_task`、`annotations`、`reviews`、`handoff` | 已接线：端侧 Agent 与 OpenAI 兼容接入 |
 | 编辑：撤销/重做/剪切/复制/全选 | `note_undo`、`note_redo`、`cut`、`copy`、`select_all` | 已接线：页级 Markdown 历史与剪贴板 |
 | 段落：字号/标题/列表/引用 | `font_size`、`heading`、`unordered_list`、`ordered_list`、`task_list`、`quote` | 已接线：Markdown 段落格式化 |
 | 格式：粗体/斜体/删除线/下划线 | `bold`、`italic`、`strikethrough`、`underline` | 已接线：Markdown 内联格式化 |
 | 插入：代码/公式/表格/链接/图片/粘贴 | `code`、`formula`、`table`、`link`、`image`、`paste_image`、`paste_markdown` | 已接线：Markdown 插入命令 |
-| 阅读：上一页/下一页/缩放/适合窗口 | `previous_page`、`next_page`、`zoom_out`、`zoom_in`、`fit_width`、`fit_page` | 已接线：页跳转与视口命令 |
+| 阅读：上一页/下一页/OCR/缩放/适合窗口 | `previous_page`、`next_page`、`ocr`、`region_ocr`、`zoom_out`、`zoom_in`、`fit_width`、`fit_page` | 已接线：页跳转、OCR 与视口命令 |
 | 手写批注：选择/笔/荧光笔/橡皮/形状/颜色/宽度/撤销/复制/粘贴/图片/删除 | `select_tool`、`pen`、`highlighter`、`eraser`、`line`、`arrow`、`shape`、`ink_text`、`ink_color`、`ink_width`、`annotate_mode`、`pen_undo`、`pen_redo`、`copy_ink`、`paste_ink`、`insert_ink_image`、`clear_page`、`delete_ink` | 已接线：笔迹与原生批注命令 |
 | Word 编辑：本地打开/编辑 | `office_edit` | 未接线：`pendingCommand()` 占位，待 task 36 本地 Office 引擎 |
 | Word 编辑：选中文字 → AI 批注 | `selection_to_annotation` | 已接线：笔记选区审阅入口 |
 | Word 编辑：保存并返回 | `save_return` | 未接线：`pendingCommand()` 占位，待 task 36 保存事务 |
 | 设置/模型设置 | `settings_action`、`model_settings` | 已接线：阅读设置与模型设置 |
-| 使用说明：关于/快捷键/隐私/诊断 | `about`、`shortcuts`、`privacy_license`、`diagnostics_share` 等 | 已接线：本地帮助命令 |
+| 使用说明：关于/快捷键/隐私/诊断 | `about`、`shortcuts`、`privacy_license`、`diagnostics` | 已接线：本地帮助命令 |
 
 ## 验收（EARS）
 
