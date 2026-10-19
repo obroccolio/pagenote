@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add a desktop parity gap audit confirming the only unwired Android commands are `office_edit` and `save_return`, with a JVM test pinning the pending placeholder set. / 新增桌面移植缺口审计，确认安卓唯一未接线命令为 `office_edit` 与 `save_return`，并以 JVM 测试锁定占位集合。
 - Verify the Android desktop command checklist with a JVM test that keeps only `office_edit` and `save_return` as pending commands. / 新增安卓桌面命令清单 JVM 校验，仅保留 `office_edit` 与 `save_return` 为待实现占位命令。
 - Add an Android desktop command checklist mapping desktop `index.html` entries to Android reader command ids, keeping only `office_edit` and `save_return` as tracked placeholders. / 新增安卓桌面命令清单，将桌面 `index.html` 入口映射到安卓阅读器命令 id，仅保留 `office_edit` 与 `save_return` 为已追踪占位项。
 - Make release validation channel-aware for Android prereleases while preserving desktop version, changelog and download-link checks. / 发布校验支持独立 Android 测试版通道，同时保留桌面版本、更新日志与下载链接校验。
