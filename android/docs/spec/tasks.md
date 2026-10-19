@@ -47,7 +47,7 @@
   - [x] 超长页截断呈现已落地：预览复用 `NotePage.preview` 8000 字符阈值 + 字数提示，编辑仍为全文；契约见 `features/note-overlong-preview.md`。
   - [x] 5.6 补齐删除线和 GFM 任务列表的 Android Markwon 预览渲染，并确认源码编辑保留标记；不实现点按勾选或写回。渲染器仪器类 12/12 在唯一 API 34 平板 AVD 通过，notes/app JVM 测试及 Debug 应用/测试 APK 构建通过。契约见 `features/markdown-gfm-basics.md`。
   - [x] 5.7 接通可写笔记编辑器中的粗体、斜体、删除线菜单命令；保持桌面 Markdown 标记、UTF-16 选区、自动草稿恢复和 revision 保存语义。5 个格式化 JVM 用例、单项 API 34 平板 AVD 保存/预览闭环和 Debug APK 构建通过；小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-inline-formatting.md`，实施见 `markdown-inline-formatting-plan.md`。
-  - [x] 5.8 接通可写页笔记的项目图片插入：通过 Android 文档选择器导入到 `src/assets/`，限制 200 MiB/2400 万像素并验证 MIME 与真实解码，插入相对 Markdown 引用；取消/SAF 写入失败不改草稿，保存重开后仍可离线预览。6 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 导入/回滚/预览/保存仪器流程及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。剪贴板图片粘贴继续作为后续独立工作。契约见 `features/markdown-image-insertion.md`，实施见 `markdown-image-insertion-plan.md`。
+  - [x] 5.8 接通可写页笔记的项目图片插入：通过 Android 文档选择器导入到 `src/assets/`，限制 200 MiB/2400 万像素并验证 MIME 与真实解码，插入相对 Markdown 引用；取消/SAF 写入失败不改草稿，保存重开后仍可离线预览。6 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 导入/回滚/预览/保存仪器流程及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。剪贴板图片粘贴已由 task 5.13 完成。契约见 `features/markdown-image-insertion.md`，实施见 `markdown-image-insertion-plan.md`。
   - [x] 5.9 接通标题 1–3、无序/有序列表和引用源码前缀格式化；字号继续禁用。按桌面源码编辑模式回退语义处理多行选区、保留 UTF-16 光标并只更新当前页草稿。8 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 标题/列表/引用/保存/预览仪器流程 1/1 及 Debug APK 构建通过；任务列表前缀见 task 23。小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-paragraph-formatting.md`，实施见 `markdown-paragraph-formatting-plan.md`。
   - [x] 5.10 接通 Insert > Code block：复用桌面源码模式的 `python` fenced block，保留正文并选中围栏内部；折叠选区插入本地化 `Code`/`代码` 占位词，更新草稿但不自动保存。5 个聚焦 JVM 用例、单项 Android 14/API 34 平板 AVD 阅读/保存/预览仪器流程 1/1 及 Debug APK 构建通过；小米平板 5 Pro 真机验收仍待 task 12。契约见 `features/markdown-code-block-insertion.md`，实施见 `markdown-code-block-insertion-plan.md`。
   - [x] 5.11 接通 Insert > Formula：精确复用桌面源码模式 `$$` 块公式，保留所选 TeX 并选中正文；折叠选区插入并选中 `E=mc^2`，草稿仅更新当前页。5 个聚焦 JVM 用例、唯一 API 34 平板 AVD 编辑/保存/真实 LaTeX 预览仪器流程 1/1 及 `:app:assembleDebug` 通过；AVD 仅作代理，小米平板 5 Pro 实机验收仍待 task 12。契约见 `features/markdown-formula-insertion.md`，实施见 `markdown-formula-insertion-plan.md`。
@@ -304,6 +304,7 @@
 - [ ] 35. Android 14+ 功能一致性与桌面命令清单
   - 对照桌面 `index.html`/`src/main.js` 完成命令到 Android 行为清单；终态移除 `pendingCommand()` 占位项。
   - 以 API 34 为最低版本，平台 API 差异由兼容实现吸收，不按 OS 版本隐藏功能；PDF 文字提取现已在 API 34 走本地 PDFBox、API 35 走系统接口，保持用户能力一致。
+  - 静态核对已确认除 `office_edit`/`save_return` 外，菜单命令均有 Android handler；PDF HTML 批注渲染/剪贴板差异另由 task 38 跟踪。最终对齐仍待所有 gap 实现后复核。
   - 只验证受影响的用户流程与 API 34 AVD，不扩展 API 版本矩阵。
   - _Requirement: Android 版本与功能范围、桌面功能区与自适应导航_
 
@@ -318,3 +319,8 @@
   - 对照 `desktop-ui-and-office-parity.md` 的菜单表、桌面功能入口与文档格式，逐项确认 Android 可执行行为，清除未实现占位和仅展示 UI。
   - 每个缺口落到独立 SPEC/任务，并在终态所有任务关闭前不宣称完整移植。
   - _Requirement: 背景与目标、桌面功能区与自适应导航_
+
+- [ ] 38. PDF 富 HTML 批注兼容（离线净化/渲染/剪贴板/选择与编辑）
+  - 复用现有 `type: "html"` 项目格式和 APK 内 DOMPurify；安全限制、渲染尺寸与桌面 `.ink-rich-content` 行为以 `features/pdf-rich-html-annotation.md` 为准。
+  - 完整实施拆分见 `pdf-rich-html-annotation-plan.md`；API 34 平板 AVD 为唯一常规仪器验收设备。
+  - _Requirement: 桌面功能区与手写批注兼容_

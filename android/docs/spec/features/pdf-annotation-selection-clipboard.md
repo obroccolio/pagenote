@@ -2,9 +2,9 @@
 
 ## Scope
 
-Extend the PDF handwriting Select/Copy/Paste/Delete commands from pen/highlighter strokes to the native PDF overlay objects Android can render: line, arrow, rectangle, ellipse, text, and project-local image. Keep the existing `annotations.json` shape and desktop clipboard marker `PAGE_NOTES_ANNOTATION:\n`.
+Extend the PDF handwriting Select/Copy/Paste/Delete commands from pen/highlighter strokes to PDF overlay objects. Native Android coverage currently includes line, arrow, rectangle, ellipse, text, and project-local image; rich HTML compatibility is specified separately in `pdf-rich-html-annotation.md`. Keep the existing `annotations.json` shape and desktop clipboard marker `PAGE_NOTES_ANNOTATION:\n`.
 
-Pen/highlighter strokes remain owned by `PenPageStore` and keep their existing history. Native overlay annotations remain owned by `ProjectAnnotationStore`; this feature must not replace or reorder unrelated items. Rich HTML annotations are not selectable or pasteable on Android because the current reader has no HTML annotation renderer. Unknown JSON fields on supported items are preserved. A pasted image is accepted only when its `/attachments/<uuid>.<ext>` asset already exists in the active project's `src/assets/` directory.
+Pen/highlighter strokes remain owned by `PenPageStore` and keep their existing history. Native overlay annotations remain owned by `ProjectAnnotationStore`; this feature must not replace or reorder unrelated items. Unknown JSON fields on supported items are preserved. A pasted image is accepted only when its `/attachments/<uuid>.<ext>` asset already exists in the active project's `src/assets/` directory.
 
 ## Behavior
 
@@ -12,7 +12,7 @@ Pen/highlighter strokes remain owned by `PenPageStore` and keep their existing h
 - Dragging a selected native object translates every point by the same page-space delta. Rectangle, ellipse, line, arrow, and image objects expose a bottom-right resize handle; resizing scales every point about the selection bounds' top-left. Text remains moveable but is not resizable, matching its single-anchor desktop geometry.
 - Copy emits exactly the desktop marker and one JSON annotation item. It does not mutate the project. Paste offsets all points uniformly so the first point lands at `(80, 90)` in the shared 1000-unit page coordinate space, removes desktop-only `layoutAnchor`, appends the object, and selects it.
 - Delete removes only the selected native item. Paste, delete, move, and resize use per-project/page undo snapshots and the existing SAF recoverable writer. Native annotation history remains separate from `PenPageStore` history; Undo/Redo prefers the most recently changed history kind for that page.
-- The app validates clipboard payload size, supported type, complete annotation schema, coordinate bounds, and local image-asset availability before mutation. Invalid or unsupported clipboard content leaves project data untouched and reports a localized status.
+- The app validates clipboard payload size, supported type, complete annotation schema, coordinate bounds, and local image-asset availability before mutation. Invalid or unsupported clipboard content leaves project data untouched and reports a localized status. Rich HTML is currently rejected until task 38 (`pdf-rich-html-annotation.md`) is complete.
 - Selection is cleared when the project or page changes, when a non-selection drawing tool is activated, and after deletion. Copy/Delete menu enablement follows the selected object and project writability; Paste follows clipboard validity and project writability.
 
 ## Acceptance Criteria (EARS)
