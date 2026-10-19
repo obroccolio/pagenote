@@ -269,7 +269,7 @@
 
 - [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致；API 34 AVD 可承担验收）
   - 以隔离的 69 页验收副本第 31 页复现；冷重开曾出现 pagenote 输入分发 ANR，首个可见 native 帧为 `minikin::getNextWordBreakForCache`，长 token 是待验证假设而非已确认根因。
-  - [x] API 34 平板 AVD 两项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；独立 NotePanel 文本更新回归也通过。此合成测试未复现小米冷启动 ANR。
+  - [x] API 34 平板 AVD 三项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；最近项目重开恢复长页回归也通过。此合成测试未复现小米冷启动 ANR。
   - [x] API 34 平板 AVD 从“最近项目”真实重开 31 页 PDF 并恢复第 31 页 checkpoint；SAF 读写授权、长编辑器首轮布局/保存和相邻页隔离均通过，恢复低于 5 秒。此流程不模拟系统进程死亡。
   - [x] API 34 AVD 将最近项目恢复回归扩展到 69 页合成 PDF 与约 57 KB 的第 31 页 Markdown（含 40 KB 连续 token）；恢复、首轮布局、编辑和按页保存通过，恢复/布局低于 5 秒。未使用原用户 PDF，也不模拟系统进程死亡。
   - [x] 修正 PDF 位图替换后的 worker-thread 延迟回收：`Choreographer` 调用现派发至主 Looper，继续等待两个显示帧；无 Looper instrumentation 回归通过 1/1。
