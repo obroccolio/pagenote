@@ -10,6 +10,12 @@ output/
 *.log
 ai-connection.json
 ai-key.txt
+.DS_Store
+local.properties
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
 *.replace-backup-*
 *.migration/
 mcp-dist/
@@ -32,3 +38,4 @@ tests/*.log
 .env*
 !.env.example
 tests/typora-*.txt
+android/.idea/
