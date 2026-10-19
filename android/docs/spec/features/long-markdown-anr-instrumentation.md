@@ -1,6 +1,6 @@
 # 长 Markdown ANR 仪器操作（task 30 冷启动验收步骤）
 
-本文只给出 task 30 唯一剩余子项的可执行仪器操作步骤，不含实现代码，不新增测试代码，不关闭 task 30。
+本文定义 task 30 唯一剩余子项的可执行仪器操作步骤，以及仅供手动验收使用的合成 fixture 保留参数；不改生产代码，不关闭 task 30。
 
 > task 30 在 `android/docs/spec/tasks.md` 中仍为 `- [ ] 30` 未关闭状态。本文不改变该状态。
 > `minikin::getNextWordBreakForCache` 仍是候选因素而非已证实根因；小米 Pad 5 Pro 冷启动 ANR 仍记为“未复现的环境差异”。
@@ -17,7 +17,7 @@
 - 不声称 task 30 已关闭。
 - 不把 `NoteLongMarkdownEditorTest.kt` 三项合成回归的通过结论外推为“冷启动已验证”。
 - 不使用原用户 PDF，不改动桌面原件，不新增 OEM / API / 设备矩阵，不要求实体设备（无真机矩阵）。
-- 不修改 `NoteLongMarkdownEditorTest.kt`，不写实现代码。
+- 不修改 Android 生产实现；fixture 保留参数默认关闭，常规测试仍清理 SAF grant 与最近项目记录。
 
 ## 前置条件
 
@@ -26,6 +26,26 @@
 - 验收副本来源：隔离的 69 页项目副本，已通过 SAF 可访问位置准备好；桌面原件与原用户 PDF 只读，不触碰。
 - 主机具备 `adb`，且同一时间只保留一个 `Pixel_Tablet_API34` 实例在线（`adb devices` 确认）。
 - AVD 时间/动画：建议关闭窗口动画以减少计时噪声，但不得改变冷启动定义。
+
+## 可复现的合成副本准备
+
+- 使用 `NoteLongMarkdownEditorTest.reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking` 生成 69 页合成 PDF 和长笔记；不读取原用户 PDF。
+- 该用例支持显式 instrumentation 参数 `retain_long_markdown_fixture=true`。默认不传该参数时，仍清理最近项目记录并释放 SAF 授权；传入时只跳过这两项清理，以便外部 ADB 在测试结束后制造冷进程。
+- 手动执行时先构建并安装两个 APK，再直接启动 AndroidJUnitRunner，避免 Gradle 测试任务结束时卸载测试包：
+
+```sh
+cd android
+./gradlew --offline :app:assembleDebug :app:assembleDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w \
+  -e class io.pagenote.android.NoteLongMarkdownEditorTest#reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking \
+  -e retain_long_markdown_fixture true \
+  io.pagenote.android.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+- 测试成功后，合成源文件位于测试 Provider 的私有目录，最近项目与可写 SAF 授权保留在 `io.pagenote.android.debug` 测试应用中；`io.pagenote.android.beta` 与用户文件不参与本流程。
+- 完成冷启动检查后，仅清理这两个刚安装的 debug/test 包数据，或卸载它们；不得清理、重置 beta 包或其他 AVD 数据。
 
 ## 步骤 0：SAF 副本准备（只做一次，失败则停止）
 
