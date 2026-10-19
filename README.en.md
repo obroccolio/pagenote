@@ -1,8 +1,8 @@
 # pagenote Android Beta
 
-**[⬇ Download the Android 14 Beta APK (ARM64)](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.1/pagenote-android-1.0.0-beta.1-arm64-v8a.apk)** · [Release notes and checksum](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.1)
+**[⬇ Download the Android 14 Beta APK (ARM64)](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.4/pagenote-android-1.0.0-beta.4-arm64-v8a.apk)** · [Release notes and checksum](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.4)
 
-This beta targets ARM64 tablets on Android 14 (API 34) and later, with the Xiaomi Pad 5 Pro as the current focus. It uses the separate application ID `io.pagenote.android.beta` and separate app data. The sideload APK uses a local debug signing key and is not a Play Store build. A Windows beta is unavailable; the Mac 1.0 stable build remains on the [main branch](https://github.com/obroccolio/pagenote/tree/main) and is not part of this Android beta.
+This beta targets Android 14 (API 34) ARM64 tablets, with the Xiaomi Pad 5 Pro (Snapdragon 870) as the intended device; other Android versions and devices are outside the current support scope. It uses the separate application ID `io.pagenote.android.beta` and separate app data. The sideload APK uses a local debug signing key and is not a Play Store build. A Windows beta is unavailable; the Mac 1.0 stable build remains on the [main branch](https://github.com/obroccolio/pagenote/tree/main) and is not part of this Android beta.
 
 **[⬇ Download Mac 1.0.0 (Apple Silicon · DMG)](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · [Intel DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) · [Apple Silicon ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) · [Intel ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) · [Checksums and release notes](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)
 

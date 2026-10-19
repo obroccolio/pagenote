@@ -10,6 +10,7 @@
 
 ## Unreleased / 尚未发布
 
+- Update the Android beta download links to the published 1.0.0-beta.4 release and clarify that the current compatibility target is Android 14 (API 34) ARM64 tablets. / 将 Android 测试版下载链接更新为已发布的 1.0.0-beta.4，并明确当前兼容目标为 Android 14（API 34）ARM64 平板。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
 - Specify an opt-in API 34 cold-start fixture path for the 69-page long-Markdown acceptance; normal instrumentation cleanup remains the default. / 规定 69 页长 Markdown 验收的可选 API 34 冷启动 fixture 保留流程，常规仪器测试仍默认清理。
