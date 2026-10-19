@@ -25,7 +25,7 @@
 - 两次 `am force-stop` 后均以 `LaunchState:COLD` 启动，Activity 启动时间分别为 661 ms、750 ms。Recent 打开后页码从第 1 页开始，按 SPEC 用真实页码对话框手动跳转第 31 页。
 - 页码输入时确认系统 IME 显示（`mInputShown=true`）；点 Go 后 IME 收起（`false`），应用进程存活，长页在 ANR 阈值内完成布局，无 ANR 对话框或新输入超时日志。
 - 真实编辑器追加并保存 `COLDSTART_PROBE_20261020`。Provider 回读确认项目仍为 69 页、第 31 页标记位于末尾，且第 30/32 页分别仍为 `Page 30 note` / `Page 32 note`；再次冷启动并跳页后界面仍显示该标记和完整长正文。
-- `NoteLongMarkdownEditorTest` 四项 API 34 instrumentation 回归通过，覆盖长 token 编辑/布局、光标及复制映射、系统剪贴板粘贴、真实页跳转和 SAF 恢复保存。
+- `NoteLongMarkdownEditorTest` 五项 API 34 instrumentation 回归通过，覆盖长 token 编辑/布局、光标映射、系统剪贴板复制/剪切/粘贴与分享、真实页跳转和 SAF 恢复保存。
 
 ## 前置条件
 
@@ -34,26 +34,6 @@
 - 验收副本来源：隔离的 69 页项目副本，已通过 SAF 可访问位置准备好；桌面原件与原用户 PDF 只读，不触碰。
 - 主机具备 `adb`，且同一时间只保留一个 `Pixel_Tablet_API34` 实例在线（`adb devices` 确认）。
 - AVD 时间/动画：建议关闭窗口动画以减少计时噪声，但不得改变冷启动定义。
-
-## 可复现的合成副本准备
-
-- 使用 `NoteLongMarkdownEditorTest.reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking` 生成 69 页合成 PDF 和长笔记；不读取原用户 PDF。
-- 该用例支持显式 instrumentation 参数 `retain_long_markdown_fixture=true`。默认不传该参数时，仍清理最近项目记录并释放 SAF 授权；传入时只跳过这两项清理，以便外部 ADB 在测试结束后制造冷进程。
-- 手动执行时先构建并安装两个 APK，再直接启动 AndroidJUnitRunner，避免 Gradle 测试任务结束时卸载测试包：
-
-```sh
-cd android
-./gradlew --offline :app:assembleDebug :app:assembleDebugAndroidTest
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w \
-  -e class io.pagenote.android.NoteLongMarkdownEditorTest#reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking \
-  -e retain_long_markdown_fixture true \
-  io.pagenote.android.debug.test/androidx.test.runner.AndroidJUnitRunner
-```
-
-- 测试成功后，合成源文件位于测试 Provider 的私有目录，最近项目与可写 SAF 授权保留在 `io.pagenote.android.debug` 测试应用中；`io.pagenote.android.beta` 与用户文件不参与本流程。
-- 完成冷启动检查后，仅清理这两个刚安装的 debug/test 包数据，或卸载它们；不得清理、重置 beta 包或其他 AVD 数据。
 
 ## 步骤 0：SAF 副本准备（只做一次，失败则停止）
 
