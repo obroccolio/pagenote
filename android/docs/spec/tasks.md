@@ -326,9 +326,10 @@
   - 完整实施拆分见 `pdf-rich-html-annotation-plan.md`；API 34 平板 AVD 为唯一常规仪器验收设备。
   - _Requirement: 桌面功能区与手写批注兼容_
 
-- [ ] 39. PDF 阅读页手势翻页与页码旁快捷按钮
+- [x] 39. PDF 阅读页手势翻页与页码旁快捷按钮
   - 单指竖向滑动切换一页；手写笔、双指缩放、选择/批注模式不误触发。
   - 页码跳转旁提供上一页/下一页按钮，边界禁用，并复用统一页面切换和草稿保存逻辑。
+  - 翻页策略 JVM 测试 4/4、API 34 平板 AVD 交互/按钮流程 5/5、测试源码编译及 `:app:assembleDebug` 通过。
   - SPEC：`features/reader-page-navigation.md`。
 
 - [ ] 40. 缩放笔迹坐标与页外书写设置

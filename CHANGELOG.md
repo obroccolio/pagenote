@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add single-finger vertical PDF page swipes and accessible previous/next buttons beside page jump; preserve save-aware page transitions and boundary behavior. Verified the focused API 34 tablet AVD flow (5/5). Source-only update; no public binary release. / 新增 PDF 单指上下滑动翻页，以及页码跳转旁的上一页/下一页无障碍按钮；沿用保存保护和首末页边界行为。API 34 平板模拟器定向流程 5/5 通过。本次仅同步源码，不发布公开二进制。
 - Document the next Android reader implementation slices for swipe navigation, zoom-aware/outside-page ink, local page prefetch and dwell-based shape recognition. This is SPEC-only; no runtime code or public binary release is included. / 补充 Android 阅读器后续 SPEC：滑动翻页、缩放/页外笔迹、本地页面预解析和停留识别形状。本次仅文档，不含运行时代码或公开二进制发布。
 - Add a native Android 14+ beta app with page-linked PDF/Markdown reading, offline OCR, stylus annotations, AI tools and rich HTML PDF annotations. Publish Android as a separate `io.pagenote.android.beta` ARM64 sideload APK; no desktop package or stable download is changed. / 新增 Android 14+ 原生测试版，包含逐页 PDF/Markdown 阅读、离线 OCR、手写笔批注、AI 工具和富 HTML PDF 批注。Android 以独立 `io.pagenote.android.beta` ARM64 侧载 APK 发布，不改桌面包或稳定版下载入口。
 - Fix both bottom status bars jumping upward while page notes render Mermaid diagrams. Keep temporary SVG measurements outside the window grid and clean them up after success or errors. Local arm64 builds advance to 1.0.1-dev.5; public downloads remain v1.0.0. / 修复翻页时笔记中的 Mermaid 图表导致页数、字数底部栏突然上移和下方闪出空白的问题；图表临时测量容器移出主布局，并在成功或失败后清理。本地 arm64 构建升级至 1.0.1-dev.5，公开下载仍为 v1.0.0。

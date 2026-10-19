@@ -62,6 +62,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -109,6 +111,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import io.pagenote.agent.MissingModelConfigException
 import io.pagenote.agent.OkHttpChatClient
@@ -3428,6 +3433,11 @@ private fun ReaderHome(
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
     !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
+  fun changePageFromSwipe(direction: PdfPageSwipeDirection) {
+    if (!canChangePage) return
+    val target = PdfPageSwipePolicy.targetPage(pageIndex, totalPages, direction) ?: return
+    readerSession.launchSessionTask { changePage(target) }
+  }
   val shortcutActivity = activityResultOwner as? MainActivity
   DisposableEffect(shortcutActivity, activeProject?.manifest?.id, pageIndex, canChangePage, noteWritable, menuBusy) {
     val activity = shortcutActivity ?: return@DisposableEffect onDispose {}
@@ -4176,18 +4186,40 @@ private fun ReaderHome(
           )
         }
         if (activeProject != null) {
-          TextButton(
-            modifier = Modifier.testTag("reader_page_status"),
-            enabled = canChangePage && totalPages > 0,
-            onClick = {
-              pageJumpInput = (pageIndex + 1).toString()
-              showPageJumpDialog = true
-            },
-          ) {
-            Text(
-              text = stringResource(R.string.page_count, pageIndex + 1, totalPages),
-              style = MaterialTheme.typography.labelLarge,
-            )
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+              modifier = Modifier.testTag("reader_previous_page"),
+              enabled = canChangePage && pageIndex > 0,
+              onClick = { readerSession.launchSessionTask { changePage(pageIndex - 1) } },
+            ) {
+              Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.previous_page),
+              )
+            }
+            TextButton(
+              modifier = Modifier.testTag("reader_page_status"),
+              enabled = canChangePage && totalPages > 0,
+              onClick = {
+                pageJumpInput = (pageIndex + 1).toString()
+                showPageJumpDialog = true
+              },
+            ) {
+              Text(
+                text = stringResource(R.string.page_count, pageIndex + 1, totalPages),
+                style = MaterialTheme.typography.labelLarge,
+              )
+            }
+            IconButton(
+              modifier = Modifier.testTag("reader_next_page"),
+              enabled = canChangePage && pageIndex < totalPages - 1,
+              onClick = { readerSession.launchSessionTask { changePage(pageIndex + 1) } },
+            ) {
+              Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.next_page),
+              )
+            }
           }
         }
       }
@@ -4335,6 +4367,10 @@ private fun ReaderHome(
                 onTextSelectionChanged = { pdfTextSelection = it },
                 gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
+                pageSwipesEnabled = activeRenderer != null && canChangePage &&
+                  penTool != PenCanvasTool.SELECT && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
+                onPageSwipe = ::changePageFromSwipe,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
@@ -4464,6 +4500,10 @@ private fun ReaderHome(
                 onTextSelectionChanged = { pdfTextSelection = it },
                 gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
+                pageSwipesEnabled = activeRenderer != null && canChangePage &&
+                  penTool != PenCanvasTool.SELECT && !annotateMode &&
+                  annotationDrawTool == null && !isAnnotationSaving,
+                onPageSwipe = ::changePageFromSwipe,
                 selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
                 onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
                 annotateTapEnabled = annotateMode,
@@ -5964,6 +6004,8 @@ internal fun PdfPageViewport(
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   annotationDrawTool: PdfAnnotationDrawTool? = null,
   onAnnotationDrag: (PdfSelectionPoint, PdfSelectionPoint, Boolean) -> Unit = { _, _, _ -> },
+  pageSwipesEnabled: Boolean = false,
+  onPageSwipe: (PdfPageSwipeDirection) -> Unit = {},
   penStyle: PenStyle = PenStyle.DEFAULT,
   modifier: Modifier = Modifier,
 ) {
@@ -5973,8 +6015,10 @@ internal fun PdfPageViewport(
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
+  val latestOnPageSwipe by rememberUpdatedState(onPageSwipe)
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
   val latestOnAnnotationSelectionTouch by rememberUpdatedState(onAnnotationSelectionTouch)
+  var inkCanvasView by remember { mutableStateOf<PenCanvasView?>(null) }
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),
@@ -6003,7 +6047,7 @@ internal fun PdfPageViewport(
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
           page, bounds, pageText, textSelectionEnabled, selectionEnabled, gesturesEnabled,
-          annotateTapEnabled, annotationDrawTool,
+          annotateTapEnabled, annotationDrawTool, pageSwipesEnabled,
         ) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -6108,12 +6152,15 @@ internal fun PdfPageViewport(
               ) {
                 latestOnSelectionChanged(null)
               }
-            } else if (gesturesEnabled) {
+            } else if (gesturesEnabled || pageSwipesEnabled) {
+              var swipeHandled = false
+              var multiTouchSeen = false
               do {
                 val event = awaitPointerEvent()
                 val touchChanges = event.changes.filter {
                   it.type == PointerType.Touch && it.pressed && it.previousPressed
                 }
+                if (touchChanges.size >= 2) multiTouchSeen = true
                 val pointers = touchChanges.map { change ->
                   PdfViewportPointer(change.id.value, change.position.x, change.position.y)
                 }
@@ -6135,6 +6182,24 @@ internal fun PdfPageViewport(
                     panY = gesture.panY,
                   ))
                   touchChanges.forEach { it.consume() }
+                }
+                if (!swipeHandled && !multiTouchSeen && pageSwipesEnabled && down.type == PointerType.Touch) {
+                  val change = touchChanges.firstOrNull { it.id == down.id }
+                  if (change != null) {
+                    val direction = PdfPageSwipePolicy.direction(
+                      deltaX = change.position.x - down.position.x,
+                      deltaY = change.position.y - down.position.y,
+                      density = density.density,
+                    )
+                    if (direction != null) {
+                      change.consume()
+                      inkCanvasView?.cancelActiveGesture()
+                      latestOnPageSwipe(direction)
+                      swipeHandled = true
+                    }
+                  }
+                } else if (swipeHandled) {
+                  event.changes.forEach { if (it.pressed) it.consume() }
                 }
               } while (event.changes.any { it.pressed })
             } else {
@@ -6171,7 +6236,7 @@ internal fun PdfPageViewport(
           )
           AndroidView(
             modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
-            factory = { viewContext -> PenCanvasView(viewContext) },
+            factory = { viewContext -> PenCanvasView(viewContext).also { inkCanvasView = it } },
             update = { view ->
               view.strokes = strokes
               view.selectedTool = tool

@@ -219,6 +219,12 @@ class PenCanvasView @JvmOverloads constructor(
     return true
   }
 
+  fun cancelActiveGesture() {
+    if (activePointerId == INVALID_POINTER) return
+    resetGesture()
+    invalidate()
+  }
+
   private fun beginGesture(event: MotionEvent, pointerIndex: Int): Boolean {
     if (!isSupportedTool(event.getToolType(pointerIndex))) return false
     activePointerId = event.getPointerId(pointerIndex)
