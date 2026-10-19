@@ -126,7 +126,7 @@
 
 - [ ] 12. Android 14 平板功能验收（产品目标为小米平板 5 Pro / 骁龙 870；单一 API 34 平板 AVD 可替代常规功能验收。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
   - [x] 小米平板 5 Pro / Android 14 实机：从应用打开 SAF 目录选择器并取消，返回应用且空项目状态不变；通过 SAF 打开隔离的 69 页副本，在第 31 页修改、保存、重载。重读副本确认唯一变化是第 31 页的验收标记，第 30/32 页不变，桌面原件只读未改。
-  - [ ] API 34 平板 AVD 确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹。用户实测主动笔基础书写和压感整体正常；侧键橡皮擦未单独测试，属于未验证硬件行为，不扩展常规矩阵。已知问题：`PdfAnnotationSelectionClipboardActivityTest.nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 在 Pixel_Tablet_API34 连续两次复现 `waitUntil(10s)` 超时（第 193 行），`endpointDwellPersistsNativeShapeAndUsesAnnotationUndoHistory` 通过；待按 SPEC 单独调查，不阻塞其他切片。
+  - [ ] API 34 平板 AVD 确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹。用户实测主动笔基础书写和压感整体正常；侧键橡皮擦未单独测试，属于未验证硬件行为，不扩展常规矩阵。本轮 `feature-pen` 7/7、`PdfPageViewportNavigationTest` 1/1、`ReaderSettingsPagePrefetchTest` 1/1 通过。已知问题：`PdfAnnotationSelectionClipboardActivityTest.nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 在 Pixel_Tablet_API34 连续两次复现 `waitUntil(10s)` 超时（第 193 行），`endpointDwellPersistsNativeShapeAndUsesAnnotationUndoHistory` 通过；待按 SPEC 单独调查，不阻塞其他切片。
   - [x] 第 16 页图像页离线 OCR：包内 `pp-ocrv6-tiny-onnx` 返回 `ok` 和 13 个结果块；该页仅有 20 个原生文本字符并含大幅嵌入图像。Android 私有模型配置文件不存在，未配置 API Key，因此按条件未请求 AI 页讲解。
   - [x] PDF 线条批注和一条笔迹写入隔离项目；冷重开后 `annotations.json` 与重开前 SHA-256 完全一致。用户在 Xiaomi Pad 5 Pro 实测主动式手写笔书写及压感整体正常；此次自动化持久化动作使用 ADB 触控模拟，不代表自动化测过压感。
   - [ ] 手写笔侧键橡皮擦未单独测试；不影响用户已报告的基础书写与压感正常，也不作为常规功能验收阻塞。
