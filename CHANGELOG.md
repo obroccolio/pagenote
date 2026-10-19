@@ -1,12 +1,15 @@
 # Changelog / 更新日志
 
+## Android 1.0.0-beta.4 — 2026-10-20
+
+- Add standalone PDF/Markdown import, selected ink color/width editing, and a localized accessibility name for the outside-page ink switch. The arm64 beta APK passes the 16 KB page-size alignment check and cold-launches on the API 34 tablet AVD. / 增加独立 PDF/Markdown 导入、选中笔迹颜色与宽度编辑，并为页外书写开关提供本地化无障碍名称。arm64 测试版 APK 通过 16 KB 页面尺寸对齐检查，并在 API 34 平板模拟器冷启动成功。
+
 ## Android 1.0.0-beta.3 — 2026-10-20
 
 - Fix Android editor stalls on very long unbroken Markdown tokens with editor-only layout boundaries; preserve original Markdown, selection offsets, copy/cut/paste/share, drafts and saved project text. Verified cold start, IME page jump, save and reopen on the API 34 tablet AVD; Xiaomi Pad 5 Pro was not re-tested. / 修复 Android 编辑器遇到超长连续 Markdown token 时的卡顿，仅在编辑缓冲区加入排版边界，原始 Markdown、选区偏移、复制/剪切/粘贴/分享、草稿和项目保存内容均保持不变。已在 API 34 平板模拟器验证冷启动、输入法跳页、保存和重开；本次未重新测试小米平板 5 Pro 真机。
 
 ## Unreleased / 尚未发布
 
-- Android 1.0.0-beta.4 candidate: add standalone PDF/Markdown import, selected ink color/width editing, and a localized accessibility name for the outside-page ink switch. API 34 focused tests, Beta APK build, 16 KB alignment, and AVD cold launch pass; public publication is pending. / Android 1.0.0-beta.4 候选内容：增加独立 PDF/Markdown 导入、选中笔迹颜色/宽度编辑，并为页外书写开关提供本地化无障碍名称。Android 14 定向测试、Beta APK 构建、16 KB 对齐和模拟器冷启动均通过；公开发布待完成。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
 - Specify an opt-in API 34 cold-start fixture path for the 69-page long-Markdown acceptance; normal instrumentation cleanup remains the default. / 规定 69 页长 Markdown 验收的可选 API 34 冷启动 fixture 保留流程，常规仪器测试仍默认清理。
