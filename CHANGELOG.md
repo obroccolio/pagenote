@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Verify the Android desktop command checklist with a JVM test that keeps only `office_edit` and `save_return` as pending commands. / 新增安卓桌面命令清单 JVM 校验，仅保留 `office_edit` 与 `save_return` 为待实现占位命令。
 - Add an Android desktop command checklist mapping desktop `index.html` entries to Android reader command ids, keeping only `office_edit` and `save_return` as tracked placeholders. / 新增安卓桌面命令清单，将桌面 `index.html` 入口映射到安卓阅读器命令 id，仅保留 `office_edit` 与 `save_return` 为已追踪占位项。
 - Make release validation channel-aware for Android prereleases while preserving desktop version, changelog and download-link checks. / 发布校验支持独立 Android 测试版通道，同时保留桌面版本、更新日志与下载链接校验。
 - Fix both bottom status bars jumping upward while page notes render Mermaid diagrams. Keep temporary SVG measurements outside the window grid and clean them up after success or errors. Local arm64 builds advance to 1.0.1-dev.5; public downloads remain v1.0.0. / 修复翻页时笔记中的 Mermaid 图表导致页数、字数底部栏突然上移和下方闪出空白的问题；图表临时测量容器移出主布局，并在成功或失败后清理。本地 arm64 构建升级至 1.0.1-dev.5，公开下载仍为 v1.0.0。
