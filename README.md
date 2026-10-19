@@ -1,6 +1,6 @@
 # pagenote Android Beta
 
-**[⬇ 下载 Android 14 测试版 APK（ARM64）](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.4/pagenote-android-1.0.0-beta.4-arm64-v8a.apk)** · [Android 测试版说明与校验值](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.4)
+**[⬇ 下载 Android 14 测试版 APK（ARM64）](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk)** · [Android 测试版说明与校验值](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.5)
 
 本测试版针对 Android 14（API 34）ARM64 平板开发，重点目标为小米平板 5 Pro（骁龙 870）；其他 Android 版本和设备不在当前适配范围。Beta 使用独立包名 `io.pagenote.android.beta` 和独立应用数据；侧载 APK 使用本机 debug 签名，不是 Play 商店版本。Windows Beta 暂不可用；Mac 1.0 稳定版仍在 [main 分支](https://github.com/obroccolio/pagenote/tree/main)，不是本 Android 测试包的一部分。
 
