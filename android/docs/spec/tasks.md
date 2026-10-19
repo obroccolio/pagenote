@@ -270,6 +270,8 @@
 - [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致）
   - 以隔离的 69 页验收副本第 31 页复现；冷重开曾出现 pagenote 输入分发 ANR，首个可见 native 帧为 `minikin::getNextWordBreakForCache`，长 token 是待验证假设而非已确认根因。
   - [x] API 34 平板 AVD 两项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；独立 NotePanel 文本更新回归也通过。此合成测试未复现小米冷启动 ANR。
+  - [x] API 34 平板 AVD 从“最近项目”真实重开 31 页 PDF 并恢复第 31 页 checkpoint；SAF 读写授权、长编辑器首轮布局/保存和相邻页隔离均通过，恢复低于 5 秒。此流程不模拟系统进程死亡。
+  - [x] 修正 PDF 位图替换后的 worker-thread 延迟回收：`Choreographer` 调用现派发至主 Looper，继续等待两个显示帧；无 Looper instrumentation 回归通过 1/1。
   - [ ] 目标 Xiaomi Pad 5 Pro 冷启动重开隔离 69 页项目并恢复/跳转第 31 页，确认不再出现系统 ANR；先前异常仍未解决，不以 AVD 结果代替。
   - SPEC：`features/large-markdown-page-layout.md`。后续按真实小米机和隔离项目证据定位 ANR；只运行相关 Android 14 AVD 回归、受影响 JVM 测试、Debug 构建及目标设备闭环。
   - _Requirement: 阅读与笔记、阅读器会话恢复_

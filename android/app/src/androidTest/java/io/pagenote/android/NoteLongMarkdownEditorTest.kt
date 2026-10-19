@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.DocumentsContract
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.ViewModelProvider
@@ -20,11 +22,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
@@ -114,6 +120,120 @@ class NoteLongMarkdownEditorTest {
     assertEquals("Page 30 note", NotePage.pageAt(saved, 30))
   }
 
+  @Test
+  fun reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking() {
+    val longNote = "# before\n\n$dataUriPrefix${"A".repeat(40_000)}\n\n## after"
+    val pages = (1..31).map { page -> if (page == 31) longNote else "Page $page note" }
+    val notes = PageNotes.join(pages)
+    val project = installProject(notes)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    val store = recentProjectsStore(appContext)
+    val entry = RecentProjectEntry(
+      accessTreeUri = treeUri.toString(),
+      rootDocumentId = ExistingProjectSafTestProvider.ROOT_ID,
+      projectId = project.manifest.id,
+      name = project.manifest.name,
+      lastOpenedAtMillis = System.currentTimeMillis(),
+    )
+
+    try {
+      testResolver.call(
+        ExistingProjectSafTestProvider.AUTHORITY,
+        ExistingProjectSafTestProvider.METHOD_GRANT_PERSISTABLE_READ,
+        null,
+        Bundle().apply {
+          putParcelable(ExistingProjectSafTestProvider.EXTRA_URI, treeUri)
+          putString(ExistingProjectSafTestProvider.EXTRA_PACKAGE_NAME, appContext.packageName)
+        },
+      )
+      appContext.contentResolver.takePersistableUriPermission(
+        treeUri,
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      )
+      runBlocking {
+        store.recentProjects.first().forEach { store.remove(it) }
+        store.record(entry)
+      }
+      composeRule.onNodeWithTag("reader_menu_command_recent_documents")
+        .performScrollTo().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        composeRule.onAllNodesWithTag("recent_project_open_0").fetchSemanticsNodes().isNotEmpty()
+      }
+      composeRule.onNodeWithTag("recent_project_open_0").performClick()
+      composeRule.waitUntil(timeoutMillis = 20_000) {
+        session.project.value?.manifest?.id == project.manifest.id &&
+          session.pageIndex.intValue == 0 && findEditor("Page 1 note") != null
+      }
+
+      composeRule.onNodeWithTag("reader_page_status").performClick()
+      composeRule.onNodeWithTag("page_jump_input").performTextClearance()
+      composeRule.onNodeWithTag("page_jump_input").performTextInput("31")
+      composeRule.onNodeWithTag("page_jump_confirm").performClick()
+      composeRule.waitUntil(timeoutMillis = 15_000) {
+        session.pageIndex.intValue == 30 && findEditor(longNote) != null
+      }
+      composeRule.waitForIdle()
+      assertNull("replacing the rendered PDF page must not fail on the callback thread", session.errorMessage.value)
+      assertEquals(longNote, session.noteDraft.value)
+      assertEquals(longNote, NotePage.pageAt(session.notesMarkdown.value, 31))
+      assertTrue("persisted fixture grant should keep the project writable", session.noteWritable.value)
+      composeRule.runOnIdle { assertEquals(30, session.saveCheckpoint()?.pageIndex) }
+
+      val previousRenderer = requireNotNull(session.renderer.value)
+      composeRule.onNodeWithTag("reader_menu_command_recent_documents")
+        .performScrollTo().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        composeRule.onAllNodesWithTag("recent_project_open_0").fetchSemanticsNodes().isNotEmpty()
+      }
+
+      val startedAt = SystemClock.elapsedRealtime()
+      composeRule.onNodeWithTag("recent_project_open_0").performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        composeRule.onAllNodesWithTag("recent_projects_cancel").fetchSemanticsNodes().isEmpty()
+      }
+      try {
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+          session.renderer.value !== previousRenderer
+        }
+      } catch (timeout: Throwable) {
+        throw AssertionError(
+          "recent reopen did not replace the PDF renderer; page=${session.pageIndex.intValue}, " +
+            "opening=${session.isOpening.value}, writable=${session.noteWritable.value}, " +
+            "draftMatchesSaved=${session.noteDraft.value == NotePage.pageAt(session.notesMarkdown.value, 31)}, " +
+            "error=${session.errorMessage.value}, status=${session.noteStatus.value}",
+          timeout,
+        )
+      }
+      assertEquals("checkpoint should reopen page 31", 30, session.pageIndex.intValue)
+      composeRule.waitUntil(timeoutMillis = 15_000) {
+        findEditor(longNote)?.let { it.isLaidOut && !it.isLayoutRequested } == true
+      }
+      composeRule.waitForIdle()
+      val restoreElapsedMs = SystemClock.elapsedRealtime() - startedAt
+      assertTrue("reopening and restoring page 31 took ${restoreElapsedMs}ms", restoreElapsedMs < 5_000)
+      val editor = requireNotNull(findEditor(longNote))
+      assertEquals(longNote, editor.text.toString())
+
+      val edited = longNote.replaceRange(8, 8, " edited")
+      InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.text.insert(8, " edited") }
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == edited }
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 31) == edited
+      }
+      val saved = ProjectNoteStore(testResolver, project.notesUri).read()
+      assertEquals(edited, NotePage.pageAt(saved, 31))
+      assertEquals("Page 30 note", NotePage.pageAt(saved, 30))
+    } finally {
+      runBlocking { store.recentProjects.first().forEach { store.remove(it) } }
+      appContext.contentResolver.releasePersistableUriPermission(
+        treeUri,
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      )
+    }
+  }
+
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
@@ -141,12 +261,41 @@ class NoteLongMarkdownEditorTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalPdf(pageCount = 31))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },
     )
     return ProjectDocumentOpener(testResolver).open(treeUri)
+  }
+
+  private fun minimalPdf(pageCount: Int): ByteArray {
+    val output = ByteArrayOutputStream()
+    val offsets = mutableListOf(0)
+    output.write("%PDF-1.4\n".toByteArray(Charsets.US_ASCII))
+    val pageIds = (0 until pageCount).map { 3 + it * 2 }
+    val objects = buildList {
+      add("<< /Type /Catalog /Pages 2 0 R >>")
+      add("<< /Type /Pages /Kids [${pageIds.joinToString(" ") { "$it 0 R" }}] /Count $pageCount >>")
+      pageIds.forEach { pageId ->
+        add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents ${pageId + 1} 0 R >>")
+        add("<< /Length 0 >>\nstream\n\nendstream")
+      }
+    }
+    objects.forEachIndexed { index, body ->
+      offsets += output.size()
+      output.write("${index + 1} 0 obj\n$body\nendobj\n".toByteArray(Charsets.US_ASCII))
+    }
+    val xrefOffset = output.size()
+    output.write("xref\n0 ${offsets.size}\n0000000000 65535 f \n".toByteArray(Charsets.US_ASCII))
+    offsets.drop(1).forEach { offset ->
+      output.write("%010d 00000 n \n".format(offset).toByteArray(Charsets.US_ASCII))
+    }
+    output.write(
+      "trailer\n<< /Size ${offsets.size} /Root 1 0 R >>\nstartxref\n$xrefOffset\n%%EOF\n"
+        .toByteArray(Charsets.US_ASCII),
+    )
+    return output.toByteArray()
   }
 
   private fun findEditor(): EditText? {

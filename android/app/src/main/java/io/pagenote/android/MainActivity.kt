@@ -8,6 +8,8 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
@@ -325,8 +327,12 @@ private data class NoteImportWriteResult(
   val recoveryCopyName: String?,
 )
 
-private fun Bitmap.recycleAfterDrawFrames() {
+internal fun Bitmap.recycleAfterDrawFrames() {
   if (isRecycled) return
+  if (Looper.myLooper() != Looper.getMainLooper()) {
+    if (!Handler(Looper.getMainLooper()).post { recycleAfterDrawFrames() } && !isRecycled) recycle()
+    return
+  }
   val choreographer = Choreographer.getInstance()
   var remainingFrames = 2
   val callback = object : Choreographer.FrameCallback {

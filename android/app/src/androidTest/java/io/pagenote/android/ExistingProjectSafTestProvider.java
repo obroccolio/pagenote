@@ -4,6 +4,7 @@ import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.content.ContentProvider;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
@@ -52,10 +53,11 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_WAIT_NOTE_WRITE = "waitNoteWrite";
   public static final String METHOD_RELEASE_NOTE_WRITE = "releaseNoteWrite";
   public static final String METHOD_CHECK_NOTE_WRITE = "checkNoteWrite";
+  public static final String METHOD_GRANT_PERSISTABLE_READ = "grantPersistableRead";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String METHOD_CREATE_DOCUMENT = "android:createDocument";
   private static final String METHOD_DELETE_DOCUMENT = "android:deleteDocument";
-  private static final String EXTRA_URI = "uri";
+  public static final String EXTRA_URI = "uri";
   private static final String EXTRA_RESULT = "result";
   private static final String EXTRA_MIME_TYPE = "mime_type";
   public static final String EXTRA_MANIFEST = "manifest";
@@ -67,6 +69,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String EXTRA_COUNT = "count";
   public static final String EXTRA_FAILURES = "failures";
   public static final String EXTRA_SIZE = "size";
+  public static final String EXTRA_PACKAGE_NAME = "package_name";
 
   private static final String FIXTURE_DIR = "pagenote-existing-project-fixture";
   private static final String MANIFEST_FILE = "project.pagenote";
@@ -142,6 +145,21 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         imageWriteFailuresRemaining = 0;
         releaseReviewReadPause();
         releaseNoteWritePause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_GRANT_PERSISTABLE_READ.equals(method)) {
+        Uri uri = extras == null ? null : extras.getParcelable(EXTRA_URI);
+        String packageName = extras == null ? null : extras.getString(EXTRA_PACKAGE_NAME);
+        if (uri == null || packageName == null) {
+          throw new IllegalArgumentException("missing URI or package name");
+        }
+        getContext().grantUriPermission(
+            packageName,
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
         return Bundle.EMPTY;
       }
       if (METHOD_REPLACE_NOTES.equals(method)) {
