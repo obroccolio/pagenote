@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add an Android desktop command checklist mapping desktop `index.html` entries to Android reader command ids, keeping only `office_edit` and `save_return` as tracked placeholders. / 新增安卓桌面命令清单，将桌面 `index.html` 入口映射到安卓阅读器命令 id，仅保留 `office_edit` 与 `save_return` 为已追踪占位项。
 - Make release validation channel-aware for Android prereleases while preserving desktop version, changelog and download-link checks. / 发布校验支持独立 Android 测试版通道，同时保留桌面版本、更新日志与下载链接校验。
 - Fix both bottom status bars jumping upward while page notes render Mermaid diagrams. Keep temporary SVG measurements outside the window grid and clean them up after success or errors. Local arm64 builds advance to 1.0.1-dev.5; public downloads remain v1.0.0. / 修复翻页时笔记中的 Mermaid 图表导致页数、字数底部栏突然上移和下方闪出空白的问题；图表临时测量容器移出主布局，并在成功或失败后清理。本地 arm64 构建升级至 1.0.1-dev.5，公开下载仍为 v1.0.0。
 - Add continuous trackpad pinch zoom for complete document/note pages, pointer-anchored magnification, native two-axis inertial panning, and deferred sharp PDF rendering without rebuilding text or ink during a gesture. Fix zoom-related redundant layout rebuilds and keep Markdown line wrapping stable. Local arm64 builds advance to 1.0.1-dev.4; public downloads remain v1.0.0. / 新增触控板双指连续缩放整张文档与笔记页面，保持缩放中心，支持双向惯性平移；手势结束后补充清晰 PDF 渲染，保留文字与批注，修复缩放引发的重复布局重建，Markdown 缩放保持原有换行。本地 arm64 构建升级至 1.0.1-dev.4，公开下载仍为 v1.0.0。
