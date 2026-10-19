@@ -10,6 +10,7 @@
 
 ## Unreleased / 尚未发布
 
+- Add an independent Android Classic / Paper Markdown reading theme with persistent settings, warm serif content palettes for light and dark appearance, and matching source, note, code, and Mermaid styling. Theme changes leave Markdown files and PDF pixels untouched. Verified with focused API 34 tablet tests and the 16 KB-aligned debug APK. / 新增独立的 Android Markdown「经典 / 纸页」阅读主题及持久化设置，为浅色与深色外观提供暖纸衬线配色，并同步应用于 Markdown 原文、笔记、代码与 Mermaid；切换主题不改写 Markdown 文件或 PDF 像素。已通过 API 34 平板定向测试及 16 KB 对齐 Debug APK 验证。
 - Add editable Android-local overrides for the six desktop AI prompt modules, with per-module save/reset, validation, task-aware loading, and the immutable document-safety prefix. Verified on the API 34 tablet AVD. / 新增与桌面六个 AI 提示词模块对应的 Android 本地编辑与覆盖，支持逐模块保存/恢复、输入校验和按任务加载，并始终保留不可移除的文档安全前缀；已在 API 34 平板模拟器验证。
 - Specify Android tasks 46–49 before implementation: safe rich-HTML clipboard conversion, editable desktop-compatible AI prompt modules, an independent Markdown theme, and focused editor shortcuts. / 在实现前补齐安卓任务 46–49 的 SPEC：安全富 HTML 剪贴板转换、兼容桌面模块的可编辑 AI 提示词、独立 Markdown 主题与编辑器快捷键。
 - Convert explicitly pasted clipboard HTML to Markdown locally, preserving common formatting while dropping active content and unsafe links; retain plain-text fallback and page-scoped note saving. / 将用户主动粘贴的剪贴板 HTML 在本地转换为 Markdown，保留常用格式并移除活动内容和不安全链接；保留纯文本回退与按页保存。
