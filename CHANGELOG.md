@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Record the remaining Android acceptance scope for long Markdown cold start and task 12 without closing either task. / 记录长页冷启动与 task 12 的剩余验收口径，不关闭任一任务。
 - Add a desktop parity gap audit confirming the only unwired Android commands are `office_edit` and `save_return`, with a JVM test pinning the pending placeholder set. / 新增桌面移植缺口审计，确认安卓唯一未接线命令为 `office_edit` 与 `save_return`，并以 JVM 测试锁定占位集合。
 - Verify the Android desktop command checklist with a JVM test that keeps only `office_edit` and `save_return` as pending commands. / 新增安卓桌面命令清单 JVM 校验，仅保留 `office_edit` 与 `save_return` 为待实现占位命令。
 - Add an Android desktop command checklist mapping desktop `index.html` entries to Android reader command ids, keeping only `office_edit` and `save_return` as tracked placeholders. / 新增安卓桌面命令清单，将桌面 `index.html` 入口映射到安卓阅读器命令 id，仅保留 `office_edit` 与 `save_return` 为已追踪占位项。
