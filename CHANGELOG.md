@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Pin reader interaction enhancement defaults with a JVM test and converge the Office engine next executable slice without closing task 36. / 以 JVM 测试锁定阅读器增强默认值，并收敛 Office 引擎下一可执行切片，不关闭 task 36。
 - Record the remaining Android acceptance scope for long Markdown cold start and task 12 without closing either task. / 记录长页冷启动与 task 12 的剩余验收口径，不关闭任一任务。
 - Add a desktop parity gap audit confirming the only unwired Android commands are `office_edit` and `save_return`, with a JVM test pinning the pending placeholder set. / 新增桌面移植缺口审计，确认安卓唯一未接线命令为 `office_edit` 与 `save_return`，并以 JVM 测试锁定占位集合。
 - Verify the Android desktop command checklist with a JVM test that keeps only `office_edit` and `save_return` as pending commands. / 新增安卓桌面命令清单 JVM 校验，仅保留 `office_edit` 与 `save_return` 为待实现占位命令。
