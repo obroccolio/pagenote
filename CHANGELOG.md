@@ -6,6 +6,7 @@
 
 ## Unreleased / 尚未发布
 
+- Android 1.0.0-beta.4 candidate: add standalone PDF/Markdown import, selected ink color/width editing, and a localized accessibility name for the outside-page ink switch. API 34 focused tests, Beta APK build, 16 KB alignment, and AVD cold launch pass; public publication is pending. / Android 1.0.0-beta.4 候选内容：增加独立 PDF/Markdown 导入、选中笔迹颜色/宽度编辑，并为页外书写开关提供本地化无障碍名称。Android 14 定向测试、Beta APK 构建、16 KB 对齐和模拟器冷启动均通过；公开发布待完成。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
 - Specify an opt-in API 34 cold-start fixture path for the 69-page long-Markdown acceptance; normal instrumentation cleanup remains the default. / 规定 69 页长 Markdown 验收的可选 API 34 冷启动 fixture 保留流程，常规仪器测试仍默认清理。

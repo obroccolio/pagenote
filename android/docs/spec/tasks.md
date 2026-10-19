@@ -312,6 +312,7 @@
 - [ ] 36. 本地 Office 引擎与桌面格式编辑
   - 支持 `.doc/.docx/.ppt/.pptx` 项目源，在 pagenote 进程内离线阅读/编辑并保存回原格式；不调用外部 Office app 或远程服务。
   - 按 `office-editor-plan.md` 分为引擎可复现构建/嵌入、项目源与 PDF 预览、编辑与 Save & Return、可靠文字选区四个切片；先验证上游 LibreOfficeKit Android 原生引擎，不先放开无法渲染的扩展名。
+  - [x] 第一切片固定待验证的 Collabora Gerrit `online` 提交 `a27b66cad6275afe672d73bd1bdfa7627a97c9f3`，并记录 Linux builder、NDK 与 16 KB 对齐的本机约束；该哈希不是构建或集成验收通过的声明。详见 `features/office-engine-next-slice.md`。
   - [x] 先落纯 core-project 保存就绪策略：按完整源字节 SHA-256 revision 守卫，区分外部冲突、只读目标、缺少恢复副本和可保存状态。`OfficeSavePolicyTest` 6/6 通过；未接 SAF/editor，也未开放 Office 文件入口。SPEC：`features/office-save-policy.md`。
   - 通过一个 API 34 平板 AVD 闭环覆盖导入、编辑、保存、重开；不建立跨 API 测试矩阵。
   - _Requirement: Office 源格式、布局与适配_
@@ -351,5 +352,48 @@
   - 识别结果作为原生矢量项写入 `annotations.json`，不额外保存自由笔迹副本；复用原生批注页历史撤销/重做。
   - API 34 平板模拟器验证停笔提交、提前抬笔、高亮笔排除、移动取消、手势取消，以及阅读器落盘/撤销/重做。
   - SPEC：`features/dwell-shape-recognition.md`。
+
+- [x] 43. 桌面工作流语义差异审计
+  - 在命令 ID 清单之外，逐项比对桌面实际行为与 Android handler，确认并记录 standalone PDF/Markdown 打开、选中批注改色/改宽、HTML 富文本粘贴、AI prompt 模块编辑、独立 Markdown 主题和格式快捷键六项缺口。
+  - 审计基线：`features/desktop-semantic-parity.md`；命令接线审计 `features/desktop-parity-gap-audit.md` 已明确仅覆盖 ID 层面。
+
+- [x] 44. 编辑已选中批注的颜色与宽度
+  - 选择一条自由笔迹或一个原生 PDF 批注后，通过现有颜色/宽度控件修改所选项；保留未知 JSON 字段和当前活动绘制样式。
+  - 颜色与宽度分别进入对应页的原生撤销/重做历史；无选择时仅改变后续绘制样式。
+  - 在保存互斥锁内基于最新页数据只补丁未变化的目标项；保留其他并发页项目。列表删除所选项时清除选择，删除更早项目时平移索引，避免样式误套到相邻项目；等价颜色不产生历史记录。
+  - `PenPageStore` 与 app JVM 测试通过，含等价颜色无操作与删除索引映射；API 34 平板 AVD `PdfAnnotationSelectionClipboardActivityTest` 2/2 验证原生批注和自由笔迹的独立属性更新、并发字段保留、保存、撤销/重做；Debug APK 已构建。
+  - SPEC：`features/desktop-semantic-parity.md` §44、`features/pen-style-controls.md`。
+
+- [x] 45. 打开独立 PDF 与 Markdown 文件
+  - 新增 `Open document` 入口，可选择 standalone `.pdf`、`.md` 或 `.markdown`；通过现有 New Project 流程选 SAF 父目录，文件名生成可编辑的安全项目名。
+  - File 菜单与空白页入口共用 SAF 选择器；支持取消、替换和 Activity 重建时保留来源名称/URI 状态，同名目录拒绝覆盖，不支持扩展名显示可重选错误。
+  - PDF 在复制前后均用 `PdfRenderer` 校验至少一页；Markdown 原始字节（含 BOM/CRLF，空文件也有效）复制到项目 `src/`，写 v1 manifest 并保留 `right.md`、`assets/`。
+  - API 34 平板 AVD：`ProjectCreateOptionalPdfActivityTest` 10/10、`NewProjectDialogTest` 3/3；覆盖旧 PDF/空项目、Markdown 字节保真与首屏打开、取消、替换、实际持久化授权跨 Activity 重建及移除/取消/创建后释放、不支持格式、同名、预校验失败与复制后校验失败回滚。SAF fixture 不等同于系统文件选择器 UI或小米真机验收。
+  - SPEC：`features/desktop-semantic-parity.md` §45、`features/standalone-document-import.md`；实施顺序：`standalone-document-import-plan.md`。
+
+- [ ] 46. Markdown 笔记粘贴富 HTML
+  - 显式“按 Markdown 粘贴”支持从剪贴板 `text/html` 转换常用语义格式，替换选区/插入光标；HTML 缺失时保留纯文本回退。
+  - 转换本地完成，不执行脚本、事件属性或远程资源请求。
+  - SPEC：`features/desktop-semantic-parity.md` §46。
+
+- [ ] 47. AI 提示词模块编辑
+  - 模型设置对齐桌面模块列表，支持逐模块修改、保存和恢复内置默认；Agent 后续读取应用本地覆盖值。
+  - 提示词覆盖与 endpoint/model/key 分开保存，校验失败不覆盖最后有效内容。
+  - SPEC：`features/desktop-semantic-parity.md` §47。
+
+- [ ] 48. Markdown 阅读主题独立设置
+  - 将 `classic`/`paper` Markdown 渲染主题与应用外观设置分离并持久化；只影响 Markdown pane，不改变 PDF 原色、UI 外观或笔记源内容。
+  - SPEC：`features/desktop-semantic-parity.md` §48。
+
+- [ ] 49. Markdown 编辑格式快捷键
+  - 焦点位于可写 Markdown 编辑器时，Ctrl/Cmd+B、I、K 复用工具栏粗体、斜体、链接变换。
+  - 对话框、非笔记文本框和阅读界面不截获这些快捷键；保留选区、光标及撤销历史语义。
+  - SPEC：`features/desktop-semantic-parity.md` §49。
+
+- [x] 50. 阅读器交互增强端到端复核
+  - 六项验收已逐一对照现有 SPEC、代码和回归，API 34 平板 AVD 的定向验证通过；页外书写开关补齐本地化无障碍名称和保存/恢复 UI 回归。
+  - 现有 Reader Activity 测试已覆盖识形原生落盘及按页撤销/重做；新增 SAF 写入失败后回退为原始自由笔迹的 Activity 回归。
+  - 聚焦 JVM、Reader Activity 5/5、Pen View 9/9、Settings 2/2、形状落盘/历史 1/1、写入失败回退 1/1、AndroidTest 源码编译、Debug APK 构建均通过；SPEC、计划及 changelog 已记录并推送。
+  - SPEC：`features/reader-interaction-enhancements.md`；计划：`reader-interaction-acceptance-plan.md`。
 
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。
