@@ -75,13 +75,37 @@ class PdfTextMapperTest {
   }
 
   @Test
-  fun unsupportedAndroidVersionsRequestOfflineOcrFallback() {
+  fun mapsPdfBoxGlyphsIntoPositionedLineBlocks() {
+    val result = PdfTextMapper.extract(
+      PdfPageText(
+        text = "A B\nC",
+        revision = "r1",
+        pageWidth = 100.0,
+        pageHeight = 100.0,
+        glyphs = listOf(
+          PdfTextGlyph(0, 1, PdfTextBounds(10.0, 10.0, 20.0, 20.0)),
+          PdfTextGlyph(2, 3, PdfTextBounds(25.0, 10.0, 35.0, 20.0)),
+          PdfTextGlyph(4, 5, PdfTextBounds(10.0, 30.0, 20.0, 40.0)),
+        ),
+      ),
+    )
+
+    assertEquals(PdfTextExtractionStatus.AVAILABLE, result.status)
+    assertEquals("A B\nC", result.fullText)
+    assertEquals(listOf("A B", "C"), result.blocks.map(PdfTextBlock::text))
+    assertEquals(100.0, result.blocks.first().x, 0.0001)
+    assertEquals(250.0, result.blocks.first().width, 0.0001)
+    assertEquals(300.0, result.blocks.last().y, 0.0001)
+  }
+
+  @Test
+  fun supportedAndroidVersionsHaveTextExtractionAvailable() {
     assertEquals(
       PdfTextExtractionStatus.UNAVAILABLE_FALLBACK_TO_OCR,
       PdfTextExtractionPolicy.statusForApi(29),
     )
     assertEquals(
-      PdfTextExtractionStatus.UNAVAILABLE_FALLBACK_TO_OCR,
+      PdfTextExtractionStatus.AVAILABLE,
       PdfTextExtractionPolicy.statusForApi(34),
     )
     assertEquals(PdfTextExtractionStatus.AVAILABLE, PdfTextExtractionPolicy.statusForApi(35))

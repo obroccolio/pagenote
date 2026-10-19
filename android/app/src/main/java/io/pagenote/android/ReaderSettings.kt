@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import kotlin.math.roundToInt
+
 data class ReaderSettings(
   val theme: String = "system",
   val language: String = "system",
@@ -37,5 +39,19 @@ object ReaderSettingsPolicy {
 
   fun useSideBySide(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {
     return isTabletLandscape(widthDp, heightDp, orientationLandscape)
+  }
+}
+
+internal object ReaderPaneSplitPolicy {
+  fun percentAfterDrag(currentPercent: Float, deltaXPx: Float, availableWidthPx: Float): Float {
+    require(currentPercent.isFinite() && currentPercent in 20f..80f) { "bad split percent" }
+    require(deltaXPx.isFinite()) { "bad divider drag delta" }
+    require(availableWidthPx.isFinite() && availableWidthPx > 0f) { "bad pane width" }
+    return (currentPercent + deltaXPx * 100f / availableWidthPx).coerceIn(20f, 80f)
+  }
+
+  fun persistedPercent(percent: Float): Int {
+    require(percent.isFinite() && percent in 20f..80f) { "bad split percent" }
+    return percent.roundToInt()
   }
 }

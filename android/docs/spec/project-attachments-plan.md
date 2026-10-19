@@ -8,8 +8,8 @@
 
 ## Tasks
 
-- [ ] Add JVM tests for attachment name/type validation, note/annotation reference detection, and delete eligibility.
-- [ ] Implement SAF list/import/delete operations with collision-resistant UUID names and partial-write cleanup reporting.
-- [ ] Add the project attachment dialog, import picker, image-to-Markdown insertion, and explicit deletion confirmation.
-- [ ] Add one API 34 SAF Activity regression for list/import/cancel/reference protection/delete/provider failure.
-- [ ] Run focused JVM and AVD tests, Android test compilation, app build, and `git diff --check`.
+- [x] Add JVM tests for attachment name/type validation, note/annotation reference detection, and delete eligibility.
+- [x] Implement SAF list/import/delete operations with collision-resistant UUID names and partial-write cleanup reporting.
+- [x] Add the project attachment dialog, import picker, image-to-Markdown insertion, and explicit deletion confirmation.
+- [x] Add a focused API 34 Compose regression for image insertion callback and explicit delete confirmation. Full SAF Picker/Provider end-to-end was deferred under the user's reduced-test scope and is not claimed as verified.
+- [x] Run focused JVM policy tests, the API 34 AVD dialog test, Android test compilation, app build, and `git diff --check`.

@@ -48,4 +48,21 @@ class ReaderSettingsTest {
   fun tabletLandscapeUsesSideBySide() {
     assertTrue(ReaderSettingsPolicy.useSideBySide(1280, 800, true))
   }
+
+  @Test
+  fun dividerDragAdjustsPaneSplitRelativeToAvailableWidth() {
+    assertEquals(52f, ReaderPaneSplitPolicy.percentAfterDrag(42f, 100f, 1_000f), 0.001f)
+  }
+
+  @Test
+  fun dividerDragClampsPaneSplitToReadableBounds() {
+    assertEquals(20f, ReaderPaneSplitPolicy.percentAfterDrag(42f, -500f, 1_000f), 0.001f)
+    assertEquals(80f, ReaderPaneSplitPolicy.percentAfterDrag(42f, 500f, 1_000f), 0.001f)
+    assertEquals(53, ReaderPaneSplitPolicy.persistedPercent(52.6f))
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun dividerDragRejectsInvalidAvailableWidth() {
+    ReaderPaneSplitPolicy.percentAfterDrag(42f, 10f, 0f)
+  }
 }

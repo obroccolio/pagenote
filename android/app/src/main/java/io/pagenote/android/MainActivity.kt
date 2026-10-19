@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.DocumentsContract
@@ -19,6 +20,7 @@ import android.text.TextWatcher
 import android.view.Choreographer
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.KeyEvent
 import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -73,6 +75,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -176,12 +179,14 @@ private data class PdfAnnotationSelectionGesture(
 
 class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
+  internal var readerShortcutHandler: ((KeyEvent) -> Boolean)? = null
   internal var markdownImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var pdfImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var newProjectPdfPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var projectAttachmentPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
 
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
     super.onCreate(savedInstanceState)
@@ -190,6 +195,11 @@ class MainActivity : ComponentActivity() {
     setContent {
       ReaderSettingsHost(readerSession)
     }
+  }
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    if (readerShortcutHandler?.invoke(event) == true) return true
+    return super.dispatchKeyEvent(event)
   }
 
   override fun onSaveInstanceState(outState: android.os.Bundle) {
@@ -356,6 +366,9 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val appVersion = remember(context) {
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+  }
   val systemClipboard = remember(context) { context.getSystemService(ClipboardManager::class.java) }
   var clipboardRevision by remember { mutableIntStateOf(0) }
   DisposableEffect(systemClipboard) {
@@ -430,7 +443,19 @@ private fun ReaderHome(
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
+  var splitLeftPercent by remember(settings.leftPercent) {
+    mutableFloatStateOf(settings.leftPercent.toFloat())
+  }
   var showRecentProjectsDialog by remember { mutableStateOf(false) }
+  var helpTopic by remember { mutableStateOf<ReaderHelpTopic?>(null) }
+  var helpDiagnostics by remember { mutableStateOf("") }
+  var showProjectAttachments by remember { mutableStateOf(false) }
+  var projectAttachments by remember { mutableStateOf(emptyList<ProjectAttachmentEntry>()) }
+  var projectAttachmentsError by remember { mutableStateOf<String?>(null) }
+  var isLoadingProjectAttachments by remember { mutableStateOf(false) }
+  var isImportingProjectAttachment by remember { mutableStateOf(false) }
+  var isDeletingProjectAttachment by remember { mutableStateOf(false) }
+  var pendingProjectAttachmentImport by remember { mutableStateOf<Pair<String, Uri>?>(null) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
@@ -2079,6 +2104,158 @@ private fun ReaderHome(
     }
   }
 
+  val projectAttachmentMimeTypes = remember {
+    arrayOf(
+      "image/*",
+      "application/pdf",
+      "text/markdown",
+      "text/plain",
+      "audio/mpeg",
+      "video/mp4",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+  }
+
+  fun refreshProjectAttachments() {
+    val activeProject = project ?: return
+    val projectId = activeProject.manifest.id
+    val sourceDirectoryUri = activeProject.sourceDirectoryUri
+    isLoadingProjectAttachments = true
+    projectAttachmentsError = null
+    scope.launch {
+      try {
+        val entries = withContext(Dispatchers.IO) {
+          ProjectAttachmentStore(context.contentResolver, context.cacheDir, sourceDirectoryUri).list()
+        }
+        if (project?.manifest?.id == projectId && project?.sourceDirectoryUri == sourceDirectoryUri) {
+          projectAttachments = entries
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        if (project?.manifest?.id == projectId && project?.sourceDirectoryUri == sourceDirectoryUri) {
+          projectAttachmentsError = context.getString(R.string.project_attachments_load_failed)
+        }
+      } finally {
+        if (project?.manifest?.id == projectId && project?.sourceDirectoryUri == sourceDirectoryUri) {
+          isLoadingProjectAttachments = false
+        }
+      }
+    }
+  }
+
+  fun handleProjectAttachmentImportResult(sourceUri: Uri?) {
+    val target = pendingProjectAttachmentImport
+    pendingProjectAttachmentImport = null
+    if (sourceUri == null || target == null) {
+      isImportingProjectAttachment = false
+      return
+    }
+    val (projectId, sourceDirectoryUri) = target
+    scope.launch {
+      try {
+        if (project?.manifest?.id != projectId || project?.sourceDirectoryUri != sourceDirectoryUri) {
+          noteStatus = context.getString(R.string.project_attachments_context_changed)
+          return@launch
+        }
+        withContext(NonCancellable + Dispatchers.IO) {
+          ProjectAttachmentStore(context.contentResolver, context.cacheDir, sourceDirectoryUri).import(sourceUri)
+        }
+        if (project?.manifest?.id == projectId && project?.sourceDirectoryUri == sourceDirectoryUri) {
+          projectAttachmentsError = null
+          refreshProjectAttachments()
+        } else {
+          noteStatus = context.getString(R.string.project_attachments_context_changed)
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: ProjectAttachmentImportException) {
+        projectAttachmentsError = error.residualAssetName?.let {
+          context.getString(R.string.project_attachments_import_failed_residual, it)
+        } ?: context.getString(R.string.project_attachments_import_failed)
+      } catch (_: Exception) {
+        projectAttachmentsError = context.getString(R.string.project_attachments_import_failed)
+      } finally {
+        isImportingProjectAttachment = false
+      }
+    }
+  }
+
+  val projectAttachmentPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument(),
+    onResult = ::handleProjectAttachmentImportResult,
+  )
+
+  fun launchProjectAttachmentImport() {
+    val activeProject = project ?: return
+    if (isOpening || isCreatingProject || isSaving || isPenSaving || isImageImporting || isImportingNotes ||
+      isExportingNotes || failedPenSave != null || isOcrRunning || isAgentRunning || isPageTutorRunning ||
+      isImportingProjectAttachment
+    ) return
+    pendingProjectAttachmentImport = activeProject.manifest.id to activeProject.sourceDirectoryUri
+    isImportingProjectAttachment = true
+    projectAttachmentsError = null
+    try {
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.projectAttachmentPickerForTesting
+      if (pickerForTesting == null) {
+        projectAttachmentPicker.launch(projectAttachmentMimeTypes)
+      } else {
+        pickerForTesting(projectAttachmentMimeTypes) { sourceUri ->
+          handleProjectAttachmentImportResult(sourceUri)
+        }
+      }
+    } catch (_: Exception) {
+      pendingProjectAttachmentImport = null
+      isImportingProjectAttachment = false
+      projectAttachmentsError = context.getString(R.string.project_attachments_import_failed)
+    }
+  }
+
+  fun deleteProjectAttachment(entry: ProjectAttachmentEntry) {
+    val activeProject = project ?: return
+    val projectId = activeProject.manifest.id
+    val sourceDirectoryUri = activeProject.sourceDirectoryUri
+    val notesForReferenceCheck = "$notesMarkdown\n\n$noteDraft"
+    isDeletingProjectAttachment = true
+    projectAttachmentsError = null
+    scope.launch {
+      try {
+        val result = withContext(Dispatchers.IO) {
+          val store = ProjectAttachmentStore(context.contentResolver, context.cacheDir, sourceDirectoryUri)
+          val annotations = store.readAnnotations()
+          store.deleteIfUnreferenced(entry.assetName, notesForReferenceCheck, annotations)
+        }
+        if (project?.manifest?.id != projectId || project?.sourceDirectoryUri != sourceDirectoryUri) {
+          return@launch
+        }
+        when (result) {
+          ProjectAttachmentDeleteResult.DELETED -> {
+            projectAttachmentsError = null
+            noteStatus = null
+            refreshProjectAttachments()
+          }
+          ProjectAttachmentDeleteResult.REFERENCED ->
+            projectAttachmentsError = context.getString(R.string.project_attachments_delete_referenced)
+          ProjectAttachmentDeleteResult.UNKNOWN_REFERENCES ->
+            projectAttachmentsError = context.getString(R.string.project_attachments_delete_unknown)
+          ProjectAttachmentDeleteResult.NOT_FOUND,
+          ProjectAttachmentDeleteResult.UNSAFE_NAME,
+          ProjectAttachmentDeleteResult.PROVIDER_REJECTED,
+          -> projectAttachmentsError = context.getString(R.string.project_attachments_delete_failed)
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        if (project?.manifest?.id == projectId && project?.sourceDirectoryUri == sourceDirectoryUri) {
+          projectAttachmentsError = context.getString(R.string.project_attachments_delete_unknown)
+        }
+      } finally {
+        isDeletingProjectAttachment = false
+      }
+    }
+  }
+
   suspend fun saveCurrentPageBeforeSwitch(): Boolean {
     if (readerSession.project.value == null) return true
     val currentPage = readerSession.pageIndex.intValue + 1
@@ -2763,8 +2940,10 @@ private fun ReaderHome(
     activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
     else -> 0
   }
-  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting || isImportingNotes || isExportingNotes || failedPenSave != null ||
-    isOcrRunning || isSelectablePageTextLoading || readerInputLocked || isAgentRunning || isPageTutorRunning
+  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
+    isImportingNotes || isExportingNotes || failedPenSave != null || isOcrRunning || isSelectablePageTextLoading ||
+    readerInputLocked || isAgentRunning || isPageTutorRunning || isLoadingProjectAttachments ||
+    isImportingProjectAttachment || isDeletingProjectAttachment
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
 
@@ -2979,18 +3158,135 @@ private fun ReaderHome(
     onSelect = {},
   )
 
+  fun requestProjectAttachmentImageInsertion(entry: ProjectAttachmentEntry) {
+    if (project == null) return
+    if (!noteWritable) {
+      noteStatus = context.getString(R.string.project_attachments_insert_read_only)
+      return
+    }
+    if (!entry.canInsertImage) return
+    val reference = ProjectAttachmentPolicy.createImageReference(
+      entry.assetName.substringBeforeLast('.'),
+      entry.assetName,
+    )
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.text.toString() == noteDraft }
+    if (editor != null) {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = editor.selectionStart,
+        selectionEnd = editor.selectionEnd,
+        text = reference,
+      )
+      editor.requestFocus()
+      editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
+      editor.setSelection(edit.cursor)
+    } else {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = noteDraft.length,
+        selectionEnd = noteDraft.length,
+        text = reference,
+      )
+      val updated = buildString(noteDraft.length + reference.length) {
+        append(noteDraft, 0, edit.replaceStart)
+        append(edit.replacement)
+        append(noteDraft, edit.replaceEnd, noteDraft.length)
+      }
+      readerSession.setNoteDraft(updated)
+      noteEditRequest++
+    }
+    noteStatus = null
+    showProjectAttachments = false
+  }
+
   val canImportNotes = activeProject != null && noteWritable && !menuBusy
+  val canManageAttachments = activeProject != null && !menuBusy
+
+  fun openHelp(topic: ReaderHelpTopic) {
+    if (topic == ReaderHelpTopic.DIAGNOSTICS) {
+      val openProject = project != null
+      val sourceKind = when {
+        renderer != null -> context.getString(R.string.help_source_pdf)
+        markdownSource != null -> context.getString(R.string.help_source_markdown)
+        else -> context.getString(R.string.help_source_none)
+      }
+      helpDiagnostics = context.getString(
+        R.string.help_diagnostics_format,
+        appVersion,
+        Build.VERSION.SDK_INT,
+        Build.MANUFACTURER.orEmpty(),
+        Build.MODEL.orEmpty(),
+        context.getString(if (openProject) R.string.help_project_open else R.string.help_project_closed),
+        sourceKind,
+        if (openProject) totalPages else 0,
+      )
+    }
+    helpTopic = topic
+  }
+
+  fun copyHelpDiagnostics() {
+    val clipboard = systemClipboard ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText("pagenote diagnostics", helpDiagnostics))
+    noteStatus = context.getString(R.string.help_diagnostics_copied)
+  }
+
+  fun shareHelpDiagnostics() {
+    val send = Intent(Intent.ACTION_SEND).apply {
+      type = "text/plain"
+      putExtra(Intent.EXTRA_TEXT, helpDiagnostics)
+    }
+    runCatching { context.startActivity(Intent.createChooser(send, context.getString(R.string.help_share_title))) }
+      .onFailure { noteStatus = context.getString(R.string.help_share_failed) }
+  }
 
   fun menuSection(group: ReaderMenuGroup, labelRes: Int, commands: List<ReaderMenuCommand>) =
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
-  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
+  val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting &&
+    !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
+    !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
-  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting && !isImportingNotes && !isExportingNotes &&
+  val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting &&
+    !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
+    !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
+  val shortcutActivity = activityResultOwner as? MainActivity
+  DisposableEffect(shortcutActivity, activeProject?.manifest?.id, pageIndex, canChangePage, noteWritable, menuBusy) {
+    val activity = shortcutActivity ?: return@DisposableEffect onDispose {}
+    val handler: (KeyEvent) -> Boolean = handler@{ event ->
+      if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@handler false
+      when (ReaderShortcutPolicy.action(
+        event.keyCode,
+        alt = event.isAltPressed,
+        control = event.isCtrlPressed,
+        meta = event.isMetaPressed,
+      )) {
+        ReaderShortcutAction.PREVIOUS_PAGE -> {
+          if (!canChangePage || pageIndex == 0) return@handler false
+          readerSession.launchSessionTask { changePage(pageIndex - 1) }
+          true
+        }
+        ReaderShortcutAction.NEXT_PAGE -> {
+          if (!canChangePage || pageIndex >= totalPages - 1) return@handler false
+          readerSession.launchSessionTask { changePage(pageIndex + 1) }
+          true
+        }
+        ReaderShortcutAction.SAVE_NOTE -> {
+          if (activeProject == null || !noteWritable || menuBusy) return@handler false
+          readerSession.launchSessionTask { saveCurrentNote() }
+          true
+        }
+        null -> false
+      }
+    }
+    activity.readerShortcutHandler = handler
+    onDispose {
+      if (activity.readerShortcutHandler === handler) activity.readerShortcutHandler = null
+    }
+  }
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
   val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
@@ -3185,11 +3481,13 @@ private fun ReaderHome(
           "recent_documents", R.string.reader_menu_recent_documents, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) { showRecentProjectsDialog = true },
-        pendingCommand(
-          "attachments",
-          R.string.reader_menu_attachments,
-          R.string.reader_menu_attachments_unavailable,
-        ),
+        actionCommand(
+          "attachments", R.string.reader_menu_attachments, canManageAttachments,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          showProjectAttachments = true
+          refreshProjectAttachments()
+        },
         actionCommand(
           "import_notes", R.string.reader_menu_import_notes, canImportNotes,
           disabledReason = commandReason(requireProject = true, requireWritable = true),
@@ -3643,10 +3941,14 @@ private fun ReaderHome(
       ReaderMenuGroup.HELP,
       R.string.reader_menu_group_help,
       listOf(
-        pendingCommand("about", R.string.reader_menu_about),
-        pendingCommand("shortcuts", R.string.reader_menu_shortcuts),
-        pendingCommand("privacy_license", R.string.reader_menu_privacy_license),
-        pendingCommand("diagnostics", R.string.reader_menu_diagnostics),
+        actionCommand("about", R.string.reader_menu_about, true) { openHelp(ReaderHelpTopic.ABOUT) },
+        actionCommand("shortcuts", R.string.reader_menu_shortcuts, true) { openHelp(ReaderHelpTopic.SHORTCUTS) },
+        actionCommand("privacy_license", R.string.reader_menu_privacy_license, true) {
+          openHelp(ReaderHelpTopic.PRIVACY_LICENSE)
+        },
+        actionCommand("diagnostics", R.string.reader_menu_diagnostics, true) {
+          openHelp(ReaderHelpTopic.DIAGNOSTICS)
+        },
       ),
     ),
   )
@@ -3795,7 +4097,12 @@ private fun ReaderHome(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
         if (maxWidth >= 840.dp) {
-          val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(settings.leftPercent)
+          val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(
+            ReaderPaneSplitPolicy.persistedPercent(splitLeftPercent),
+          )
+          val dividerAvailableWidthPx = with(LocalDensity.current) {
+            (maxWidth - READER_PANE_DIVIDER_WIDTH).toPx()
+          }
           Row(modifier = Modifier.fillMaxSize()) {
             if (activeMarkdown != null) {
               MarkdownSourcePane(
@@ -3860,9 +4167,25 @@ private fun ReaderHome(
                 modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
               )
             }
-            Box(
-              modifier = Modifier.fillMaxHeight().padding(horizontal = 5.dp)
-                .width(1.dp).background(MaterialTheme.colorScheme.outlineVariant),
+            ReaderPaneDivider(
+              leftPercent = splitLeftPercent,
+              availableWidthPx = dividerAvailableWidthPx,
+              onPercentChange = { splitLeftPercent = it },
+              onDragFinished = {
+                scope.launch {
+                  try {
+                    settingsStore.save(
+                      settings.copy(leftPercent = ReaderPaneSplitPolicy.persistedPercent(splitLeftPercent)),
+                    )
+                  } catch (cancelled: CancellationException) {
+                    throw cancelled
+                  } catch (_: Exception) {
+                    splitLeftPercent = settings.leftPercent.toFloat()
+                    noteStatus = context.getString(R.string.settings_save_failed)
+                  }
+                }
+              },
+              modifier = Modifier.fillMaxHeight(),
             )
             NotePanel(
               page = pageIndex + 1,
@@ -4227,6 +4550,29 @@ private fun ReaderHome(
       },
       onOpenProjectPicker = ::chooseProjectFromRecentDialog,
       onDismiss = { showRecentProjectsDialog = false },
+    )
+  }
+  if (showProjectAttachments) {
+    ProjectAttachmentsDialog(
+      entries = projectAttachments,
+      isLoading = isLoadingProjectAttachments,
+      isImporting = isImportingProjectAttachment,
+      isDeleting = isDeletingProjectAttachment,
+      errorMessage = projectAttachmentsError,
+      onImport = ::launchProjectAttachmentImport,
+      onInsertImage = ::requestProjectAttachmentImageInsertion,
+      onDelete = ::deleteProjectAttachment,
+      onDismiss = { showProjectAttachments = false },
+    )
+  }
+  helpTopic?.let { topic ->
+    ReaderHelpDialog(
+      topic = topic,
+      appVersion = appVersion,
+      diagnostics = helpDiagnostics,
+      onCopyDiagnostics = ::copyHelpDiagnostics,
+      onShareDiagnostics = ::shareHelpDiagnostics,
+      onDismiss = { helpTopic = null },
     )
   }
   if (showNewProject) {

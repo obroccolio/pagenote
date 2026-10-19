@@ -55,7 +55,9 @@ class PdfDocumentSession private constructor(
         page.close()
       }
     }
-    return PdfTextExtractionResult.unavailableForOcr()
+    val selectableText = extractPdfBoxPageContent(pageIndex)?.selectableText
+      ?: return PdfTextExtractionResult.unavailableForOcr()
+    return PdfTextMapper.extract(selectableText)
   }
 
   @Synchronized

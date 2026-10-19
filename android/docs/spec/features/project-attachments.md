@@ -24,5 +24,5 @@
 ## 验证
 
 - JVM：安全资源名、附件类型/扩展名验证、引用扫描、被笔记或批注引用时拒绝删除。
-- Android 14/API 34 平板 AVD：一项 SAF Activity 流程覆盖空/非空目录、导入和取消、图片引用插入、被引用删除拒绝、孤立资源确认删除，以及 Provider 写入失败清理。
+- Android 14/API 34 平板 AVD：`ProjectAttachmentsDialogTest` 覆盖图片插入回调和删除二次确认；当前弱化验证不跑真实 SAF Picker/Provider Activity 端到端，SAF 存储操作的集成覆盖留作后续补充，不将其描述为已实测。
 - 仅运行上述聚焦测试、受影响 app JVM 测试、Android 测试源码编译和 `:app:assembleDebug`。

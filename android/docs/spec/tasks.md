@@ -2,8 +2,8 @@
 
 > 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与验收。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
-> `features/desktop-ui-and-office-parity.md` 的桌面菜单分组/自适应侧栏方向已确认；Android 不移植桌面 Office 模式，Word 编辑菜单保持禁用，复杂文档回桌面端处理。
-> 当前产品目标为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；单一 API 34 平板 AVD 可替代常规功能验收。硬件专项差异单独记录，不阻塞交付；不扩展性能/压感矩阵或其他机型适配。后续不再对 API 35、16 KB 或其他机型做常规适配矩阵。旧任务中的多设备记录仅保留为历史验证证据。
+> 桌面菜单分组、自适应侧栏和全量用户功能移植已确认；Android 14/API 34 是最低功能基线，API 34 及以上不得按系统版本区分可用功能。
+> 测试按用户要求收敛：只运行受影响的定向测试、Debug 构建和必要时唯一 API 34 平板 AVD；AVD 可替代常规设备验收。真实 MIUI/压感/侧键差异单独记录，不扩展设备与系统版本矩阵。
 
 ## Implementation Plan
 
@@ -30,7 +30,7 @@
 
 - [x] 4. 阅读器与双栏自适应（SAF 入口、PdfRenderer 翻页、原生文字/视口/缓存、窄屏堆叠/宽屏并排、Markdown 源阅读均已落地，真机待 task 12）
   - [x] 4.1 SAF 打开项目目录、解码并校验 `project.pagenote`、使用 `PdfRenderer` 翻页（`ProjectDocumentOpener` + `PdfDocumentSession` + 上下页已接通）。
-  - [x] 4.2 原生文字/文字块抽取、整页与区域 PNG、缩放平移及缓存接入（API 35 原生文本、`PdfPagePolicy` 整页渲染、`toPixelRect` + `createBitmap` 区域图、`PdfViewportTransform` 缩放平移与 `ProjectPreparedCache` 均已接通）。
+  - [x] 4.2 原生文字/文字块抽取、整页与区域 PNG、缩放平移及缓存接入（API 34 使用本地 PDFBox 字形坐标回退、API 35 使用 `PdfRenderer` 文本接口；API 34+ 均报告可用，`PdfPagePolicy` 整页渲染、区域图、缩放平移与 `ProjectPreparedCache` 已接通）。
   - [x] 4.3 手机上下页、平板左右对照、Markdown 源文档阅读（Markdown 源按 `PageNotes.split` 分页、页数取 max、对齐笔记页，PDF 专属入口禁用；契约见 `features/markdown-source-reading.md`）。
   - PDF 按页渲染、原生文字与文字块抽取、整页 PNG。
   - 手机竖屏上下页，平板横屏左右对照；缩放、平移、适应宽度、重置缩放。
@@ -131,7 +131,7 @@
   - [x] PDF 线条批注和一条笔迹写入隔离项目；冷重开后 `annotations.json` 与重开前 SHA-256 完全一致。用户在 Xiaomi Pad 5 Pro 实测主动式手写笔书写及压感整体正常；此次自动化持久化动作使用 ADB 触控模拟，不代表自动化测过压感。
   - [ ] 手写笔侧键橡皮擦未单独测试；不影响用户已报告的基础书写与压感正常，也不作为常规功能验收阻塞。
   - [ ] 冷启动重开项目后跳转第 31 页曾弹出系统“pagenote 没有响应”；选择等待后恢复。仅限 pagenote 的日志显示主线程输入超时，首个可见 native 栈帧为 `minikin::getNextWordBreakForCache`；根因未确认，需后续按 SPEC 调查。
-  - [ ] API 34 平板 AVD 构建/安装与代表性功能闭环；文件组“附件”和“使用说明”仍有待实现命令，分别跟踪于 task 32/33。Office 编辑按本 SPEC 明确留给桌面端，不作为 Android 待实现项；任何未实现命令不得归因于 Android 版本。
+  - [ ] API 34 平板 AVD 构建/安装与代表性功能闭环；附件和使用说明命令已分别在 task 32/33 接通。Office 编辑仍是 Android 待实现项（task 36）；任何未实现命令不得归因于 Android 版本。
   - 只确认上述闭环，不抽查多页或多种文档，不测压力曲线、延迟、边缘性能、电量、长时间稳定性，也不要求无端点配置时验证云请求。
   - 日常只运行受影响模块的直接相关契约/JVM 测试与 Debug 构建；UI/平台改动才在唯一 API 34 平板 AVD 上跑聚焦仪器测试。无需每次重跑完整套件；Markdown 预览使用 task 5.5 的单项测试和一张截图。
   - 不运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。16 KB 页大小及公开商店合规检查仅在目标 SDK/商店政策触发时作为独立发布门禁。
@@ -283,14 +283,37 @@
   - 契约见 `features/adaptive-menu-navigation.md`；本任务只修正提示，不代表附件或 Office 编辑能力已移植。
   - _Requirement: 桌面菜单分组一致、Android 14 全功能目标_
 
-- [ ] 32. 项目附件管理（浏览 `src/assets`、通过 SAF 导入桌面兼容资源、插入可离线显示的图片引用、安全删除未引用资源）
+- [x] 32. 项目附件管理（浏览 `src/assets`、通过 SAF 导入桌面兼容资源、插入可离线显示的图片引用、安全删除未引用资源）
   - 附件目录和文件列表从当前项目 SAF tree 读取；导入不得覆盖既有资源或写入来源绝对路径，取消/失败不得修改笔记。
   - 资源被任一页 Markdown 或 PDF 图片批注引用时禁止删除；删除未引用资源须二次确认，Provider 失败时明确报告。
-  - 只在唯一 API 34 平板 AVD 验证附件浏览、导入、引用保护和安全删除；不新增设备/API 矩阵。
+  - SAF store/菜单/对话框/插图/引用保护删除已接入。聚焦 JVM 策略测试、API 34 AVD Compose 删除确认用例、测试源码编译及 Debug 构建通过；按用户允许的弱化测试范围，未跑 Picker/Provider 端到端，不声称已验证导入或 Provider 故障闭环。
   - 契约见 `features/project-attachments.md`，实施拆分见 `project-attachments-plan.md`。
   - _Requirement: 项目与数据兼容、阅读与笔记_
 
-- [ ] 33. Android 帮助菜单（关于、键盘快捷键、隐私/开源许可、诊断信息）
-  - 每个帮助命令打开本地原生内容；诊断信息仅在用户显式操作后复制/分享，不自动上传、不包含模型密钥或笔记正文。
-  - 唯一 API 34 平板 AVD 聚焦验证四个命令、脱敏和复制/分享；不新增设备/API 矩阵。
+- [x] 33. Android 帮助菜单（关于、键盘快捷键、隐私/开源许可、诊断信息）
+  - 每个帮助命令打开本地原生内容；诊断信息仅在用户显式操作后复制/分享，不自动上传、不包含模型密钥或笔记正文；接通桌面同款外接键盘翻页/保存快捷键。
+  - 四个本地帮助页面已接入；诊断快照仅含 app/device/source type/page count，并由显式复制/分享动作输出。快捷键策略 JVM 测试、聚焦 API 34 Compose 用例 1/1、Android 测试源码编译及 Debug 构建通过；未启动系统分享目标应用。
   - _Requirement: 布局与适配、模型隐私_
+
+- [x] 34. 双栏分隔线拖动调比例
+  - 在平板左右并列阅读区提供可触控/手写笔拖动的分隔线，实时调整原文与笔记比例，限制在 20%–80%。
+  - 拖动结束后持久化并同步设置页比例；拖动中不重建项目、不重置 PDF 视口或笔记草稿。
+  - 比例策略聚焦 JVM 测试和 API 34 平板 AVD 实际拖动/释放持久化回调 1/1 通过；设置页仍可作为备用调节入口。
+  - _Requirement: 布局与适配_
+
+- [ ] 35. Android 14+ 功能一致性与桌面命令清单
+  - 对照桌面 `index.html`/`src/main.js` 完成命令到 Android 行为清单；终态移除 `pendingCommand()` 占位项。
+  - 以 API 34 为最低版本，平台 API 差异由兼容实现吸收，不按 OS 版本隐藏功能；PDF 文字提取现已在 API 34 走本地 PDFBox、API 35 走系统接口，保持用户能力一致。
+  - 只验证受影响的用户流程与 API 34 AVD，不扩展 API 版本矩阵。
+  - _Requirement: Android 版本与功能范围、桌面功能区与自适应导航_
+
+- [ ] 36. 本地 Office 引擎与桌面格式编辑
+  - 支持 `.doc/.docx/.ppt/.pptx` 项目源，在 pagenote 进程内离线阅读/编辑并保存回原格式；不调用外部 Office app 或远程服务。
+  - 先做可编译可运行的本地开源引擎集成 spike，再接 SAF 源 revision、恢复副本、预览刷新和笔记/笔迹/批注保留。
+  - 通过一个 API 34 平板 AVD 闭环覆盖导入、编辑、保存、重开；不建立跨 API 测试矩阵。
+  - _Requirement: Office 源格式、布局与适配_
+
+- [ ] 37. 桌面功能全量移植收尾审计
+  - 对照 `desktop-ui-and-office-parity.md` 的菜单表、桌面功能入口与文档格式，逐项确认 Android 可执行行为，清除未实现占位和仅展示 UI。
+  - 每个缺口落到独立 SPEC/任务，并在终态所有任务关闭前不宣称完整移植。
+  - _Requirement: 背景与目标、桌面功能区与自适应导航_

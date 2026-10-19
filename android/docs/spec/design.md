@@ -33,7 +33,7 @@ Mermaid 只在需要表达 Agent 循环与页面准备状态机时使用，本�
 - 语言与 UI：Kotlin + Jetpack Compose。理由是手写笔低延迟与双栏自适应必须走原生；代价是不能直接复用桌面 Web 前端。
 - PDF：首选 Pdfium/MuPDF 系开源方案，兜底系统 `PdfRenderer`。原生文字走 PDF 文本抽取，位图页走渲染加 OCR。超大页限制像素并记录实际比例。
 - Markdown：复用桌面渲染约定（GFM、公式、代码高亮、Mermaid、表格、图片），优先用 Android 原生 renderer；仅 Mermaid 可在隔离、离线的图表 surface 使用 APK 内资源。轻量 Markdown 编辑器保持可编辑源码和桌面命令语义。
-- Office：桌面 Office 模式不移植到 Android。移动端只支持 PDF/Markdown 项目与轻量 Markdown 编辑；`.doc/.docx/.ppt/.pptx` 由桌面端处理，Android 的 Word 编辑菜单明确禁用并说明原因。
+- Office：`.doc/.docx/.ppt/.pptx` 属于 Android 终态支持格式。通过 `OfficeEditorAdapter` 隔离本地开源引擎、SAF 临时文件/回写、revision 与预览刷新；编辑在 pagenote 进程内完成，不启动外部应用、不依赖网络 Office 服务。引擎必须可在 Android 14+ 离线运行并保留源格式，选型与集成按 `features/desktop-ui-and-office-parity.md` 执行。
 - OCR：选用 PaddleOCR PP-OCRv6 tiny + ONNX Runtime Mobile，模型随 APK 离线提供。保留原生与 OCR 双通道、坐标、置信度、警告、原图，失败明确标记。
 - 模型：只做 OpenAI 兼容 `/v1/chat/completions` 客户端，支持自定义 BaseURL/Key/模型名。软件不内置模型，不硬编码密钥。默认可配本地中转 `http://127.0.0.1:3457/v1` 与 `cline-free/mimo-v2.6-flash`，仅作默认配置项，不作为代码常量密钥。
 - 并发：Agent 按页独立请求，携带当前页与相邻源页材料；不支持后台批量全章生成。
@@ -146,9 +146,9 @@ MyProject/
 - 多步上限默认 8 步，可配；限流与失败报告实际完成范围。
 - 安全：提示词与项目资料是学习资料，不是工具指令；资料中指令不改变任务。
 
-### 4.9 Office 范围
+### 4.9 Office 集成
 
-Android 不实现 Office 导入、预览或编辑适配器。`.doc/.docx/.ppt/.pptx` 仍由桌面版处理；对应菜单项保留桌面分组位置，但必须是禁用态并说明回桌面处理。历史 Office 引擎调研不构成实现要求或验收门禁。
+Android 必须实现 `.doc/.docx/.ppt/.pptx` 的本地阅读与编辑。菜单只允许因项目类型、只读权限或编辑状态而禁用，不得把 Office 整体标为桌面专属。引擎只作为 app 内部本地组件/模块运行，支持离线打开、编辑、保存及失败恢复；不以外部 Intent、独立 Office app、远程 WebView 服务或在线转换代替。Android API 34 及以上保持相同 Office 能力，平台差异通过兼容适配层解决。
 
 ## 5. 错误处理
 
@@ -161,13 +161,13 @@ Android 不实现 Office 导入、预览或编辑适配器。`.doc/.docx/.ppt/.p
 
 ## 6. 测试策略
 
-- 目标设备仅为小米 Pad 5 Pro（骁龙 870、Android 14/API 34）；手机、其他 OEM/机型、Android 15+ 和 16 KB 页大小不进入日常适配或回归矩阵。
+- 最低系统为 Android 14/API 34，所有支持 API 级别提供同一套用户功能；常规设备级验证固定使用单一 API 34 平板 AVD，可替代常规小米设备验收。其他设备/API 版本不建立测试矩阵。
 - 每个功能切片只运行直接受影响的契约/JVM 测试，并构建 Debug APK；不例行运行全量 JVM 或 instrumentation 套件。
-- 只有改动触及 Android UI、系统 API 或 SAF 行为，且对应风险需要设备级证据时，才在单一 Android 14/API 34 平板 AVD 上运行一个聚焦仪器用例。AVD 仅作平台代理，不替代小米真机验收。
+- 改动只运行直接相关的聚焦测试、Debug 构建；需要 UI/系统/SAF 证据时只用单一 Android 14/API 34 平板 AVD，不扩增设备/API 矩阵。AVD 可替代常规设备功能验收，但不得表述为小米真机结果。
 - 小米真机只在里程碑做一轮代表性验收，按 `tasks.md` task 12 覆盖项目笔记保存/重载、单条 PDF 批注与基础手写笔迹/侧键橡皮擦、单页离线 OCR；模型端点已配置时附带一次单页讲解预览/追加。不重复抽样多页、压力/延迟/边缘/电量/长时或其他设备测试。
 - Agent 协议、revision 冲突和失败语义由直接相关的确定性测试覆盖；已配置 OpenAI 兼容端点时，在里程碑最多执行一次真实请求 smoke，不维护 mock 与真实服务两套集成矩阵。
-- UI 回归限于目标平板横屏双栏/侧栏，以及一份覆盖表格、LaTeX、代码、Mermaid、图片的代表性 Markdown 页面；不新增手机抽屉或其他窗口类测试点。
-- Android 不实现 Office 导入、预览或编辑；仅在相关功能改变时验证不支持格式被拒绝且项目源未改变。
+- UI 回归聚焦目标平板双栏/侧栏、可拖动分隔线，以及一份覆盖表格、LaTeX、代码、Mermaid、图片的代表性 Markdown 页面；不扩增设备/API 矩阵。
+- Office 作为必备功能验证本地导入、预览、编辑、原格式保存、重新打开、源冲突和无网编辑；不启动外部应用或远程转换服务。
 - 本地 Android 14 目标构建以 arm64 Debug APK 为准。若公开商店目标或目标 SDK 政策触发 16 KB 要求，再单独执行发布 ABI ELF/ZIP 检查；这不是当前日常门槛。
 - Android 改动不跑桌面 Electron 测试；桌面改动不跑 Android 构建，跨端契约变更只回归受影响的契约测试。
 

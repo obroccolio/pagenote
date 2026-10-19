@@ -1,13 +1,13 @@
 # Android 桌面功能区与 Office 编辑对齐
 
-> 状态：桌面菜单分组和自适应侧栏方向已由发起人确认；导航实施契约见 `adaptive-menu-navigation.md`。Android 当前只支持 PDF/Markdown；Word/PowerPoint 编辑留在桌面端。下方 Office 集成段落是早期探索记录，已被父 SPEC 的当前范围覆盖，不是实现要求或验收门禁。
-> 当前设备仅为小米平板 5 Pro（Android 14/API 34）。手机布局、其他机型和 API 35/16 KB 测试不是当前验收门槛。
+> 状态：桌面菜单分组、自适应侧栏和全量用户功能移植已确认；本文件同时是 Android Office 编辑与桌面功能对齐契约。实现计划见 `../tasks.md`。
+> 最低系统为 Android 14/API 34；API 34 及以上功能一致。常规设备验收可用单一 API 34 平板 AVD 代理小米平板 5 Pro。
 
 ## 1. 目标与边界
 
-Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组、命令语义、颜色和阅读/笔记工作区；交互改为 Compose 原生、触控与手写笔优先。目标是信息架构和功能一致，不是把桌面 42px 工具条缩小贴到手机上。
+Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组、命令语义、颜色和阅读/笔记工作区；交互改为 Compose 原生、触控与手写笔优先。移植全部桌面用户可见功能，不复刻桌面宿主运行时。
 
-桌面当前接受 PDF、Word、PowerPoint 和 Markdown 文件。Android 的移动端范围只包含 PDF/Markdown 与轻量 Markdown 笔记；复杂 Office 文档回桌面处理。Android 不提供桌面 MCP server；端内 Agent 承接移动端学习工作流和提示词/数据契约。
+Android 支持 PDF、Word、PowerPoint 和 Markdown 文件。桌面 MCP 学习工作流由端内 Agent 提供；Windows COM、macOS AppleScript 与桌面 MCP transport 不跨平台搬运。
 
 不把电子表格、账号体系、云协作或远程文档转换服务纳入此 SPEC；它们不是当前桌面导入格式/本机流程的等价移植目标。
 
@@ -33,7 +33,7 @@ Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组�
 | 插入 | 代码、公式、表格、链接、图片、Markdown 格式粘贴 |
 | 阅读 | 页码输入与跳转、上一页/下一页、缩放、适合窗口、重置视口 |
 | 手写批注 | 选择、笔、荧光笔、橡皮、线/箭头/形状/文字、颜色/宽度、撤销/重做、复制/粘贴/图片/删除 |
-| Word 编辑 | 禁用并说明需要回桌面端处理 |
+| Word 编辑 | 本地打开/编辑 Word 与 PowerPoint 文件，保存回原格式；AI 选区批注接入可用文本锚点 |
 | 设置 | 外观、Markdown 主题、语言、笔记分页动画、双栏比例、模型设置 |
 | 使用说明 | 当前版本帮助、快捷键、隐私/许可证与诊断入口 |
 
@@ -54,7 +54,7 @@ Android 端须让熟悉 pagenote 桌面版的用户识别相同的菜单分组�
 
 Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只作桌面字形参考，不打包私有字体。保持桌面蓝色焦点/选中语义、轻分隔线、紧凑信息密度和克制圆角；触控目标不低于 Android 无障碍建议尺寸。深浅主题、focus、disabled、pressed、错误和保存状态都须有独立可读对比度。文档像素不随 UI 主题反色。
 
-## 4. Historical Office proposal (not in current scope)
+## 4. Office 编辑要求
 
 ### 4.1 用户可见行为
 
@@ -66,9 +66,9 @@ Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只�
 
 ### 4.2 引擎边界与候选
 
-`OfficeEditorAdapter` 隔离引擎、SAF 与 pagenote 状态。建议先验证 Collabora Office Android / LibreOfficeKit；它是具备 Android 原生应用的开源路线，但官方构建说明指出 Android native parts 需在 Linux 构建，代码位于 online monorepo，集成不是引入一个轻量 Maven widget。ONLYOFFICE 官方 Android mobile integration 需要 Document Server URL，因此不满足本地离线约束。此处不把任一候选写成已验证的嵌入式 SDK。
+`OfficeEditorAdapter` 隔离引擎、SAF 与 pagenote 状态。优先验证 Collabora Office Android / LibreOfficeKit：官方构建说明显示其 Android native 部分需在 Linux 构建，源代码位于 online monorepo，因此它是本地开源候选但不是可直接添加的轻量 Maven widget。ONLYOFFICE 官方 Android mobile integration 需要 Document Server URL，不能满足离线本地要求。当前没有声称候选已完成嵌入；工程任务必须验证实际可集成性并继续推进完整移植，不得把候选研究当作交付完成。
 
-引擎选择是 SPEC 后的第一个技术门：先做可编译 spike，证明可复用的 Activity/view API、打包体积、许可证、文件读写/保存回调、PDF 导出、手写触控兼容、Android 14 和 16 KB ABI。若 Collabora 不能被嵌入并由 pagenote 控制生命周期，暂停引擎接线并提交证据和替代候选，得到发起人确认后再定实现方案；禁止偷偷改成仅依赖用户安装的外部 app 或云端 server。
+引擎验证是实现任务的一部分，不是询问后即可停止的门槛。至少证明本地 Activity/View 生命周期、离线编辑保存、SAF/临时文件桥接、源格式保持、预览刷新、许可证和目标设备可运行；如果候选不适合嵌入，继续评估本地开源引擎或在 Android 工程中做可维护适配，不得回退为外部 app/云服务器或留下禁用菜单项。
 
 ### 4.3 数据与保存事务
 
@@ -94,16 +94,16 @@ Android 使用原生 sans-serif 字体 fallback；Segoe UI/Microsoft YaHei 只�
 
 ### Compose / UI
 
-- 当前目标小米平板 5 Pro：横屏双栏、侧栏展开/收起、当前菜单命令和阅读/笔记状态保留。
-- 手机抽屉、其他窗口类别和不同机型的整机视觉/触控矩阵暂缓；已有 API 35 AVD 结果只作历史证据。
-- 桌面功能清单按 §2 表格逐项追踪到 Android command/action 和测试 ID；只在对应功能切片实施时验证命令效果与禁用条件。
+- Android 14 平板：横屏双栏、侧栏展开/收起、可拖动分隔线、菜单命令和阅读/笔记状态保留。
+- API 34 及以上不得因系统版本变化隐藏命令或降低能力；兼容路径可以不同，但用户结果相同。
+- 桌面功能清单按 §2 表格逐项追踪到 Android command/action；终态不留下“未接线”占位命令。
 
 ### Office
 
 - Fixture 覆盖 `.doc`/`.docx`/`.ppt`/`.pptx`、多页/多幻灯片、常见字体、表格、图片、公式、页眉页脚和大文件。
 - 飞行模式执行导入 → 阅读 → 编辑一处文字/对象 → 保存 → 关闭 → 重开；断言源格式、内容、revision、预览和页码关系。
 - 验证未保存退出、外部修改冲突、SAF 只读/权限撤回、Provider 不支持 rename、磁盘空间不足和引擎崩溃恢复。
-- 当前 Xiaomi/Android 14 本地验收以 arm64 APK 为主；若未来商店目标触发 16 KB 政策，再对 Office native libraries 与 APK/AAB 执行 ELF/ZIP 门禁。
+- 目标设备构建以 arm64 APK 为主；发布所需 ABI/page-size 合规按仓库发布政策单独处理，不改变 Android 14 用户功能。
 
 ## 7. 关联
 
