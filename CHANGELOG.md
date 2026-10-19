@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Define the Office project-source preview slice and record reader navigation regression notes, without closing task 36. / 定义 Office 项目源预览切片并记录阅读器导航回归要点，不关闭 task 36。
 - Add SPEC window-semantics tests for the page prefetch queue and final review steps for the desktop command checklist, without closing task 35. / 新增预解析窗口语义测试与桌面命令清单最终复核步骤，不关闭 task 35。
 - Add executable instrumentation steps for the long Markdown cold-start acceptance and a triage plan for the annotation clipboard AVD flake, without closing task 30 or task 12. / 新增长页冷启动验收可执行仪器步骤与批注剪贴板 AVD 偶发失败排查计划，不关闭 task 30 与 task 12。
 - Add a final parity closeout plan converging task 37 without closing any task. / 新增终态收尾计划，收敛 task 37 但不关闭任一任务。
