@@ -1,8 +1,4 @@
-# pagenote Android Beta
-
-**[⬇ 下载 Android 14 测试版 APK（ARM64）](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.1/pagenote-android-1.0.0-beta.1-arm64-v8a.apk)** · [Android 测试版说明与校验值](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.1)
-
-本测试版面向 Android 14（API 34）及以上的 ARM64 平板，当前重点适配小米平板 5 Pro。Beta 使用独立包名 `io.pagenote.android.beta` 和独立应用数据；侧载 APK 使用本机 debug 签名，不是 Play 商店版本。Windows Beta 暂不可用；Mac 1.0 稳定版仍在 [main 分支](https://github.com/obroccolio/pagenote/tree/main)，不是本 Android 测试包的一部分。
+# pagenote for Mac
 
 **[⬇ 下载 Mac 版 1.0.0（Apple Silicon · DMG）](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · [Intel DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) · [Apple Silicon ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) · [Intel ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) · [校验值与发布说明](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)
 
@@ -22,16 +18,7 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 
 这些细碎又恼人的痛点，催生了 Pagenote 的想法。它希望把原文和讲解按页面牢牢对应在一起，每一页都如同一次独立的请教，从既有认知出发，补齐所有省略的中间步骤，承接前文继续往下推进。遇到难以理解的片段，可以选中文字、框选图片，简单备注需求，让 AI 换例子、换思路重新解读；笔记能够随学随改，不用反复复制内容，一次次重复交代前置背景。同时充分发挥 AI 多样的能力：抽象概念搭配示意图，算法附上可运行代码，数理推导生成公式，思考流程绘成框图，让抽象的知识变得直观易懂，这就是 Pagenote 最初的设计初衷。
 
-## Android 测试版
-
-- 原生 Kotlin / Jetpack Compose 阅读器，支持 PDF 与 Markdown 笔记、按页项目、PDF 批注和手写笔迹。
-- Android 14 最低版本；离线 OCR 使用随包模型，不需要网络。
-- OpenAI 兼容模型通过用户配置的 API 端点接入；应用不内置模型或密钥。
-- 进程内 Office 编辑尚未实现，复杂 Word/PPT 编辑仍需桌面版；实体设备长时间/笔迹延迟及真实 AI 服务完整链路仍待进一步验证。
-
-## Mac 稳定版功能
-
-以下介绍的是单独发布的 Mac 稳定版，不代表 Android 测试包已通过相同范围的验收。
+## Mac 版特性
 
 - 原生体验：Finder 双击打开项目、Dock 重开窗口、标准菜单与 Command 快捷键、关闭前自动保存。
 - 本机 Office 接入：Word/PPT 导入、项目预览及保存后刷新需要已授权的 **Microsoft Word / PowerPoint**。首次使用时在系统提示中允许 pagenote 控制 Word / PowerPoint；被拒绝后可在 **系统设置 → 隐私与安全性 → 自动化** 中开启。Word 编辑使用独立窗口，MCP 支持读取、选区、带版本检查的替换及 PDF 渲染截图。详见 [Mac Office 说明](docs/MAC-OFFICE.md)。

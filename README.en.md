@@ -1,8 +1,4 @@
-# pagenote Android Beta
-
-**[⬇ Download the Android 14 Beta APK (ARM64)](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.1/pagenote-android-1.0.0-beta.1-arm64-v8a.apk)** · [Release notes and checksum](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.1)
-
-This beta targets ARM64 tablets on Android 14 (API 34) and later, with the Xiaomi Pad 5 Pro as the current focus. It uses the separate application ID `io.pagenote.android.beta` and separate app data. The sideload APK uses a local debug signing key and is not a Play Store build. A Windows beta is unavailable; the Mac 1.0 stable build remains on the [main branch](https://github.com/obroccolio/pagenote/tree/main) and is not part of this Android beta.
+# pagenote for Mac
 
 **[⬇ Download Mac 1.0.0 (Apple Silicon · DMG)](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · [Intel DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) · [Apple Silicon ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) · [Intel ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) · [Checksums and release notes](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)
 
@@ -22,16 +18,7 @@ Yet this way of learning has practical shortcomings. The source and explanation 
 
 These frustrations led to Pagenote. The idea is to keep each source page beside its explanation and give it the attention of a separate request: start from familiar knowledge, fill in the intermediate steps and continue from the preceding page. When something is unclear, select a passage or a figure and leave a request for another example or a different explanation. Notes can be revised as we learn, without repeatedly copying text and explaining the background. Illustrations, runnable code, mathematical notation and flowcharts give AI more ways to make abstract ideas understandable. That was the original purpose of Pagenote.
 
-## Android beta
-
-- Native Kotlin / Jetpack Compose reader for PDF and Markdown notes, page-linked projects, PDF annotations and pen strokes.
-- Android 14 minimum; bundled offline OCR models do not require network access.
-- OpenAI-compatible models can be configured with a user-provided endpoint; the app includes no model or API key.
-- In-process Office editing is not implemented. Complex Word/PPT edits remain desktop work; physical-device endurance, pen latency and a complete live AI-service workflow need more validation.
-
-## Mac stable-build features
-
-The following describes the separately released Mac stable app and does not claim equivalent Android acceptance.
+## Mac highlights
 
 - Native behavior: Finder project opens, Dock reactivation, standard menus with Command shortcuts, and save-before-hide.
 - Local Office integration: Word/PPT import, project preview and post-save refresh need locally licensed **Microsoft Word / PowerPoint**. On first use, allow pagenote to control Word / PowerPoint; if denied, enable it under **System Settings → Privacy & Security → Automation**. Mac Word editing uses a separate window with MCP read, selection, revision-checked replacement and PDF-rendered screenshots. See [Mac Office notes](docs/MAC-OFFICE.md).
