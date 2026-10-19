@@ -1,7 +1,7 @@
 package io.pagenote.android
 
-import android.net.Uri
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.DocumentsContract
@@ -122,10 +122,12 @@ class NoteLongMarkdownEditorTest {
 
   @Test
   fun reopeningRecentProjectRestoresLongMarkdownPageWithoutBlocking() {
-    val longNote = "# before\n\n$dataUriPrefix${"A".repeat(40_000)}\n\n## after"
-    val pages = (1..31).map { page -> if (page == 31) longNote else "Page $page note" }
+    val longNote = largeRecoveryNote()
+    assertTrue("recovery fixture should match the incident-scale page size", longNote.length in 56_000..58_000)
+    assertTrue("recovery fixture should contain a 40 KB token", longNote.contains("$dataUriPrefix${"A".repeat(40_000)}"))
+    val pages = (1..69).map { page -> if (page == 31) longNote else "Page $page note" }
     val notes = PageNotes.join(pages)
-    val project = installProject(notes)
+    val project = installProject(notes, pageCount = 69)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     val appContext = InstrumentationRegistry.getInstrumentation().targetContext
     val store = recentProjectsStore(appContext)
@@ -165,6 +167,7 @@ class NoteLongMarkdownEditorTest {
         session.project.value?.manifest?.id == project.manifest.id &&
           session.pageIndex.intValue == 0 && findEditor("Page 1 note") != null
       }
+      assertEquals(69, session.renderer.value?.pageCount)
 
       composeRule.onNodeWithTag("reader_page_status").performClick()
       composeRule.onNodeWithTag("page_jump_input").performTextClearance()
@@ -251,7 +254,7 @@ class NoteLongMarkdownEditorTest {
     return session
   }
 
-  private fun installProject(notes: String): OpenedProject {
+  private fun installProject(notes: String, pageCount: Int = 31): OpenedProject {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"e".repeat(64)}","name":"Long Markdown fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
@@ -261,7 +264,7 @@ class NoteLongMarkdownEditorTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalPdf(pageCount = 31))
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalPdf(pageCount))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },
@@ -296,6 +299,14 @@ class NoteLongMarkdownEditorTest {
         .toByteArray(Charsets.US_ASCII),
     )
     return output.toByteArray()
+  }
+
+  private fun largeRecoveryNote(): String = buildString {
+    append("# before\n\n")
+    repeat(332) { append("Context paragraph with model assumptions and notes. ") }
+    append(dataUriPrefix)
+    append("A".repeat(40_000))
+    append("\n\n## after")
   }
 
   private fun findEditor(): EditText? {
