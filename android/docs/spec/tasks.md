@@ -344,9 +344,10 @@
   - 窗口/串行/重叠去重/取消/失败隔离 JVM 用例、DataStore 持久化单测、API 34 平板设置滑块保存回归、仪器源码编译和 Debug APK 构建通过。
   - SPEC：`features/page-prefetch.md`。
 
-- [ ] 42. 手写笔末端停留识别几何形状
+- [x] 42. 手写笔末端停留识别几何形状
   - 笔工具在末端静止 550 ms 后预览识别 line/arrow/rect/ellipse；未达阈值或继续移动则保留自由笔迹。
   - 识别结果作为原生矢量项写入 `annotations.json`，不额外保存自由笔迹副本；复用原生批注页历史撤销/重做。
+  - API 34 平板模拟器验证停笔提交、提前抬笔、高亮笔排除、移动取消、手势取消，以及阅读器落盘/撤销/重做。
   - SPEC：`features/dwell-shape-recognition.md`。
 
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。

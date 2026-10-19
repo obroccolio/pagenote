@@ -150,12 +150,14 @@ import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenClipboardCodec
 import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenPoint
+import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
 import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
@@ -876,10 +878,14 @@ private fun ReaderHome(
     after: JsonArray,
     selectedAfter: Int? = null,
     recordHistory: Boolean = true,
+    appendItem: JsonElement? = null,
     onFailure: (() -> Unit)? = null,
   ) {
     val targetProject = project ?: return
     val targetProjectId = targetProject.manifest.id
+    var committedBefore = before
+    var committedAfter = after
+    var committedSelection = selectedAfter
     isAnnotationSaving = true
     penStatus = context.getString(R.string.annotation_saving)
     scope.launch {
@@ -888,22 +894,31 @@ private fun ReaderHome(
           if (readerSession.project.value?.manifest?.id != targetProjectId) {
             throw IllegalStateException(context.getString(R.string.annotation_project_changed))
           }
-          withContext(Dispatchers.IO) {
-            ProjectAnnotationStore(
+          val store = ProjectAnnotationStore(
               context.contentResolver,
               targetProject.sourceDirectoryUri,
               targetProject.annotationsUri,
-            ).writePage("document", targetPage, after)
+          )
+          if (appendItem != null) {
+            // A freehand save may complete after the UI snapshot; append against the locked latest page.
+            committedBefore = withContext(Dispatchers.IO) {
+              store.readPage("document", targetPage)
+            }
+            committedAfter = JsonArray(committedBefore + appendItem)
+            committedSelection = committedAfter.lastIndex
           }
+          withContext(Dispatchers.IO) { store.writePage("document", targetPage, committedAfter) }
         }
-        if (recordHistory) annotationEditHistory.record(targetProjectId, targetPage, before, after)
+        if (recordHistory) {
+          annotationEditHistory.record(targetProjectId, targetPage, committedBefore, committedAfter)
+        }
         lastEditWasAnnotation[targetPage] = true
         if (readerSession.project.value?.manifest?.id == targetProjectId &&
           readerSession.pageIndex.intValue + 1 == targetPage
         ) {
-          annotationPageItems = after
-          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(after)
-          selectedAnnotationIndex = selectedAfter
+          annotationPageItems = committedAfter
+          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committedAfter)
+          selectedAnnotationIndex = committedSelection
           selectedPenIndex = null
           annotationOverlayReload++
         }
@@ -914,14 +929,34 @@ private fun ReaderHome(
         if (readerSession.project.value?.manifest?.id == targetProjectId &&
           readerSession.pageIndex.intValue + 1 == targetPage
         ) {
-          annotationPageItems = before
-          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(before)
+          annotationPageItems = committedBefore
+          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committedBefore)
         }
         penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
       } finally {
         isAnnotationSaving = false
       }
     }
+  }
+
+  fun applyRecognizedShape(shape: PenRecognizedShape, sourceStroke: PenStroke): Boolean {
+    if (project == null || !penWritable) return false
+    val draft = PdfAnnotationVectorDraft.fromRecognizedShape(
+      shape = shape,
+      color = sourceStroke.color,
+      width = sourceStroke.width,
+    ) ?: return false
+    val before = annotationPageItems
+    val item = draft.toItem().toJsonElement()
+    persistNativeAnnotationPage(
+      targetPage = pageIndex + 1,
+      before = before,
+      after = JsonArray(before + item),
+      selectedAfter = before.size,
+      appendItem = item,
+      onFailure = { applyPenStroke(sourceStroke) },
+    )
+    return true
   }
 
   fun undoNativeAnnotationPage(): Boolean {
@@ -4516,6 +4551,7 @@ private fun ReaderHome(
                 inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
+                onShapeRecognized = ::applyRecognizedShape,
                 onStrokeErased = ::erasePenStroke,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
@@ -4650,6 +4686,7 @@ private fun ReaderHome(
                 inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
+                onShapeRecognized = ::applyRecognizedShape,
                 onStrokeErased = ::erasePenStroke,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
@@ -6150,6 +6187,7 @@ internal fun PdfPageViewport(
   tool: PenCanvasTool,
   inputEnabled: Boolean,
   onStrokeAdded: (PenStroke) -> Unit,
+  onShapeRecognized: (PenRecognizedShape, PenStroke) -> Boolean = { _, _ -> false },
   onStrokeErased: (Int) -> Unit,
   selectedStrokeIndex: Int? = null,
   onSelectedStrokeChanged: (Int?) -> Unit = {},
@@ -6421,6 +6459,7 @@ internal fun PdfPageViewport(
               allowOutsidePage = allowInkOutsidePage,
             )
             view.onStrokeAdded = onStrokeAdded
+            view.onShapeRecognized = onShapeRecognized
             view.onStrokeErased = onStrokeErased
             view.onSelectionChanged = latestOnSelectedStrokeChanged
             view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
