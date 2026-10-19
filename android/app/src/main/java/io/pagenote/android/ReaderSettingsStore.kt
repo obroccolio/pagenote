@@ -30,6 +30,7 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
           ALLOW_INK_OUTSIDE_PAGE_KEY,
           defaults.allowInkOutsidePage,
         ),
+        prepareAheadPages = preferences.intOrDefault(PREPARE_AHEAD_PAGES_KEY, defaults.prepareAheadPages),
       ),
     )
   }
@@ -43,6 +44,7 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[NOTE_ANIMATION_KEY] = settings.noteAnimation
       preferences[NOTE_FONT_SIZE_KEY] = settings.noteFontSize
       preferences[ALLOW_INK_OUTSIDE_PAGE_KEY] = settings.allowInkOutsidePage
+      preferences[PREPARE_AHEAD_PAGES_KEY] = settings.prepareAheadPages
     }
   }
 }
@@ -53,6 +55,7 @@ private val LEFT_PERCENT_KEY = intPreferencesKey("left_percent")
 private val NOTE_ANIMATION_KEY = booleanPreferencesKey("note_animation")
 private val NOTE_FONT_SIZE_KEY = intPreferencesKey("note_font_size")
 private val ALLOW_INK_OUTSIDE_PAGE_KEY = booleanPreferencesKey("allow_ink_outside_page")
+private val PREPARE_AHEAD_PAGES_KEY = intPreferencesKey("prepare_ahead_pages")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

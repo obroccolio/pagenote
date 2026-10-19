@@ -9,6 +9,7 @@ data class ReaderSettings(
   val noteAnimation: Boolean = true,
   val noteFontSize: Int = 15,
   val allowInkOutsidePage: Boolean = false,
+  val prepareAheadPages: Int = 3,
 )
 
 object ReaderSettingsPolicy {
@@ -23,6 +24,7 @@ object ReaderSettingsPolicy {
       language = settings.language.takeIf(LANGUAGES::contains) ?: defaults.language,
       leftPercent = settings.leftPercent.takeIf { it in 20..80 } ?: defaults.leftPercent,
       noteFontSize = settings.noteFontSize.takeIf(NOTE_FONT_SIZES::contains) ?: defaults.noteFontSize,
+      prepareAheadPages = settings.prepareAheadPages.takeIf { it in 0..10 } ?: defaults.prepareAheadPages,
     )
   }
 
@@ -31,6 +33,7 @@ object ReaderSettingsPolicy {
     require(LANGUAGES.contains(settings.language)) { "bad language" }
     require(settings.leftPercent in 20..80) { "bad split percent" }
     require(NOTE_FONT_SIZES.contains(settings.noteFontSize)) { "bad note font size" }
+    require(settings.prepareAheadPages in 0..10) { "bad preparation window" }
   }
 
   fun isTabletLandscape(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {

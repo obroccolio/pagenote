@@ -338,9 +338,10 @@
   - 几何/命中与 DataStore 定向单测、Debug APK 构建通过；唯一 API 34 平板 AVD 翻页交互回归通过。
   - SPEC：`features/zoomed-ink-and-extended-canvas.md`。
 
-- [ ] 41. 当前页及后续页自动预解析
+- [x] 41. 当前页及后续页自动预解析
   - 阅读设置配置 0-10 页窗口（默认 3）；窗口含当前页，串行后台处理本地文字和按需离线 OCR，复用缓存，不调用云端模型。
   - 页/项目/源 revision 变化时取消旧队列并复用已完成结果；失败保留原文且明确警告。
+  - 窗口/串行/重叠去重/取消/失败隔离 JVM 用例、DataStore 持久化单测、API 34 平板设置滑块保存回归、仪器源码编译和 Debug APK 构建通过。
   - SPEC：`features/page-prefetch.md`。
 
 - [ ] 42. 手写笔末端停留识别几何形状

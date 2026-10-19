@@ -129,6 +129,7 @@ import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
 import io.pagenote.core.reader.PdfPageText
+import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
 import io.pagenote.feature.annotations.ReviewCreate
@@ -407,6 +408,10 @@ private fun ReaderHome(
     onDispose { richHtmlRenderer.close() }
   }
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
+  val pagePrefetcher = remember { ReaderPagePrefetcher<PageTutorSourceText>() }
+  val preparedOcrCache = remember(context) {
+    ProjectPreparedCache(SafPreparedDocumentAccess(context.contentResolver))
+  }
   var project by readerSession.project
   var renderer by readerSession.renderer
   var markdownSource by readerSession.markdownSource
@@ -641,7 +646,63 @@ private fun ReaderHome(
     }
   }
 
-  fun createPdfSourceLoader(activeRenderer: PdfDocumentSession) = PageTutorSourceLoader(
+  suspend fun recognizeAndCacheFullPage(
+    activeRenderer: PdfDocumentSession,
+    activeProject: OpenedProject,
+    pageIndex: Int,
+  ): OcrResult {
+    val sourceRevision = activeRenderer.sourceRevision
+    val sourceUri = activeProject.sourceDirectoryUri.toString()
+    val documentId = activeProject.manifest.id
+    val fullPage = PageRegion(0.0, 0.0, 1000.0, 1000.0)
+    if (sourceRevision != null) {
+      val cached = withContext(Dispatchers.IO) {
+        preparedOcrCache.read(
+          sourceUri,
+          documentId,
+          pageIndex + 1,
+          sourceRevision,
+          fullPage,
+          OcrResultMapper.ENGINE,
+        )
+      }
+      if (cached != null) return cached.result
+    }
+
+    val rendered = withContext(Dispatchers.IO) { activeRenderer.renderWithMetadata(pageIndex) }
+    val bitmap = rendered.bitmap
+    try {
+      val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+      return RegionOcrProcessor(preparedOcrCache).recognize(
+        srcDirectoryUri = sourceUri,
+        documentId = documentId,
+        page = pageIndex + 1,
+        sourceRevision = sourceRevision,
+        selection = NormalizedOcrRegion(0, 0, 1000, 1000),
+        imageWidth = bitmap.width,
+        imageHeight = bitmap.height,
+        renderScale = rendered.scale,
+        engine = OcrResultMapper.ENGINE,
+        notCachedWarning = context.getString(R.string.ocr_not_cached),
+        recognize = {
+          withTimeout(OcrPolicy.TIMEOUT_MS) {
+            withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+          }
+        },
+        encodeImages = {
+          val png = withContext(Dispatchers.IO) { bitmap.toPngBytes() }
+          PreparedOcrImages(png, png)
+        },
+      ).result
+    } finally {
+      if (!bitmap.isRecycled) bitmap.recycle()
+    }
+  }
+
+  fun createPdfSourceLoader(
+    activeRenderer: PdfDocumentSession,
+    activeProject: OpenedProject,
+  ) = PageTutorSourceLoader(
     nativeText = { page ->
       withContext(Dispatchers.IO) { activeRenderer.extractText(page) }
     },
@@ -649,17 +710,42 @@ private fun ReaderHome(
       withContext(Dispatchers.IO) { activeRenderer.extractSelectableText(page)?.text }
     },
     ocrText = { page ->
-      val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
-      withIoOwnedResource(
-        render = { activeRenderer.render(page) },
-        dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
-        use = { bitmap -> withContext(Dispatchers.Default) { engine.recognize(bitmap) } },
-      )
+      recognizeAndCacheFullPage(activeRenderer, activeProject, page)
     },
     hasBitmap = { page ->
       withContext(Dispatchers.IO) { activeRenderer.hasRasterImageContent(page) }
     },
   )
+
+  fun preparationIdentity(
+    activeProject: OpenedProject,
+    activeRenderer: PdfDocumentSession,
+  ) = PagePreparationIdentity(
+    projectId = "${activeProject.sourceDirectoryUri}:${activeProject.manifest.id}",
+    sourceRevision = activeRenderer.sourceRevision
+      ?: "session-${System.identityHashCode(activeRenderer)}",
+  )
+
+  suspend fun loadCurrentPageSource(
+    identity: PagePreparationIdentity,
+    loader: PageTutorSourceLoader,
+    pageIndex: Int,
+  ): PageTutorSourceText = pagePrefetcher.cached(identity, pageIndex)
+    ?: loader.loadCurrent(pageIndex).also { pagePrefetcher.remember(identity, pageIndex, it) }
+
+  suspend fun loadAgentPageSource(
+    identity: PagePreparationIdentity,
+    loader: PageTutorSourceLoader,
+    pageIndex: Int,
+  ): PageTutorSourceText = pagePrefetcher.cached(identity, pageIndex)
+    ?: loader.loadNeighborForAgent(pageIndex).also { pagePrefetcher.remember(identity, pageIndex, it) }
+
+  suspend fun loadNeighborPageSource(
+    identity: PagePreparationIdentity,
+    loader: PageTutorSourceLoader,
+    pageIndex: Int,
+  ): PageTutorSourceText? = pagePrefetcher.cached(identity, pageIndex)
+    ?: loader.loadNeighbor(pageIndex)?.also { pagePrefetcher.remember(identity, pageIndex, it) }
 
   fun applyViewportZoom(zoomChange: Float) {
     val bounds = viewportBounds
@@ -1533,14 +1619,16 @@ private fun ReaderHome(
               )
             }
         } else {
-          val pageSourceLoader = createPdfSourceLoader(activeRenderer!!)
+          val pdfRenderer = activeRenderer!!
+          val pageIdentity = preparationIdentity(activeProject, pdfRenderer)
+          val pageSourceLoader = createPdfSourceLoader(pdfRenderer, activeProject)
           val loaded = withTimeout(OcrPolicy.TIMEOUT_MS) {
-            val current = pageSourceLoader.loadCurrent(targetPageIndex)
+            val current = loadCurrentPageSource(pageIdentity, pageSourceLoader, targetPageIndex)
             val adjacent = mutableListOf<PageRequest.PageMaterial>()
             listOf(targetPageIndex - 1, targetPageIndex + 1)
-              .filter { it in 0 until activeRenderer!!.pageCount }
+              .filter { it in 0 until pdfRenderer.pageCount }
               .forEach { neighborIndex ->
-                pageSourceLoader.loadNeighbor(neighborIndex)?.let { source ->
+                loadNeighborPageSource(pageIdentity, pageSourceLoader, neighborIndex)?.let { source ->
                   adjacent += PageRequest.PageMaterial(
                     page = neighborIndex + 1,
                     text = source.text,
@@ -1687,11 +1775,15 @@ private fun ReaderHome(
         }
     } else {
       val prepared = withTimeout(OcrPolicy.TIMEOUT_MS) {
-        val pageSourceLoader = createPdfSourceLoader(activeRenderer!!)
-        val current = pageSourceLoader.loadCurrent(targetPageIndex)
+        val pdfRenderer = activeRenderer!!
+        val pageIdentity = preparationIdentity(activeProject, pdfRenderer)
+        val pageSourceLoader = createPdfSourceLoader(pdfRenderer, activeProject)
+        val current = loadCurrentPageSource(pageIdentity, pageSourceLoader, targetPageIndex)
         val adjacent = listOf(targetPageIndex - 1, targetPageIndex + 1)
-          .filter { it in 0 until activeRenderer.pageCount }
-          .map { neighborIndex -> neighborIndex to pageSourceLoader.loadNeighborForAgent(neighborIndex) }
+          .filter { it in 0 until pdfRenderer.pageCount }
+          .map { neighborIndex ->
+            neighborIndex to loadAgentPageSource(pageIdentity, pageSourceLoader, neighborIndex)
+          }
         val warnings = buildList {
           current.warnings.forEach { add("Page $targetPage source: $it") }
           adjacent.forEach { (neighborIndex, source) ->
@@ -3039,6 +3131,63 @@ private fun ReaderHome(
   val activeRenderer = renderer
   val activeProject = project
   val activeMarkdown = markdownSource
+  DisposableEffect(pagePrefetcher) {
+    onDispose { pagePrefetcher.cancel() }
+  }
+  LaunchedEffect(
+    activeProject?.sourceDirectoryUri,
+    activeProject?.manifest?.id,
+    activeRenderer,
+    activeRenderer?.sourceRevision,
+    activeMarkdown,
+    pageIndex,
+    settings.prepareAheadPages,
+  ) {
+    val currentProject = activeProject
+    val currentRenderer = activeRenderer
+    if (currentProject == null || currentRenderer == null || activeMarkdown != null) {
+      pagePrefetcher.cancel()
+      return@LaunchedEffect
+    }
+    val identity = preparationIdentity(currentProject, currentRenderer)
+    val loader = createPdfSourceLoader(currentRenderer, currentProject)
+    pagePrefetcher.cached(identity, pageIndex)?.warnings?.takeIf { it.isNotEmpty() }?.let { warnings ->
+      noteStatus = context.getString(
+        R.string.prepare_page_warning,
+        pageIndex + 1,
+        warnings.joinToString(" "),
+      )
+    }
+    pagePrefetcher.schedule(
+      scope = this,
+      identity = identity,
+      currentPageIndex = pageIndex,
+      pageCount = currentRenderer.pageCount,
+      prepareAheadPages = settings.prepareAheadPages,
+      prepare = { key ->
+        val prepared = withTimeout(OcrPolicy.TIMEOUT_MS) { loader.loadCurrent(key.pageIndex) }
+        if (key.pageIndex == pageIndex && project === currentProject && renderer === currentRenderer &&
+          prepared.warnings.isNotEmpty()
+        ) {
+          noteStatus = context.getString(
+            R.string.prepare_page_warning,
+            key.pageIndex + 1,
+            prepared.warnings.joinToString(" "),
+          )
+        }
+        prepared
+      },
+      onFailure = { key, error ->
+        if (key.pageIndex == pageIndex && project === currentProject && renderer === currentRenderer) {
+          noteStatus = context.getString(
+            R.string.prepare_page_failed,
+            key.pageIndex + 1,
+            error.message.orEmpty(),
+          )
+        }
+      },
+    ).join()
+  }
   val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode
   LaunchedEffect(
     activeProject?.manifest?.id,
