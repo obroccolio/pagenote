@@ -1,9 +1,9 @@
 # pagenote Android 端任务拆解
 
-> 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与真机。
+> 执行顺序：先契约与骨架，再阅读与笔记，再标注与笔迹，再 OCR 与准备管线，再 Agent 与模型，最后集成与验收。
 > 每完成一个任务更新复选框，保持变更可回链到 `requirements.md` 验收。
 > `features/desktop-ui-and-office-parity.md` 的桌面菜单分组/自适应侧栏方向已确认；Android 不移植桌面 Office 模式，Word 编辑菜单保持禁用，复杂文档回桌面端处理。
-> 当前设备范围收敛为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；设备验收只做一次代表性核心流程，不扩展页面抽查、性能/压感矩阵或其他机型适配。后续不再对 API 35、16 KB 或其他机型做常规适配矩阵。旧任务中的多设备记录仅保留为历史验证证据。
+> 当前产品目标为 Android 14/API 34 小米平板 5 Pro（骁龙 870）；单一 API 34 平板 AVD 可替代常规功能验收。硬件专项差异单独记录，不阻塞交付；不扩展性能/压感矩阵或其他机型适配。后续不再对 API 35、16 KB 或其他机型做常规适配矩阵。旧任务中的多设备记录仅保留为历史验证证据。
 
 ## Implementation Plan
 
@@ -124,14 +124,14 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. 小米目标设备验收（当前只支持 Android 14/API 34 小米平板 5 Pro 骁龙 870；API 34 AVD 仅作平台代理。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
+- [ ] 12. Android 14 平板功能验收（产品目标为小米平板 5 Pro / 骁龙 870；单一 API 34 平板 AVD 可替代常规功能验收。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
   - [x] 小米平板 5 Pro / Android 14 实机：从应用打开 SAF 目录选择器并取消，返回应用且空项目状态不变；通过 SAF 打开隔离的 69 页副本，在第 31 页修改、保存、重载。重读副本确认唯一变化是第 31 页的验收标记，第 30/32 页不变，桌面原件只读未改。
-  - [ ] 同一轮确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹，确认基础落笔和侧键橡皮擦。
+  - [ ] API 34 平板 AVD 确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹。用户实测主动笔基础书写和压感整体正常；侧键橡皮擦未单独测试，属于未验证硬件行为，不扩展常规矩阵。
   - [x] 第 16 页图像页离线 OCR：包内 `pp-ocrv6-tiny-onnx` 返回 `ok` 和 13 个结果块；该页仅有 20 个原生文本字符并含大幅嵌入图像。Android 私有模型配置文件不存在，未配置 API Key，因此按条件未请求 AI 页讲解。
   - [x] PDF 线条批注和一条笔迹写入隔离项目；冷重开后 `annotations.json` 与重开前 SHA-256 完全一致。用户在 Xiaomi Pad 5 Pro 实测主动式手写笔书写及压感整体正常；此次自动化持久化动作使用 ADB 触控模拟，不代表自动化测过压感。
-  - [ ] 手写笔侧键橡皮擦仍待单独确认，不影响用户已报告的基础书写与压感正常。
+  - [ ] 手写笔侧键橡皮擦未单独测试；不影响用户已报告的基础书写与压感正常，也不作为常规功能验收阻塞。
   - [ ] 冷启动重开项目后跳转第 31 页曾弹出系统“pagenote 没有响应”；选择等待后恢复。仅限 pagenote 的日志显示主线程输入超时，首个可见 native 栈帧为 `minikin::getNextWordBreakForCache`；根因未确认，需后续按 SPEC 调查。
-  - [ ] 从当前源码构建的 arm64 Debug APK 已用 `adb install -r` 更新到实机并保留应用数据；更新后首页的项目依赖命令显示具体的“请先打开项目”原因，未再复现旧包在最近文档/导入/Markdown 命令上的通用提示。文件组“附件”仍显示通用不支持；源码还将附件、Office 编辑、帮助项留作 pending command，须按 Android 14 全功能范围分别处理，不能归因于系统版本。
+  - [ ] API 34 平板 AVD 构建/安装与代表性功能闭环；文件组“附件”和“使用说明”仍有待实现命令，分别跟踪于 task 32/33。Office 编辑按本 SPEC 明确留给桌面端，不作为 Android 待实现项；任何未实现命令不得归因于 Android 版本。
   - 只确认上述闭环，不抽查多页或多种文档，不测压力曲线、延迟、边缘性能、电量、长时间稳定性，也不要求无端点配置时验证云请求。
   - 日常只运行受影响模块的直接相关契约/JVM 测试与 Debug 构建；UI/平台改动才在唯一 API 34 平板 AVD 上跑聚焦仪器测试。无需每次重跑完整套件；Markdown 预览使用 task 5.5 的单项测试和一张截图。
   - 不运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。16 KB 页大小及公开商店合规检查仅在目标 SDK/商店政策触发时作为独立发布门禁。
@@ -267,14 +267,14 @@
   - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
   - _Requirement: 桌面批注选择/剪贴板语义一致、项目数据兼容_
 
-- [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致）
+- [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致；API 34 AVD 可承担验收）
   - 以隔离的 69 页验收副本第 31 页复现；冷重开曾出现 pagenote 输入分发 ANR，首个可见 native 帧为 `minikin::getNextWordBreakForCache`，长 token 是待验证假设而非已确认根因。
   - [x] API 34 平板 AVD 两项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；独立 NotePanel 文本更新回归也通过。此合成测试未复现小米冷启动 ANR。
   - [x] API 34 平板 AVD 从“最近项目”真实重开 31 页 PDF 并恢复第 31 页 checkpoint；SAF 读写授权、长编辑器首轮布局/保存和相邻页隔离均通过，恢复低于 5 秒。此流程不模拟系统进程死亡。
-  - [x] API 34 AVD 将最近项目恢复回归扩展到 69 页合成 PDF 与约 57 KB 的第 31 页 Markdown（含 40 KB 连续 token）；恢复、首轮布局、编辑和按页保存通过，恢复/布局低于 5 秒。未使用原用户 PDF，也不模拟系统进程死亡，不能替代目标小米设备验收。
+  - [x] API 34 AVD 将最近项目恢复回归扩展到 69 页合成 PDF 与约 57 KB 的第 31 页 Markdown（含 40 KB 连续 token）；恢复、首轮布局、编辑和按页保存通过，恢复/布局低于 5 秒。未使用原用户 PDF，也不模拟系统进程死亡。
   - [x] 修正 PDF 位图替换后的 worker-thread 延迟回收：`Choreographer` 调用现派发至主 Looper，继续等待两个显示帧；无 Looper instrumentation 回归通过 1/1。
-  - [ ] 目标 Xiaomi Pad 5 Pro 冷启动重开隔离 69 页项目并恢复/跳转第 31 页，确认不再出现系统 ANR；先前异常仍未解决，不以 AVD 结果代替。
-  - SPEC：`features/large-markdown-page-layout.md`。后续按真实小米机和隔离项目证据定位 ANR；只运行相关 Android 14 AVD 回归、受影响 JVM 测试、Debug 构建及目标设备闭环。
+  - [ ] 在 API 34 平板 AVD 对隔离的 69 页项目执行应用进程冷启动、恢复/跳转第 31 页、编辑和保存，确认无系统 ANR；小米实机曾报告的异常作为未复现的环境差异记录，不阻塞模拟器验收。
+  - SPEC：`features/large-markdown-page-layout.md`。仅运行相关 Android 14 AVD 回归、受影响 JVM 测试和 Debug 构建；不要求实体设备。
   - _Requirement: 阅读与笔记、阅读器会话恢复_
 
 - [x] 31. Android 14 菜单禁用原因准确性（不再把尚未接入的应用命令归因于系统版本）
@@ -282,3 +282,15 @@
   - `MainActivityLaunchTest.readerCommandsAreVisibleUnderDesktopMenuGroups` 在 API 34 平板 AVD 通过，覆盖禁用命令和英文/简体中文资源；`:app:testDebugUnitTest`、`:app:assembleDebug` 及 Android 测试源码编译通过。
   - 契约见 `features/adaptive-menu-navigation.md`；本任务只修正提示，不代表附件或 Office 编辑能力已移植。
   - _Requirement: 桌面菜单分组一致、Android 14 全功能目标_
+
+- [ ] 32. 项目附件管理（浏览 `src/assets`、通过 SAF 导入桌面兼容资源、插入可离线显示的图片引用、安全删除未引用资源）
+  - 附件目录和文件列表从当前项目 SAF tree 读取；导入不得覆盖既有资源或写入来源绝对路径，取消/失败不得修改笔记。
+  - 资源被任一页 Markdown 或 PDF 图片批注引用时禁止删除；删除未引用资源须二次确认，Provider 失败时明确报告。
+  - 只在唯一 API 34 平板 AVD 验证附件浏览、导入、引用保护和安全删除；不新增设备/API 矩阵。
+  - 契约见 `features/project-attachments.md`，实施拆分见 `project-attachments-plan.md`。
+  - _Requirement: 项目与数据兼容、阅读与笔记_
+
+- [ ] 33. Android 帮助菜单（关于、键盘快捷键、隐私/开源许可、诊断信息）
+  - 每个帮助命令打开本地原生内容；诊断信息仅在用户显式操作后复制/分享，不自动上传、不包含模型密钥或笔记正文。
+  - 唯一 API 34 平板 AVD 聚焦验证四个命令、脱敏和复制/分享；不新增设备/API 矩阵。
+  - _Requirement: 布局与适配、模型隐私_
