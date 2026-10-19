@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Keep very long unbroken Markdown tokens responsive in the Android editor using edit-buffer-only layout boundaries; preserve source offsets, copy/cut/paste, drafts and saved project text. Verify real API 34 cold-start, IME page jump, save and reopen on the tablet AVD. / Android 编辑器为超长连续 Markdown token 增加仅存在于编辑缓冲区的排版边界，保持原文偏移、复制/剪切/粘贴、草稿与项目保存内容不变；已在 API 34 平板模拟器验证真实冷启动、输入法跳页、保存和重开。
 - Specify an opt-in API 34 cold-start fixture path for the 69-page long-Markdown acceptance; normal instrumentation cleanup remains the default. / 规定 69 页长 Markdown 验收的可选 API 34 冷启动 fixture 保留流程，常规仪器测试仍默认清理。
 - Add regression notes for zoomed handwriting, extended-canvas bounds, and persisted settings. / 补充缩放书写、扩展画布边界及设置持久化的回归说明。
 - Define the Office project-source preview slice and record reader navigation regression notes, without closing task 36. / 定义 Office 项目源预览切片并记录阅读器导航回归要点，不关闭 task 36。
