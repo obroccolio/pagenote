@@ -125,9 +125,13 @@
   - _Requirement: 布局与适配_
 
 - [ ] 12. 小米目标设备验收（当前只支持 Android 14/API 34 小米平板 5 Pro 骁龙 870；API 34 AVD 仅作平台代理。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
-  - [ ] 仅做一轮实机验收：先从应用打开 SAF 目录选择器并正常取消，确认回到原应用且当前项目/页面状态未变；随后通过选择器打开 69 页项目副本（原件保持不变），阅读一页并修改、保存和重载该页笔记。启动计划中的 SAF picker 取消检查并入本项，不另建设备矩阵。
+  - [x] 小米平板 5 Pro / Android 14 实机：从应用打开 SAF 目录选择器并取消，返回应用且空项目状态不变；通过 SAF 打开隔离的 69 页副本，在第 31 页修改、保存、重载。重读副本确认唯一变化是第 31 页的验收标记，第 30/32 页不变，桌面原件只读未改。
   - [ ] 同一轮确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹，确认基础落笔和侧键橡皮擦。
-  - [ ] 对一张扫描页完成离线 OCR；若 OpenAI 兼容端点已配置，再完成一次单页讲解预览/追加。
+  - [x] 第 16 页图像页离线 OCR：包内 `pp-ocrv6-tiny-onnx` 返回 `ok` 和 13 个结果块；该页仅有 20 个原生文本字符并含大幅嵌入图像。Android 私有模型配置文件不存在，未配置 API Key，因此按条件未请求 AI 页讲解。
+  - [x] PDF 线条批注和一条笔迹写入隔离项目；冷重开后 `annotations.json` 与重开前 SHA-256 完全一致。用户在 Xiaomi Pad 5 Pro 实测主动式手写笔书写及压感整体正常；此次自动化持久化动作使用 ADB 触控模拟，不代表自动化测过压感。
+  - [ ] 手写笔侧键橡皮擦仍待单独确认，不影响用户已报告的基础书写与压感正常。
+  - [ ] 冷启动重开项目后跳转第 31 页曾弹出系统“pagenote 没有响应”；选择等待后恢复。仅限 pagenote 的日志显示主线程输入超时，首个可见 native 栈帧为 `minikin::getNextWordBreakForCache`；根因未确认，需后续按 SPEC 调查。
+  - [ ] 从当前源码构建的 arm64 Debug APK 已用 `adb install -r` 更新到实机并保留应用数据；更新后首页的项目依赖命令显示具体的“请先打开项目”原因，未再复现旧包在最近文档/导入/Markdown 命令上的通用提示。文件组“附件”仍显示通用不支持；源码还将附件、Office 编辑、帮助项留作 pending command，须按 Android 14 全功能范围分别处理，不能归因于系统版本。
   - 只确认上述闭环，不抽查多页或多种文档，不测压力曲线、延迟、边缘性能、电量、长时间稳定性，也不要求无端点配置时验证云请求。
   - 日常只运行受影响模块的直接相关契约/JVM 测试与 Debug 构建；UI/平台改动才在唯一 API 34 平板 AVD 上跑聚焦仪器测试。无需每次重跑完整套件；Markdown 预览使用 task 5.5 的单项测试和一张截图。
   - 不运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。16 KB 页大小及公开商店合规检查仅在目标 SDK/商店政策触发时作为独立发布门禁。
@@ -262,3 +266,10 @@
   - 契约见 `features/pdf-annotation-selection-clipboard.md`，实施拆分见 `pdf-annotation-selection-clipboard-plan.md`。唯一 Android 14/API 34 平板 AVD 聚焦验证；小米 Pad 5 Pro 实机验收仍归 task 12。
   - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
   - _Requirement: 桌面批注选择/剪贴板语义一致、项目数据兼容_
+
+- [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致）
+  - 以隔离的 69 页验收副本第 31 页复现；冷重开曾出现 pagenote 输入分发 ANR，首个可见 native 帧为 `minikin::getNextWordBreakForCache`，长 token 是待验证假设而非已确认根因。
+  - [x] API 34 平板 AVD 两项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；独立 NotePanel 文本更新回归也通过。此合成测试未复现小米冷启动 ANR。
+  - [ ] 目标 Xiaomi Pad 5 Pro 冷启动重开隔离 69 页项目并恢复/跳转第 31 页，确认不再出现系统 ANR；先前异常仍未解决，不以 AVD 结果代替。
+  - SPEC：`features/large-markdown-page-layout.md`。后续按真实小米机和隔离项目证据定位 ANR；只运行相关 Android 14 AVD 回归、受影响 JVM 测试、Debug 构建及目标设备闭环。
+  - _Requirement: 阅读与笔记、阅读器会话恢复_
