@@ -2961,11 +2961,15 @@ private fun ReaderHome(
     noteStatus = null
   }
 
-  fun pendingCommand(id: String, labelRes: Int) = actionCommand(
+  fun pendingCommand(
+    id: String,
+    labelRes: Int,
+    reasonRes: Int = R.string.reader_menu_unavailable_reason,
+  ) = actionCommand(
     id = id,
     labelRes = labelRes,
     enabled = false,
-    disabledReason = unavailableReason,
+    disabledReason = context.getString(reasonRes),
     onSelect = {},
   )
 
@@ -3175,7 +3179,11 @@ private fun ReaderHome(
           "recent_documents", R.string.reader_menu_recent_documents, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) { showRecentProjectsDialog = true },
-        pendingCommand("attachments", R.string.reader_menu_attachments),
+        pendingCommand(
+          "attachments",
+          R.string.reader_menu_attachments,
+          R.string.reader_menu_attachments_unavailable,
+        ),
         actionCommand(
           "import_notes", R.string.reader_menu_import_notes, canImportNotes,
           disabledReason = commandReason(requireProject = true, requireWritable = true),
@@ -3565,7 +3573,11 @@ private fun ReaderHome(
       ReaderMenuGroup.WORD_EDITING,
       R.string.reader_menu_group_word_editing,
       listOf(
-        pendingCommand("office_edit", R.string.reader_menu_office_edit),
+        pendingCommand(
+          "office_edit",
+          R.string.reader_menu_office_edit,
+          R.string.reader_menu_office_desktop_only,
+        ),
         actionCommand(
           "selection_to_annotation",
           R.string.reader_menu_selection_to_annotation,
@@ -3604,7 +3616,11 @@ private fun ReaderHome(
             }
           }
         },
-        pendingCommand("save_return", R.string.reader_menu_save_return),
+        pendingCommand(
+          "save_return",
+          R.string.reader_menu_save_return,
+          R.string.reader_menu_save_return_desktop_session,
+        ),
       ),
     ),
     menuSection(

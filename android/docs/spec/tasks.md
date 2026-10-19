@@ -273,3 +273,9 @@
   - [ ] 目标 Xiaomi Pad 5 Pro 冷启动重开隔离 69 页项目并恢复/跳转第 31 页，确认不再出现系统 ANR；先前异常仍未解决，不以 AVD 结果代替。
   - SPEC：`features/large-markdown-page-layout.md`。后续按真实小米机和隔离项目证据定位 ANR；只运行相关 Android 14 AVD 回归、受影响 JVM 测试、Debug 构建及目标设备闭环。
   - _Requirement: 阅读与笔记、阅读器会话恢复_
+
+- [x] 31. Android 14 菜单禁用原因准确性（不再把尚未接入的应用命令归因于系统版本）
+  - 通用未接入命令使用中性原因；附件管理、复杂 Office 编辑、Save & Return 显示各自准确的移动端范围/桌面会话原因。
+  - `MainActivityLaunchTest.readerCommandsAreVisibleUnderDesktopMenuGroups` 在 API 34 平板 AVD 通过，覆盖禁用命令和英文/简体中文资源；`:app:testDebugUnitTest`、`:app:assembleDebug` 及 Android 测试源码编译通过。
+  - 契约见 `features/adaptive-menu-navigation.md`；本任务只修正提示，不代表附件或 Office 编辑能力已移植。
+  - _Requirement: 桌面菜单分组一致、Android 14 全功能目标_

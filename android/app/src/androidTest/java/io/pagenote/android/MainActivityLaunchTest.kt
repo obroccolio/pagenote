@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.res.Configuration
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -10,10 +11,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.Locale
 
 @RunWith(AndroidJUnit4::class)
 class MainActivityLaunchTest {
@@ -47,7 +50,31 @@ class MainActivityLaunchTest {
     composeRule.onNodeWithTag("reader_menu_command_office_edit")
       .performScrollTo()
       .assertIsNotEnabled()
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_office_desktop_only))
+    composeRule.onNodeWithTag("reader_menu_command_attachments")
+      .performScrollTo()
+      .assertIsNotEnabled()
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_attachments_unavailable))
+    composeRule.onNodeWithTag("reader_menu_command_save_return")
+      .performScrollTo()
+      .assertIsNotEnabled()
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_save_return_desktop_session))
+    composeRule.onNodeWithTag("reader_menu_command_about")
+      .performScrollTo()
+      .assertIsNotEnabled()
       .assertTextContains(composeRule.activity.getString(R.string.reader_menu_unavailable_reason))
+    assertTrue(
+      "a disabled menu item must not claim that the target Android 14 OS version is unsupported",
+      !composeRule.activity.getString(R.string.reader_menu_unavailable_reason).contains("Android", ignoreCase = true),
+    )
+    val chineseConfiguration = Configuration(composeRule.activity.resources.configuration).apply {
+      setLocale(Locale.SIMPLIFIED_CHINESE)
+    }
+    val chineseResources = composeRule.activity.createConfigurationContext(chineseConfiguration).resources
+    assertEquals("此命令尚未接入应用。", chineseResources.getString(R.string.reader_menu_unavailable_reason))
+    assertEquals("附件浏览与管理尚未接入。", chineseResources.getString(R.string.reader_menu_attachments_unavailable))
+    assertEquals("复杂 Office 文档编辑请回桌面端处理。", chineseResources.getString(R.string.reader_menu_office_desktop_only))
+    assertEquals("此命令需要可返回的桌面 Office 编辑会话。", chineseResources.getString(R.string.reader_menu_save_return_desktop_session))
   }
 
   @Test

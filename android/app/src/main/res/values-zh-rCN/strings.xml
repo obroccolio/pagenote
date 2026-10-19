@@ -36,7 +36,10 @@
   <string name="reader_menu_group_word_editing">Word 编辑</string>
   <string name="reader_menu_group_settings">设置</string>
   <string name="reader_menu_group_help">使用说明</string>
-  <string name="reader_menu_unavailable_reason">当前 Android 版本尚不支持。</string>
+  <string name="reader_menu_unavailable_reason">此命令尚未接入应用。</string>
+  <string name="reader_menu_attachments_unavailable">附件浏览与管理尚未接入。</string>
+  <string name="reader_menu_office_desktop_only">复杂 Office 文档编辑请回桌面端处理。</string>
+  <string name="reader_menu_save_return_desktop_session">此命令需要可返回的桌面 Office 编辑会话。</string>
   <string name="reader_menu_project_required">请先打开项目再使用此命令。</string>
   <string name="reader_menu_pdf_required">此命令需要 PDF 原文。</string>
   <string name="reader_menu_busy">请先完成或取消当前操作。</string>
