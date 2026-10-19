@@ -250,6 +250,26 @@ internal fun ReaderSettingsDialog(
           )
         }
 
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(stringResource(R.string.ink_outside_page_title))
+            Text(
+              stringResource(R.string.ink_outside_page_description),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Switch(
+            checked = draft.allowInkOutsidePage,
+            onCheckedChange = { draft = draft.copy(allowInkOutsidePage = it) },
+            enabled = !isSaving,
+          )
+        }
+
         TextButton(
           modifier = Modifier.fillMaxWidth().testTag(
             if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",

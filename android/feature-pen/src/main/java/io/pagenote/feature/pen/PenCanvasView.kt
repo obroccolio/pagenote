@@ -41,6 +41,12 @@ class PenCanvasView @JvmOverloads constructor(
   private var activeColor = "#dc3545"
   private var activeWidth = 3.0
 
+  var pageTransform: PenCanvasPageTransform? = null
+    set(value) {
+      field = value
+      invalidate()
+    }
+
   var selectedTool: PenCanvasTool = PenCanvasTool.PEN
     set(value) {
       field = value
@@ -69,7 +75,7 @@ class PenCanvasView @JvmOverloads constructor(
   var onStrokeAdded: ((PenStroke) -> Unit)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
-  var onAnnotationSelectionTouch: ((MotionEvent, Float, Int) -> Boolean)? = null
+  var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
   var selectedIndex: Int? = null
     set(value) {
@@ -93,8 +99,11 @@ class PenCanvasView @JvmOverloads constructor(
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
     if (width <= 0 || height <= 0) return
+    val geometry = geometry()
+    if (!geometry.isValid) return
     val save = canvas.save()
-    canvas.scale(width / 1000f, width / 1000f)
+    canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
+    canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
     internalStrokes.forEach { drawStroke(canvas, it) }
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
@@ -247,7 +256,7 @@ class PenCanvasView @JvmOverloads constructor(
     if (annotationSelectionPointerId != INVALID_POINTER) {
       onAnnotationSelectionTouch?.invoke(
         event,
-        width.toFloat(),
+        geometry(),
         event.findPointerIndex(annotationSelectionPointerId),
       )
       when (event.actionMasked) {
@@ -268,7 +277,7 @@ class PenCanvasView @JvmOverloads constructor(
       MotionEvent.ACTION_DOWN -> {
         val pointerIndex = event.actionIndex
         if (!isSupportedTool(event.getToolType(pointerIndex))) return false
-        if (onAnnotationSelectionTouch?.invoke(event, width.toFloat(), pointerIndex) == true) {
+        if (onAnnotationSelectionTouch?.invoke(event, geometry(), pointerIndex) == true) {
           annotationSelectionPointerId = event.getPointerId(pointerIndex)
           selectionPointerId = annotationSelectionPointerId
           selectedIndex = null
@@ -280,7 +289,7 @@ class PenCanvasView @JvmOverloads constructor(
         selectionPointerId = event.getPointerId(pointerIndex)
         requestUnbufferedDispatch(event)
         val radius = 18f * resources.displayMetrics.density
-        val nextSelection = PenCanvasGeometry(width.toFloat(), height.toFloat())
+        val nextSelection = geometry()
           .hitTest(internalStrokes, event.getX(pointerIndex), event.getY(pointerIndex), radius)
         if (selectedIndex != nextSelection) {
           selectedIndex = nextSelection
@@ -299,7 +308,7 @@ class PenCanvasView @JvmOverloads constructor(
       }
       MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
         val hadSelectionGesture = selectionPointerId != INVALID_POINTER
-        onAnnotationSelectionTouch?.invoke(event, width.toFloat(), event.actionIndex)
+        onAnnotationSelectionTouch?.invoke(event, geometry(), event.actionIndex)
         selectionPointerId = INVALID_POINTER
         return hadSelectionGesture
       }
@@ -350,13 +359,13 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
-    val point = PenCanvasGeometry(width.toFloat(), height.toFloat())
+    val point = geometry()
       .toDocumentPoint(xPx, yPx, pressure) ?: return
     if (activePoints.lastOrNull() != point) activePoints.add(point)
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
-    val index = PenCanvasGeometry(width.toFloat(), height.toFloat())
+    val index = geometry()
       .hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
     internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
     onStrokeErased?.invoke(index)
@@ -385,6 +394,8 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
+
+  private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
   private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
     val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)

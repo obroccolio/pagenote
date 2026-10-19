@@ -8,6 +8,7 @@ data class ReaderSettings(
   val leftPercent: Int = 42,
   val noteAnimation: Boolean = true,
   val noteFontSize: Int = 15,
+  val allowInkOutsidePage: Boolean = false,
 )
 
 object ReaderSettingsPolicy {

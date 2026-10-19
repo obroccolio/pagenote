@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Make PDF handwriting track zoom/pan in the reader viewport, preserve page-space coordinates and hit testing, and add a persisted setting for writing in visible margins outside the page. Verified by focused pen/settings unit tests, API 34 tablet interaction regression, and Debug APK build. Source-only update; no public binary release. / 让 PDF 手写在阅读视口中正确跟随缩放/平移，保留页面坐标与命中行为，并新增可持久化的页外可见边缘书写开关。手写/设置定向单测、API 34 平板交互回归及 Debug APK 构建通过。本次仅同步源码，不发布公开二进制。
 - Add single-finger vertical PDF page swipes and accessible previous/next buttons beside page jump; preserve save-aware page transitions and boundary behavior. Verified the focused API 34 tablet AVD flow (5/5). Source-only update; no public binary release. / 新增 PDF 单指上下滑动翻页，以及页码跳转旁的上一页/下一页无障碍按钮；沿用保存保护和首末页边界行为。API 34 平板模拟器定向流程 5/5 通过。本次仅同步源码，不发布公开二进制。
 - Document the next Android reader implementation slices for swipe navigation, zoom-aware/outside-page ink, local page prefetch and dwell-based shape recognition. This is SPEC-only; no runtime code or public binary release is included. / 补充 Android 阅读器后续 SPEC：滑动翻页、缩放/页外笔迹、本地页面预解析和停留识别形状。本次仅文档，不含运行时代码或公开二进制发布。
 - Add a native Android 14+ beta app with page-linked PDF/Markdown reading, offline OCR, stylus annotations, AI tools and rich HTML PDF annotations. Publish Android as a separate `io.pagenote.android.beta` ARM64 sideload APK; no desktop package or stable download is changed. / 新增 Android 14+ 原生测试版，包含逐页 PDF/Markdown 阅读、离线 OCR、手写笔批注、AI 工具和富 HTML PDF 批注。Android 以独立 `io.pagenote.android.beta` ARM64 侧载 APK 发布，不改桌面包或稳定版下载入口。

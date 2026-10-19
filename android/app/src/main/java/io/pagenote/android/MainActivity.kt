@@ -143,6 +143,8 @@ import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultMapper
 import io.pagenote.feature.ocr.OcrResultPolicy
 import io.pagenote.feature.pen.PenCanvasTool
+import io.pagenote.feature.pen.PenCanvasGeometry
+import io.pagenote.feature.pen.PenCanvasPageTransform
 import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenClipboardCodec
 import io.pagenote.feature.pen.PenPageStore
@@ -900,14 +902,26 @@ private fun ReaderHome(
     if (redoNativeAnnotationPage()) lastEditWasAnnotation[targetPage] = true
   }
 
-  fun handleNativeAnnotationSelectionTouch(event: MotionEvent, viewWidth: Float, pointerIndex: Int): Boolean {
-    if (viewWidth <= 0f) return false
+  fun handleNativeAnnotationSelectionTouch(
+    event: MotionEvent,
+    geometry: PenCanvasGeometry,
+    pointerIndex: Int,
+  ): Boolean {
+    if (!geometry.isValid) return false
     if (pointerIndex !in 0 until event.pointerCount && event.actionMasked != MotionEvent.ACTION_CANCEL) return false
-    // PenCanvasView uses the shared 1000-unit page space at width/1000 scale.
-    val scale = 1000.0 / viewWidth
     val safePointerIndex = pointerIndex.takeIf { it in 0 until event.pointerCount } ?: 0
-    val x = if (event.pointerCount > 0) event.getX(safePointerIndex) * scale else 0.0
-    val y = if (event.pointerCount > 0) event.getY(safePointerIndex) * scale else 0.0
+    val point = if (event.pointerCount > 0) {
+      geometry.toDocumentPoint(
+        event.getX(safePointerIndex),
+        event.getY(safePointerIndex),
+        pressure = null,
+        clampToPage = false,
+      )
+    } else {
+      null
+    }
+    val x = point?.x?.toDouble() ?: 0.0
+    val y = point?.y?.toDouble() ?: 0.0
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         val activeIndex = selectedAnnotationIndex
@@ -922,7 +936,7 @@ private fun ReaderHome(
           annotationPageItems,
           x,
           y,
-          tolerance = (18.0 * densityScale * scale).coerceAtLeast(18.0),
+          tolerance = geometry.documentUnitsForPixels(18f * densityScale).toDouble().coerceAtLeast(0.1),
         )
         if (hit == null) {
           selectedAnnotationIndex = null
@@ -4367,6 +4381,7 @@ private fun ReaderHome(
                 onTextSelectionChanged = { pdfTextSelection = it },
                 gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
+                allowInkOutsidePage = settings.allowInkOutsidePage,
                 pageSwipesEnabled = activeRenderer != null && canChangePage &&
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
@@ -4500,6 +4515,7 @@ private fun ReaderHome(
                 onTextSelectionChanged = { pdfTextSelection = it },
                 gesturesEnabled = !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
+                allowInkOutsidePage = settings.allowInkOutsidePage,
                 pageSwipesEnabled = activeRenderer != null && canChangePage &&
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
@@ -5988,7 +6004,7 @@ internal fun PdfPageViewport(
   onStrokeErased: (Int) -> Unit,
   selectedStrokeIndex: Int? = null,
   onSelectedStrokeChanged: (Int?) -> Unit = {},
-  onAnnotationSelectionTouch: (MotionEvent, Float, Int) -> Boolean = { _, _, _ -> false },
+  onAnnotationSelectionTouch: (MotionEvent, PenCanvasGeometry, Int) -> Boolean = { _, _, _ -> false },
   transform: PdfViewportTransform,
   onTransformChanged: (PdfViewportTransform) -> Unit,
   onBoundsChanged: (PdfViewportBounds) -> Unit,
@@ -6006,6 +6022,7 @@ internal fun PdfPageViewport(
   onAnnotationDrag: (PdfSelectionPoint, PdfSelectionPoint, Boolean) -> Unit = { _, _, _ -> },
   pageSwipesEnabled: Boolean = false,
   onPageSwipe: (PdfPageSwipeDirection) -> Unit = {},
+  allowInkOutsidePage: Boolean = false,
   penStyle: PenStyle = PenStyle.DEFAULT,
   modifier: Modifier = Modifier,
 ) {
@@ -6044,6 +6061,12 @@ internal fun PdfPageViewport(
       }
       LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
 
+      val pageLayerModifier = Modifier.width(contentWidth).height(contentHeight).graphicsLayer {
+        scaleX = transform.scale
+        scaleY = transform.scale
+        translationX = transform.translationX
+        translationY = transform.translationY
+      }
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
           page, bounds, pageText, textSelectionEnabled, selectionEnabled, gesturesEnabled,
@@ -6213,12 +6236,7 @@ internal fun PdfPageViewport(
         contentAlignment = Alignment.Center,
       ) {
         Box(
-          modifier = Modifier.width(contentWidth).height(contentHeight).graphicsLayer {
-            scaleX = transform.scale
-            scaleY = transform.scale
-            translationX = transform.translationX
-            translationY = transform.translationY
-          },
+          modifier = pageLayerModifier,
           contentAlignment = Alignment.Center,
         ) {
           Image(
@@ -6234,22 +6252,32 @@ internal fun PdfPageViewport(
             selectedBounds = selectedAnnotationBounds,
             showResizeHandle = selectedAnnotationResizable,
           )
-          AndroidView(
-            modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
-            factory = { viewContext -> PenCanvasView(viewContext).also { inkCanvasView = it } },
-            update = { view ->
-              view.strokes = strokes
-              view.selectedTool = tool
-              view.selectedIndex = selectedStrokeIndex
-              view.penColor = penStyle.color
-              view.penWidth = penStyle.width
-              view.inputEnabled = inputEnabled
-              view.onStrokeAdded = onStrokeAdded
-              view.onStrokeErased = onStrokeErased
-              view.onSelectionChanged = latestOnSelectedStrokeChanged
-              view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
-            },
-          )
+        }
+        AndroidView(
+          modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
+          factory = { viewContext -> PenCanvasView(viewContext).also { inkCanvasView = it } },
+          update = { view ->
+            view.strokes = strokes
+            view.selectedTool = tool
+            view.selectedIndex = selectedStrokeIndex
+            view.penColor = penStyle.color
+            view.penWidth = penStyle.width
+            view.inputEnabled = inputEnabled
+            view.pageTransform = PenCanvasPageTransform(
+              pageWidthPx = bounds.pageWidthPx,
+              pageHeightPx = bounds.pageHeightPx,
+              scale = transform.scale,
+              translationX = transform.translationX,
+              translationY = transform.translationY,
+              allowOutsidePage = allowInkOutsidePage,
+            )
+            view.onStrokeAdded = onStrokeAdded
+            view.onStrokeErased = onStrokeErased
+            view.onSelectionChanged = latestOnSelectedStrokeChanged
+            view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
+          },
+        )
+        Box(modifier = pageLayerModifier, contentAlignment = Alignment.Center) {
           OcrSelectionOverlay(selection)
           PdfTextSelectionOverlay(pageText, textSelection)
         }

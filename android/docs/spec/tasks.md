@@ -332,9 +332,10 @@
   - 翻页策略 JVM 测试 4/4、API 34 平板 AVD 交互/按钮流程 5/5、测试源码编译及 `:app:assembleDebug` 通过。
   - SPEC：`features/reader-page-navigation.md`。
 
-- [ ] 40. 缩放笔迹坐标与页外书写设置
+- [x] 40. 缩放笔迹坐标与页外书写设置
   - 缩放/平移时使用视口变换的逆变换采集笔迹、正变换渲染与命中；默认限制在 PDF 页内，可在阅读设置允许页外可见区域书写。
   - 保持桌面兼容的 `annotations.json` 坐标与既有压力、撤销/重做语义。
+  - 几何/命中与 DataStore 定向单测、Debug APK 构建通过；唯一 API 34 平板 AVD 翻页交互回归通过。
   - SPEC：`features/zoomed-ink-and-extended-canvas.md`。
 
 - [ ] 41. 当前页及后续页自动预解析
