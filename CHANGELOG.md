@@ -2,7 +2,7 @@
 
 ## Android 1.0.0-beta.3 — 2026-10-20
 
-- Fix Android editor stalls on very long unbroken Markdown tokens with editor-only layout boundaries; preserve original Markdown, selection offsets, copy/cut/paste, drafts and saved project text. Verified cold start, IME page jump, save and reopen on the API 34 tablet AVD; Xiaomi Pad 5 Pro was not re-tested. / 修复 Android 编辑器遇到超长连续 Markdown token 时的卡顿，仅在编辑缓冲区加入排版边界，原始 Markdown、选区偏移、复制/剪切/粘贴、草稿和项目保存内容均保持不变。已在 API 34 平板模拟器验证冷启动、输入法跳页、保存和重开；本次未重新测试小米平板 5 Pro 真机。
+- Fix Android editor stalls on very long unbroken Markdown tokens with editor-only layout boundaries; preserve original Markdown, selection offsets, copy/cut/paste/share, drafts and saved project text. Verified cold start, IME page jump, save and reopen on the API 34 tablet AVD; Xiaomi Pad 5 Pro was not re-tested. / 修复 Android 编辑器遇到超长连续 Markdown token 时的卡顿，仅在编辑缓冲区加入排版边界，原始 Markdown、选区偏移、复制/剪切/粘贴/分享、草稿和项目保存内容均保持不变。已在 API 34 平板模拟器验证冷启动、输入法跳页、保存和重开；本次未重新测试小米平板 5 Pro 真机。
 
 ## Unreleased / 尚未发布
 
