@@ -12,7 +12,9 @@ async function checkAndroidRelease(root, tag) {
   const versionSuffix =
     gradle.match(/versionNameSuffix\s*=\s*"([^"]*)"/)?.[1] ?? '';
   if (!Number.isInteger(versionCode) || versionCode < 1 || !versionName)
-    throw Error('Android build.gradle.kts has incomplete release version metadata');
+    throw Error(
+      'Android build.gradle.kts has incomplete release version metadata',
+    );
 
   const version = versionName + versionSuffix;
   const androidTag = 'android-v' + version;
@@ -39,8 +41,7 @@ export async function checkReleaseVersion(root, { release = false, tag } = {}) {
   const version = pkg.version;
   if (lock.version !== version || lock.packages?.['']?.version !== version)
     throw Error('package.json and package-lock.json versions differ');
-  if (tag?.startsWith('android-v'))
-    return checkAndroidRelease(root, tag);
+  if (tag?.startsWith('android-v')) return checkAndroidRelease(root, tag);
   if (tag && tag !== 'v' + version)
     throw Error('Git tag does not match package version');
   if (release) {
@@ -53,8 +54,7 @@ export async function checkReleaseVersion(root, { release = false, tag } = {}) {
         if (error.code !== 'ENOENT') throw error;
       }
       if (gradle) {
-        const versionName =
-          gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1];
+        const versionName = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1];
         const versionSuffix =
           gradle.match(/versionNameSuffix\s*=\s*"([^"]*)"/)?.[1] ?? '';
         const androidVersion = versionName && versionName + versionSuffix;

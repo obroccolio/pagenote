@@ -16,6 +16,7 @@
 
 ## Unreleased / 尚未发布
 
+- Merge the upstream stable branch: state the author's non-commercial-use requirement in both READMEs, adopt `docs/RELEASE-POLICY.md` and the consolidated `KNOWN_ISSUES.md`, add the English-UI, acceptance-recovery and soak test scripts, and restore the native File → version-history entry. No public package is published by this merge. / 合入上游正式分支：中英文 README 标注禁止商业使用，引入发布基准与合并后的已知问题清单，新增英文界面、验收恢复与长时间测试脚本，并恢复原生“文件 → 历史版本”入口；本次合并不发布安装包。
 - Update the public Android APK and release-notes links to the published 1.0.0-beta.5 release; keep desktop download links unchanged. / 将公开 Android APK 与发布说明链接更新到已发布的 1.0.0-beta.5，桌面下载链接保持不变。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。
 - Strengthen Android API 34 regression coverage for real-PDF swipe navigation, zoomed stylus coordinate mapping, extended-canvas bounds, and page-prefetch cancellation on page changes. / 加强 Android API 34 回归覆盖：真实 PDF 双向滑动翻页、缩放手写坐标映射、页外书写边界，以及预解析队列随翻页取消旧窗口。
@@ -43,6 +44,17 @@
 - Begin local 1.0.1 development; public downloads remain on v1.0.0. / 开始本地 1.0.1 开发，公开下载仍为 v1.0.0。
 - Store welcome dismissal in the application profile so it survives server-port changes; hide upcoming stroke caps until writing starts. / 欢迎页关闭状态保存到应用数据目录，换端口后仍能记忆；修复尚未书写的笔画提前露出圆点。
 
+- State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
+
+### 1.0.1 Windows patch candidate
+
+- Backport only the Mermaid measurement-container fix from obroccolio PR #6: temporary SVG measurements no longer enter the window grid or move page/word-count footers while navigating. Always clean measurement nodes on success and failure. / 仅回移 Mermaid 测量节点修复，防止翻页时页码与字数底栏上跳，正常及异常路径均清理节点。
+- Add frame-by-frame cold/warm/repeated/scroll/error diagram navigation regression coverage. Beta themes, native settings and welcome UI are excluded. / 增加逐帧翻页回归；不包含 Beta 主题、设置与欢迎页。
+- Source patch version is 1.0.1; existing public v1.0.0 binaries and downloads remain unchanged until a separate matching package release. / 修复源码版本为 1.0.1，已发布 1.0.0 安装包保持不变。
+- Separate stable README/download entries from beta; main offers Windows v1.0.0 only, with a link to the beta branch. Documentation only; stable binaries and application code unchanged. / 正式版文档仅提供对应正式包，实验性下载移至测试渠道；不更改正式程序或发布产物。
+- Surface Mac Office bridge limits, PDF screenshot permissions and recoverable working copies in both READMEs; distinguish Windows file-association scripts from Finder usage. / 将 Mac 配套文档中的 Office 限制、截图权限与恢复副本说明提到主 README，区分 Windows 注册脚本与 Mac 项目打开方式。
+- Expand both READMEs with verified contributor-hosted Mac DMG/ZIP links for Apple Silicon and Intel, installation/Office permissions, platform status and contributor credits. Documentation only; published binaries remain unchanged. / 完善中英文 README，加入贡献者提供的 Mac 双架构安装包、安装与 Office 权限说明及贡献致谢，明确其测试版和独立构建身份；不替换已发布程序。
+
 ## Android 1.0.0-beta.2 — 2026-10-20
 
 - Add single-finger vertical PDF page swipes and accessible previous/next buttons beside page jump, preserving save-aware transitions and page boundaries. / 新增 PDF 单指上下滑动翻页，以及页码跳转旁的上一页/下一页无障碍按钮；沿用保存保护与首末页边界行为。
@@ -51,10 +63,29 @@
 - Recognize line, arrow, rectangle and ellipse shapes after a 550 ms stylus-end dwell, with preview, freehand fallback and native annotation undo/redo persistence. / 手写笔末端停留 550 毫秒后识别直线、箭头、矩形和椭圆，提供预览、自由笔迹回退及原生批注撤销/重做。
 - Verified the focused API 34 tablet AVD flows, all seven pen instrumentation tests, Android unit tests and the beta APK build. This ARM64 Android prerelease does not change desktop packages or stable download links. / 已验证 API 34 平板模拟器定向流程、7 项手写仪器测试、Android 单元测试和测试版 APK 构建。本 ARM64 Android 预发布不改桌面安装包或稳定版下载链接。
 
+## 1.0.0 — 2026-10-17
+
+- Attribute acceptance to LTH0001's Windows tests (PR #4) plus the founder's supplementary local tests, with final release approval by the founder. / 发布依据为 LTH0001 测试加发起人本机补测，由发起人综合结果放行。
+
+- Freeze Windows v1.0 under the founder-approved early-stage release baseline; macOS remains experimental (1.0.0-beta.1 builds). / 依据发起人确认的早期分级质量门槛冻结 Windows v1.0 正式版，Mac 继续作为测试版。
+- Integrate PR #3 and #4, preserve both test suites, and retain PR #2 regression coverage without replacing the equivalent existing formula fix. / 合入 Mac 适配与候选版验收，保留双方测试和公式修复回归。
+- Record non-blocking defects and environment gaps in KNOWN_ISSUES.md; include DMG checksums. / 非阻断问题及未验证范围统一归档，补齐 DMG 校验值。
+
 ## 1.0.0 — 2026-10-16 (macOS)
 
 - First stable release for macOS (Apple Silicon and Intel): native Finder/Dock/menus, Word/PowerPoint integration with revision-checked edits, offline Chinese/English OCR, page-linked notes and MCP bridge. / macOS 首个正式版（Apple Silicon 与 Intel）：原生 Finder/Dock/菜单、Word/PPT 接入与版本校验编辑、离线中英文 OCR、逐页笔记与 MCP 接口。
 - Ships DMG and ZIP for arm64 and x64 with SHA256 checksums. / 提供 arm64 与 x64 的 DMG 和 ZIP，附 SHA256 校验值。
+
+### Candidate preparation history / 候选版准备记录
+
+- Freeze the beta.5 feature scope on `release/2.0`; this candidate is for acceptance testing and is not a stable release. / 在 `release/2.0` 冻结 beta.5 功能范围，本候选版只用于验收，不代表正式放行。
+- Restore the existing version-history dialog through the native File menu after the old toolbar was hidden. / 修复旧工具栏隐藏后版本历史无可见入口的问题，可从原生“文件”菜单打开并恢复历史笔记。
+- Fix the English-Windows prompt-settings test timeout by checking save responses instead of Chinese status text; wait for asynchronous Tag cards and update continuous-reading tests to the current editor. / 修复英文 Windows 下提示词设置测试误等中文文案的超时，等待异步 Tag 卡片更新，并使连续阅读用例适配当前编辑方式。
+- Add an independent-terminal acceptance record and retain failed-run evidence separately from candidate retests. / 补充独立终端验收记录，保留原始失败与候选版复测证据。
+- Make the continuous-reading test use a desktop wide enough for its footer controls, and keep the soak test in note-edit mode between saved edits. These are test-harness corrections only. / 连续阅读测试固定足够宽的桌面，长时间测试避免重复切换笔记编辑状态；本次仅修正测试脚本。
+- Wait for the Electron window before resizing it in the continuous-reading harness. / 连续阅读测试等待 Electron 窗口创建后再调整大小，消除冷启动竞态。
+- Type soak-test edits into a normal paragraph so revisiting a page retains its expected heading. / 长时间测试在普通正文段落输入，避免测试文字改变用于定位的标题。
+- Explicitly reopen the test document before checking all 60 saved pages after restart; add a short packaged smoke run for this harness, separate from one-hour stability acceptance. / 长测重启后显式打开测试文档并核对 60 页数量；CI 增加打包版脚本短跑，明确不替代一小时稳定性验收。
 
 - Adapt the beta.5 release tooling for macOS: route desktop packaging through a cache-aware wrapper, add version-consistency checks to both release jobs, and keep Mac menus/packaging coverage. / 适配 beta.5 发布流程：打包走缓存脚本、两条发布流水线接入版本检查，保留 Mac 菜单与打包覆盖。
 

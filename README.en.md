@@ -1,4 +1,6 @@
-# pagenote Android Beta
+# pagenote
+
+**Usage policy: This project is for non-commercial use only. Commercial use is not permitted.**
 
 **[⬇ Download the Android 14 Beta APK (ARM64)](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk)** · [Release notes and checksum](https://github.com/obroccolio/pagenote/releases/tag/android-v1.0.0-beta.5)
 
@@ -72,17 +74,33 @@ Annotations collect in a workbench for the corresponding pane. You can also reco
 
 ![AI annotation workbench with a local revision request](docs/images/ai-workbench.png)
 
-**Current public version: 1.0.0.** Try it with something you are actually learning, and report issues with the version, steps and a screenshot.
+Pagenote currently supports two-pane reading, page-linked notes and AI annotations. Its MCP interface lets AI read and edit page content. The app does not include a model; detailed page-by-page explanations and image generation require an AI client with the relevant capabilities.
+
+Follow the [page-by-page teaching workflow](docs/MCP.en-US.md#page-by-page-teaching): make a separate generation request for each page, give it sufficient current-page context and include the previous and next source pages without waiting for earlier explanations. Do not generate a whole chapter and split it into pages afterward.
+
+Beta.5 includes a [page tutor skill](skills/pagenote-page-tutor/SKILL.md). Use **AI Annotations → Copy page-by-page teaching prompt**, or select the MCP prompt `pagenote-page-tutor` and supply a learner background, page range and goal. AI clients can also read `page-notes://skills/page-tutor`. The template guides a connected client; it does not call a model by itself.
+
+Use **Settings → AI settings** to edit or restore the default system prompt. General document tasks keep their scope; the page tutor applies only to relevant learning requests. The prompt is saved locally. Reconnect the AI client after saving. MCP supplies the instructions; the client controls its actual system-prompt layer.
+
+Beta.5 reads source and notes separately, fetches only the needed note passages, and saves concise page handoffs inside the project. Handoffs are marked stale when source or notes change, leaving more context for the current explanation. See the [MCP read options](docs/MCP.en-US.md#token-efficient-reads).
+
+It also bundles offline Chinese/English OCR and prepares reusable positioned text, confidence, page/region images and native Markdown table/Mermaid assets. Sources and visuals remain available for checking uncertain formulas and charts. See [local page preparation](docs/LOCAL-PREPARATION.md).
+
+**Current versions: Mac 1.0.0 stable / Android 1.0.0-beta.5.**
 
 ## Download and install
 
-[Apple Silicon DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg) · [Intel DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) · [Apple Silicon ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) · [Intel ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) · [Release notes and checksums](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)
+[Apple Silicon DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg) · [Intel DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) · [Apple Silicon ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) · [Intel ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) · [Android 14 beta APK (ARM64)](https://github.com/obroccolio/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk) · [Release notes and checksums](https://github.com/obroccolio/pagenote/releases)
 
 1. Download the DMG for your chip from this repository's **Releases** (arm64 for Apple Silicon, x64 for Intel).
 2. Open the DMG and drag pagenote into Applications.
 3. Choose Simplified Chinese or English under **Settings → Language / 语言**.
 
 Alternatively, extract the ZIP and run pagenote directly. The current build is not Apple-signed; if Gatekeeper blocks the first launch, allow it under **System Settings → Privacy & Security**.
+
+### macOS status
+
+macOS remains experimental; it is not offered as a stable download here. Check the [beta branch](https://github.com/laihong06/pagenote/tree/beta) for matching test builds and availability. Contributor and Office documentation remain in [Mac setup](docs/MAC-OFFICE.md).
 
 ## Other controls
 
@@ -110,9 +128,12 @@ My project/
 
 With the installed app, double-click `project.pagenote`, or choose it under **File → Open project**. Legacy `project.page-notes.json` files remain supported. Move the complete folder, not just its manifest.
 
+On Mac, move pagenote to Applications and open projects through Finder or **File → Open project**. If needed, select pagenote under **Open With**; Windows `.cmd` registration scripts do not apply to Mac.
+
 ## Requirements
 
 - macOS 12 or later, with Apple Silicon and Intel builds.
+- Android 14 (API 34) or later on ARM64 tablets; the Xiaomi Pad 5 Pro is the intended device, and other Android versions and devices are outside the current scope.
 - PDF and Markdown do not require Office. Word/PPT import, project preview and post-save refresh need locally licensed **Microsoft Word / PowerPoint**.
 - The distribution includes the Node.js runtime used by MCP. End users do not need a Node.js installation.
 
@@ -136,9 +157,17 @@ Please [open an issue](https://github.com/obroccolio/pagenote/issues/new) to rep
 
 ## License
 
-[MIT License](LICENSE), including commercial use. Dependencies have separate licenses; retain `THIRD-PARTY-NOTICES.txt`, the Node.js license and Electron/Chromium license files when distributing. Microsoft Office licensing is the user's responsibility.
+The author prohibits commercial use. The current [LICENSE](LICENSE) remains MIT and is inconsistent with this usage policy; it has not yet been changed, and this statement does not replace its existing terms. Dependencies have separate licenses; retain `THIRD-PARTY-NOTICES.txt`, the Node.js license and Electron/Chromium license files when distributing. Microsoft Office licensing is the user's responsibility.
 
 MCP integration: [English](docs/MCP.en-US.md) · [中文](MCP接口说明.md)
 
 Editor and icon changes: [reference](docs/EDITOR-REFERENCE.md).
 Standalone imports edit the managed local copy; projects edit the linked file in `src`. Save, then return to pagenote.
+
+Beta.5 routes tasks through `page-notes://prompts/index`. Read only relevant, changed modules via `page_notes_read_prompt`. AI settings can customize each module. Page requests may run concurrently: recommend `max(1, floor(total pages / 10))`, capped by remaining pages, client/service limits and available resources. `page_notes_validate_note` checks formatting and local image assets before publication; it is not a guarantee of factual correctness or cross-device rendering.
+
+## Contributors
+
+Thanks to [obroccolio](https://github.com/obroccolio) for Mac support, the Android port and downloadable builds, and [LTH0001](https://github.com/LTH0001) for formula regression coverage and acceptance-test improvements. Forks and PRs are welcome; include a changelog entry and describe the platforms and scope tested.
+
+[Release policy](docs/RELEASE-POLICY.md) · [Known issues](KNOWN_ISSUES.md)

@@ -18,12 +18,19 @@ const app = await electron.launch({
   args: [root],
   env: {
     ...process.env,
-    PAGE_NOTES_USER_DATA: path.join(root, 'tests/continuous-data'),
+    PAGE_NOTES_USER_DATA: path.join(
+      root,
+      'tests/continuous-data-' + Date.now(),
+    ),
   },
   timeout: 40000,
 });
 try {
   const w = await app.firstWindow();
+  // Keep the full footer controls visible on small CI desktops.
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setSize(1600, 1000),
+  );
   await w.waitForFunction(() => !!window.pageNotes);
   await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLayout({ expandEditor: false }));
@@ -37,21 +44,21 @@ try {
   });
   assert.equal(await w.locator('.document-sheet').count(), 3);
   await w.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
-  await w.locator('#noteScroll').click({ position: { x: 40, y: 40 } });
-  await w.locator('#preview').fill('第一页尚未保存的笔记');
-  const boundary = await w.evaluate(() => {
-    const el = document.querySelector('#documentScroll'),
-      s = [...document.querySelectorAll('.document-sheet')];
-    return (
-      (s[0].offsetTop + s[0].offsetHeight + s[1].offsetTop) / 2 -
-      el.clientHeight / 2
-    );
-  });
-  await w.evaluate((top) => {
-    const el = document.querySelector('#documentScroll');
-    el.dispatchEvent(new WheelEvent('wheel'));
-    el.scrollTop = top;
-  }, boundary - 12);
+  await w.locator('.note-pane .pane-heading').click();
+  await w.locator('#preview').click();
+  await w.keyboard.insertText('第一页尚未保存的笔记');
+  const crossMidpoint = (offset) =>
+    w.evaluate((offset) => {
+      const el = document.querySelector('#documentScroll');
+      const sheets = [...document.querySelectorAll('.document-sheet')];
+      const top =
+        (sheets[0].offsetTop + sheets[0].offsetHeight + sheets[1].offsetTop) /
+          2 -
+        el.clientHeight / 2;
+      el.dispatchEvent(new WheelEvent('wheel'));
+      el.scrollTop = top + offset;
+    }, offset);
+  await crossMidpoint(-12);
   await w.waitForTimeout(200);
   assert.equal(
     await w.locator('#pageNumber').inputValue(),
@@ -66,20 +73,13 @@ try {
     });
   });
   assert.ok(visible, 'both neighboring pages visible before switch');
-  await w.evaluate((top) => {
-    const el = document.querySelector('#documentScroll');
-    el.dispatchEvent(new WheelEvent('wheel'));
-    el.scrollTop = top;
-  }, boundary + 12);
+  await crossMidpoint(12);
   await w.waitForFunction(
     () => document.querySelector('#pageNumber').value === '2',
   );
-  await w.locator('#preview').fill('第二页自己的笔记');
-  await w.evaluate((top) => {
-    const el = document.querySelector('#documentScroll');
-    el.dispatchEvent(new WheelEvent('wheel'));
-    el.scrollTop = top;
-  }, boundary - 12);
+  await w.locator('#preview').click();
+  await w.keyboard.insertText('第二页自己的笔记');
+  await crossMidpoint(-12);
   await w.waitForFunction(
     () => document.querySelector('#pageNumber').value === '1',
   );
