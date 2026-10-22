@@ -1,9 +1,10 @@
 {
   "name": "pagenote",
-  "version": "1.0.1-dev.5",
+  "version": "1.0.1-dev.7",
   "private": true,
   "type": "module",
   "scripts": {
+    "test:bookshelf": "node tests/bookshelf-store.mjs && node tests/bookshelf-covers.mjs && node tests/bookshelf-projects.mjs && node tests/yuketang-save-race.mjs && node tests/bookshelf-ui.mjs",
     "dev": "node server.mjs --dev",
     "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && vite build && node scripts/build-mcp.mjs",
     "start": "node server.mjs",
@@ -23,7 +24,7 @@
     "test:mcp": "node tests/mcp.mjs",
     "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
     "test:release": "node tests/footer-stability.mjs && node tests/trackpad.mjs && node tests/continuous.mjs && node tests/ai-workspace.mjs && node tests/native-settings.mjs && node tests/native-settings-app.mjs && node tests/settings-quit-race.mjs && node tests/native-settings-fallback.mjs && node tests/paper-theme.mjs && node tests/theme.mjs && node tests/hello.mjs && node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs",
-    "test:yuketang": "node tests/yuketang-login.mjs && node tests/yuketang-current-lessons.mjs && node tests/yuketang-selection.mjs && node tests/yuketang-live-recovery.mjs && node tests/yuketang-live-service.mjs && node tests/yuketang-projects.mjs && node tests/yuketang-import-route.mjs",
+    "test:yuketang": "node tests/yuketang-login.mjs && node tests/yuketang-current-lessons.mjs && node tests/yuketang-selection.mjs && node tests/yuketang-history.mjs && node tests/yuketang-live-recovery.mjs && node tests/yuketang-live-service.mjs && node tests/yuketang-projects.mjs && node tests/yuketang-import-route.mjs && node tests/yuketang-live-project-route.mjs",
     "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs",
     "test:english": "node tests/english-windows.mjs",
     "test:acceptance": "node tests/acceptance-recovery.mjs",
@@ -62,6 +63,7 @@
     "esbuild": "^0.28.2",
     "highlight.js": "^11.12.0",
     "katex": "0.18.7",
+    "lucide": "1.61.0",
     "marked": "^16.3.0",
     "marked-katex-extension": "^5.1.4",
     "mermaid": "^12.2.0",
